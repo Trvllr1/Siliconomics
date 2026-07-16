@@ -225,8 +225,13 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
   // Gross Cost per Good Die ($)
   const grossCostPerGoodDie = (rawDieCost + packagingAndTestingCost) / testYieldFraction;
 
-  // IP-extended NRE includes mask NRE + IP license fees + internal IP NRE
-  const totalExtendedNre = effectiveNreCostIp;
+  // Engineering labor cost — computed from selected labor region rate × effort
+  const laborRate = dm.resolvedLaborRateDesign ?? 185;
+  const laborEffortMonths = dm.designEffortPersonMonths ?? 0;
+  const engineeringLaborCostM = (laborRate * 160 * laborEffortMonths) / 1_000_000;
+
+  // IP-extended NRE includes mask NRE + IP license fees + internal IP NRE + engineering labor
+  const totalExtendedNre = effectiveNreCostIp + engineeringLaborCostM;
   const totalRoyaltyBurden = totalRoyaltyBurdenPerUnit;
 
   // NRE Amortized Cost ($/unit)
@@ -512,24 +517,47 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     ]
   );
 
+  if (engineeringLaborCostM > 0) {
+    addMetric(
+      'engineering_labor_cost',
+      'Engineering Labor Cost',
+      `$${round(engineeringLaborCostM, 1)}M`,
+      'USD',
+      85,
+      `Rate: $${laborRate}/hr × ${laborEffortMonths} person-months`,
+      'neutral',
+      'up',
+      'financial',
+      'LaborNRE = hourlyRateDesign × 160 hrs/month × effortMonths',
+      { hourlyRateDesign: laborRate, effortMonths: laborEffortMonths },
+      'Engineering labor component of total NRE. Computed from selected labor region rate and design effort.',
+      laborEffortMonths > 0 ? `${dm.laborReferenceModelId ?? 'ref-labor-northamerica'} Labor Rates v1.0` : 'Global Labor Rate Index',
+      [
+        `Selected labor rate: $${laborRate}/hr (Design)`,
+        `Design effort: ${laborEffortMonths} person-months`,
+        `Total labor NRE: $${laborRate} × 160 × ${laborEffortMonths} = $${round(engineeringLaborCostM, 1)}M`
+      ]
+    );
+  }
+
   addMetric(
     'break_even',
     'Break-even Volume',
     `${round(breakEvenVolumeMillion, 2)}`,
     'M units',
     90,
-    `NRE Investment: $${round(effectiveNreCost, 1)}M`,
+    `Total NRE: $${round(totalExtendedNre, 1)}M`,
     'neutral',
     'flat',
     'program',
-    'BreakEven = NRE / (ASP - GrossUnitCost)',
-    { effectiveNreCost, asp, grossCostPerGoodDie },
-    'The production and sales volume required to recover all Non-Recurring Engineering (NRE) costs.',
+    'BreakEven = TotalNRE / (ASP - GrossUnitCost)',
+    { totalExtendedNre, asp, grossCostPerGoodDie },
+    'The production and sales volume required to recover all Non-Recurring Engineering (NRE) costs including labor, masks, and IP.',
     'Finance Program Audit Guidelines',
     [
-      `NRE Capex: $${round(effectiveNreCost, 1)}M`,
+      `Total NRE (Mask + IP + Labor): $${round(totalExtendedNre, 1)}M`,
       `Unit Margin Contribution: ASP ($${asp}) - Cost ($${round(grossCostPerGoodDie, 2)}) = $${round(asp - grossCostPerGoodDie, 2)}`,
-      `Break-even: $${round(effectiveNreCost, 1)}M / $${round(asp - grossCostPerGoodDie, 2)} = ${round(breakEvenVolumeMillion, 2)} Million Units`
+      `Break-even: $${round(totalExtendedNre, 1)}M / $${round(asp - grossCostPerGoodDie, 2)} = ${round(breakEvenVolumeMillion, 2)} Million Units`
     ]
   );
 
@@ -816,6 +844,7 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     totalIpNreM,
     totalLicenseFeesM,
     totalRoyaltyBurdenPerUnit,
+    engineeringLaborCostM,
     metricsList,
   };
 

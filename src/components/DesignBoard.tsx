@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Build, PersonaType } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Build, PersonaType, ReferenceModel } from '../types';
 import { Archetype } from '../data/archetypes';
 import { DEFAULT_BUILDS } from '../data/defaultBuilds';
 import { round } from '../utils/mathEngine';
@@ -16,6 +16,7 @@ interface DesignBoardProps {
   onAddCustomArchetype?: (a: Archetype) => void;
   lastSaved?: Date | null;
   onClearDraft?: () => void;
+  models?: ReferenceModel[];
 }
 
 export default function DesignBoard({
@@ -26,6 +27,7 @@ export default function DesignBoard({
   onAddCustomArchetype,
   lastSaved,
   onClearDraft,
+  models,
 }: DesignBoardProps) {
   const dm = activeBuild.designModel;
 
@@ -52,6 +54,34 @@ export default function DesignBoard({
   const handleMpwChange = (field: string, value: number) => {
     const mpw = dm.mpw ?? { enabled: true, participants: 6, shuttleCostPerSlot: 150000, diesPerSlot: 200, shuttlesPerYear: 4, reticleSlotArea: 100 };
     onUpdateBuild({ ...activeBuild, designModel: { ...dm, mpw: { ...mpw, [field]: value } } });
+  };
+
+  const laborModels = useMemo(() => (models ?? []).filter(m => m.category === 'labor'), [models]);
+
+  const handleLaborRegionChange = (modelId: string) => {
+    const model = laborModels.find(m => m.id === modelId);
+    const rate = typeof model?.parameters?.hourlyRateDesign === 'number' ? model.parameters.hourlyRateDesign : 185;
+    onUpdateBuild({
+      ...activeBuild,
+      designModel: {
+        ...dm,
+        laborReferenceModelId: modelId,
+        resolvedLaborRateDesign: rate,
+        designEffortPersonMonths: dm.designEffortPersonMonths ?? 48,
+      },
+    });
+  };
+
+  const handleLaborEffortChange = (months: number) => {
+    onUpdateBuild({
+      ...activeBuild,
+      designModel: {
+        ...dm,
+        designEffortPersonMonths: months,
+        laborReferenceModelId: dm.laborReferenceModelId ?? 'ref-labor-northamerica',
+        resolvedLaborRateDesign: dm.resolvedLaborRateDesign ?? 185,
+      },
+    });
   };
 
   const [resetConfirm, setResetConfirm] = useState(false);
@@ -333,6 +363,75 @@ export default function DesignBoard({
             {inputField('Test Cost / Second', 'testCostPerSecond', dm.testCostPerSecond, 0.01, 1, 0.01, (v) => `$${v.toFixed(2)}`)}
           </>
         )}
+
+        {/* Engineering Labor Section */}
+        <div className="bg-white border-2 border-art-ink/10 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-4 py-3 bg-art-cream/30 border-b border-art-ink/10 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Briefcase className="w-4.5 h-4.5 text-art-rust" />
+              <span className="text-xs font-bold uppercase tracking-[0.15em] font-mono text-art-ink">Engineering Labor</span>
+            </div>
+          </div>
+          <div className="p-5 bg-white">
+            <div className="bg-art-cream/40 p-4 rounded-xl border border-art-ink/10 space-y-4">
+              <div className="flex items-center space-x-1.5 border-b border-art-ink/10 pb-2">
+                <Sliders className="w-4 h-4 text-art-rust" />
+                <span className="text-[10px] font-bold text-art-ink/50 uppercase tracking-[0.15em] font-mono">Labor & Staffing</span>
+              </div>
+              {/* Labor region dropdown */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-art-ink/50 uppercase font-mono tracking-wide">Labor Region</label>
+                <select
+                  value={dm.laborReferenceModelId ?? 'ref-labor-northamerica'}
+                  onChange={(e) => handleLaborRegionChange(e.target.value)}
+                  className="w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-semibold cursor-pointer"
+                >
+                  {laborModels.map((m) => {
+                    const rate = typeof m.parameters.hourlyRateDesign === 'number' ? m.parameters.hourlyRateDesign : 0;
+                    return <option key={m.id} value={m.id}>{m.name} — ${rate}/hr</option>;
+                  })}
+                </select>
+              </div>
+              {/* Design effort slider */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px]">
+                  <label className="font-bold text-art-ink/50 uppercase font-mono">Design Effort</label>
+                  <span className="font-mono text-art-ink font-bold">{dm.designEffortPersonMonths ?? 48} person-months</span>
+                </div>
+                <input
+                  type="range"
+                  min={6}
+                  max={360}
+                  step={3}
+                  value={dm.designEffortPersonMonths ?? 48}
+                  onChange={(e) => handleLaborEffortChange(Number(e.target.value))}
+                  className="w-full accent-art-rust"
+                />
+              </div>
+              {(dm.designEffortPersonMonths ?? 0) > 0 && dm.resolvedLaborRateDesign ? (
+                <div className="bg-white border border-art-ink/10 rounded-lg p-3 text-[10px] font-mono mt-2">
+                  <div className="flex justify-between items-center text-art-ink/60">
+                    <span>Labor Rate (Design)</span>
+                    <span className="text-art-ink font-bold">${dm.resolvedLaborRateDesign}/hr</span>
+                  </div>
+                  <div className="flex justify-between items-center text-art-ink/60 mt-1">
+                    <span>Monthly Burn Rate</span>
+                    <span className="text-art-ink font-bold">${(dm.resolvedLaborRateDesign * 160).toLocaleString()}/mo</span>
+                  </div>
+                  <div className="flex justify-between items-center text-art-ink/60 mt-1 border-t border-art-ink/5 pt-1">
+                    <span>Total Labor NRE</span>
+                    <span className="text-art-rust font-bold">${round((dm.resolvedLaborRateDesign * 160 * (dm.designEffortPersonMonths ?? 0)) / 1_000_000, 1)}M</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-[10px] text-yellow-700 font-mono font-bold flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                  <span>Effort set to zero — labor NRE contribution will be $0.</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* MPW Section */}
         <div className="bg-white border-2 border-art-ink/10 rounded-xl shadow-sm overflow-hidden">

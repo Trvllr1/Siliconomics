@@ -655,6 +655,7 @@ export default function App() {
                   onAddCustomArchetype={handleAddCustomArchetype}
                   lastSaved={lastSaved}
                   onClearDraft={handleClearDraft}
+                  models={referenceModels}
                 />
               </div>
               <div className="lg:w-1/2 xl:w-3/5 space-y-4 overflow-y-auto max-h-[calc(100vh-8rem)]">

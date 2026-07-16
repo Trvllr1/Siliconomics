@@ -102,6 +102,9 @@ export interface DesignModel {
   packagingType: PackagingType;
   interposerArea?: number;
   mpw?: MpwConfig;
+  laborReferenceModelId?: string;
+  designEffortPersonMonths?: number;
+  resolvedLaborRateDesign?: number;
 }
 
 export interface Build {
@@ -147,6 +150,7 @@ export interface Snapshot {
   totalIpNreM: number;
   totalLicenseFeesM: number;
   totalRoyaltyBurdenPerUnit: number;
+  engineeringLaborCostM: number;
   metricsList: MetricCardData[];
 }
 

@@ -83,6 +83,9 @@ export const DEFAULT_BUILDS: Build[] = [
       foundry: 'tsmc',
       packagingType: 'cowos-s',
       interposerArea: 760,
+      laborReferenceModelId: 'ref-labor-northamerica',
+      designEffortPersonMonths: 96,
+      resolvedLaborRateDesign: 185,
     },
     architecture: {
       version: 'v1.0',
