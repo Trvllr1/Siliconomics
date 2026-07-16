@@ -13,6 +13,7 @@ const CATEGORY_COLORS: Record<ReferenceModelCategory, { bg: string; text: string
   mask: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
   certification: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
   cloud: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
+  commodity: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
 };
 
 export default function ReferenceModelsView({ models }: ReferenceModelsViewProps) {

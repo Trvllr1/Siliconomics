@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Build, DesignModel, MetricCardData, CalculationTrace, Snapshot, CostContributor } from '../types';
+import { Build, DesignModel, MetricCardData, CalculationTrace, Snapshot, CostContributor, SupplyChainSnapshot, SupplyChainRiskLevel, CommodityPrice, ArchitectureBlock } from '../types';
 
 /**
  * Rounds a number to a specified number of decimal places
@@ -860,6 +860,8 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     }
   }
 
+  const supplyChain = computeSupplyChainMetrics(archBlocks, rawDieCost, packagingCost, isAdvancedPackaging);
+
   const snapshot: Snapshot = {
     totalDieArea,
     transistorDensity,
@@ -887,10 +889,82 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     totalRoyaltyBurdenPerUnit,
     engineeringLaborCostM,
     costContributors,
+    supplyChain,
     metricsList,
   };
 
   return { build, snapshot };
+}
+
+function computeSupplyChainMetrics(
+  blocks: ArchitectureBlock[],
+  waferCost: number,
+  packagingCost: number,
+  isAdvancedPackaging: boolean
+): SupplyChainSnapshot {
+  const riskScoreMap: Record<string, number> = { none: 0, low: 1, medium: 2, high: 3 };
+  const totalBlocks = blocks.length;
+
+  const blockRiskScores = blocks.map(b => riskScoreMap[b.supplyChainRisk] ?? 0);
+  const totalRiskScore = blockRiskScores.reduce((s, v) => s + v, 0);
+  const maxPossible = totalBlocks * 3;
+  const compositeRiskScore = maxPossible > 0 ? round((totalRiskScore / maxPossible) * 100, 1) : 0;
+
+  const highRiskBlockCount = blocks.filter(b => b.supplyChainRisk === 'high').length;
+
+  const riskLevel: SupplyChainRiskLevel =
+    compositeRiskScore >= 70 ? 'critical'
+    : compositeRiskScore >= 50 ? 'high'
+    : compositeRiskScore >= 30 ? 'elevated'
+    : compositeRiskScore >= 15 ? 'moderate'
+    : 'low';
+
+  // Commodity costs embedded in the build
+  const commodityCostPerUnit = round(
+    (waferCost || 0) + (packagingCost || 0) + (isAdvancedPackaging ? 15 : 0),
+    2
+  );
+
+  // Supplier concentration: estimate from implementation types
+  const licensedCount = blocks.filter(b => b.implementation === 'licensed').length;
+  const supplierConcentrationScore = totalBlocks > 0
+    ? round((licensedCount / totalBlocks) * 50 + (highRiskBlockCount / Math.max(totalBlocks, 1)) * 50, 1)
+    : 0;
+
+  // Geopolitical: estimate from high-risk blocks
+  const geopoliticalRiskScore = totalBlocks > 0
+    ? round((highRiskBlockCount / totalBlocks) * 100, 1)
+    : 10;
+
+  const leadTimeVolatilityScore = totalBlocks > 0
+    ? round(
+        (blocks.filter(b => b.supplyChainRisk === 'high').length / totalBlocks) * 60 +
+        (blocks.filter(b => b.supplyChainRisk === 'medium').length / totalBlocks) * 30 +
+        (blocks.filter(b => b.supplyChainRisk === 'low').length / totalBlocks) * 10,
+        1
+      )
+    : 5;
+
+  // Risk-adjusted cost adder as % uplift on wafer cost
+  const riskAdjustedCostAdder = round(waferCost * (compositeRiskScore / 100) * 0.15, 2);
+
+  const topCommodityCosts = [
+    { name: 'Wafer (front-end)', costPerUnit: waferCost, category: 'wafer' as const },
+    { name: 'Package & Test', costPerUnit: packagingCost + (isAdvancedPackaging ? 15 : 0), category: 'substrate' as const },
+  ];
+
+  return {
+    compositeRiskScore,
+    riskLevel,
+    highRiskBlockCount,
+    totalBlockCount: totalBlocks,
+    commodityCostPerUnit,
+    supplierConcentrationScore,
+    geopoliticalRiskScore,
+    leadTimeVolatilityScore,
+    riskAdjustedCostAdder,
+    topCommodityCosts,
+  };
 }
 
 /**

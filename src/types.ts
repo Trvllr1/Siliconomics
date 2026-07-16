@@ -64,7 +64,36 @@ export interface ArchitectureComposition {
   rationale?: string;
 }
 
-export type CostContributorCategory = 'silicon' | 'packaging' | 'test' | 'ip-license' | 'ip-royalty' | 'labor' | 'mask' | 'architecture-block';
+export type CostContributorCategory = 'silicon' | 'packaging' | 'test' | 'ip-license' | 'ip-royalty' | 'labor' | 'mask' | 'architecture-block' | 'commodity';
+
+export type CommodityCategory = 'wafer' | 'substrate' | 'interposer' | 'mold-compound' | 'underfill' | 'solder-ball' | 'test-socket' | 'probe-card' | 'memory';
+
+export interface CommodityPrice {
+  id: string;
+  name: string;
+  category: CommodityCategory;
+  unit: string;
+  priceUsd: number;
+  source: string;
+  region: string;
+  updatedDate: string;
+  notes: string;
+}
+
+export type SupplyChainRiskLevel = 'low' | 'moderate' | 'elevated' | 'high' | 'critical';
+
+export interface SupplyChainSnapshot {
+  compositeRiskScore: number;
+  riskLevel: SupplyChainRiskLevel;
+  highRiskBlockCount: number;
+  totalBlockCount: number;
+  commodityCostPerUnit: number;
+  supplierConcentrationScore: number;
+  geopoliticalRiskScore: number;
+  leadTimeVolatilityScore: number;
+  riskAdjustedCostAdder: number;
+  topCommodityCosts: { name: string; costPerUnit: number; category: CommodityCategory }[];
+}
 
 export interface CostContributor {
   name: string;
@@ -162,6 +191,7 @@ export interface Snapshot {
   totalRoyaltyBurdenPerUnit: number;
   engineeringLaborCostM: number;
   costContributors: CostContributor[];
+  supplyChain: SupplyChainSnapshot;
   metricsList: MetricCardData[];
 }
 
@@ -203,7 +233,7 @@ export interface Decision {
   timestamp: string;
 }
 
-export type ReferenceModelCategory = 'foundry' | 'packaging' | 'labor' | 'mask' | 'certification' | 'cloud';
+export type ReferenceModelCategory = 'foundry' | 'packaging' | 'labor' | 'mask' | 'certification' | 'cloud' | 'commodity';
 
 export interface ReferenceModel {
   id: string;

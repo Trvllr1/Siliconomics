@@ -5,7 +5,8 @@ import { ComputedBuildMetrics, computeBuildMetrics, round } from '../utils/mathE
 import ChartsView from './ChartsView';
 import SensitivityView from './SensitivityView';
 import CostContributorView from './CostContributorView';
-import { ChevronUp, ChevronDown, HelpCircle, ShieldAlert, Shield, Wrench, Cpu, Database, FileText, Fingerprint, Package, Sliders, Activity, DollarSign, Briefcase, Award, Copy, Check, BarChart3, TrendingUp, FileCheck, AlertCircle, Shuffle } from 'lucide-react';
+import SupplyChainView from './SupplyChainView';
+import { ChevronUp, ChevronDown, HelpCircle, ShieldAlert, Shield, Wrench, Cpu, Database, FileText, Fingerprint, Package, Sliders, Activity, DollarSign, Briefcase, Award, Copy, Check, BarChart3, TrendingUp, FileCheck, AlertCircle, Shuffle, Truck } from 'lucide-react';
 
 const LOWER_IS_BETTER_METRICS = new Set(['total_die_area', 'raw_die_cost', 'gross_die_cost', 'break_even']);
 
@@ -27,7 +28,7 @@ export default function MetricsLab({
   onHoverMetric,
   onClickMetric,
 }: MetricsLabProps) {
-  const [labTab, setLabTab] = useState<'metrics' | 'charts' | 'sensitivity' | 'risk' | 'anatomy' | 'cost'>('metrics');
+  const [labTab, setLabTab] = useState<'metrics' | 'charts' | 'sensitivity' | 'risk' | 'anatomy' | 'cost' | 'supply'>('metrics');
 
   const snap = computedMetrics.snapshot;
   const dm = activeBuild.designModel;
@@ -188,6 +189,7 @@ export default function MetricsLab({
         {tabButton('charts', 'Curves & Charts', <BarChart3 className="w-3.5 h-3.5" />)}
         {tabButton('sensitivity', 'Sensitivity', <TrendingUp className="w-3.5 h-3.5" />)}
         {tabButton('cost', 'Cost Breakdown', <DollarSign className="w-3.5 h-3.5" />)}
+        {tabButton('supply', 'Supply Chain', <Truck className="w-3.5 h-3.5" />)}
         {tabButton('risk', 'Risk & Compliance', <ShieldAlert className="w-3.5 h-3.5" />)}
         {tabButton('anatomy', 'Build Anatomy', <Award className="w-3.5 h-3.5" />)}
       </div>
@@ -214,6 +216,11 @@ export default function MetricsLab({
           contributors={snap.costContributors}
           fullyLoadedCost={snap.fullyLoadedCostPerDie}
         />
+      )}
+
+      {/* Supply Chain */}
+      {labTab === 'supply' && (
+        <SupplyChainView supplyChain={snap.supplyChain} />
       )}
 
       {/* Risk & Compliance */}
