@@ -587,7 +587,7 @@ export default function App() {
           </button>
 
           {personaDropdownOpen && (
-            <div className="absolute right-0 top-full mt-1 min-w-56 bg-white border border-art-ink/10 rounded-xl shadow-lg z-50 py-1 space-y-0.5">
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-72 bg-white border border-art-ink/10 rounded-xl shadow-lg z-[100] py-1 space-y-0.5 overflow-visible">
               {([['architect', <Cpu className="w-3.5 h-3.5" />],
                 ['manufacturing', <Wrench className="w-3.5 h-3.5" />],
                 ['finance', <DollarSign className="w-3.5 h-3.5" />],
