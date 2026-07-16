@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Build, MetricCardData, PersonaType } from '../types';
+import { Build, MetricCardData, PersonaType, Comment as CommentType } from '../types';
 import { DEFAULT_BUILDS } from '../data/defaultBuilds';
 import { ComputedBuildMetrics, computeBuildMetrics, round } from '../utils/mathEngine';
 import { PERSONA_CONFIG } from '../data/personaConfig';
+import CommentsPanel from './CommentsPanel';
 import ChartsView from './ChartsView';
 import SensitivityView from './SensitivityView';
 import CostContributorView from './CostContributorView';
 import SupplyChainView from './SupplyChainView';
-import { ChevronUp, ChevronDown, HelpCircle, ShieldAlert, Shield, Wrench, Cpu, Database, FileText, Fingerprint, Package, Sliders, Activity, DollarSign, Briefcase, Award, Copy, Check, BarChart3, TrendingUp, FileCheck, AlertCircle, Shuffle, Truck } from 'lucide-react';
+import { ChevronUp, ChevronDown, HelpCircle, ShieldAlert, Shield, Wrench, Cpu, Database, FileText, Fingerprint, Package, Sliders, Activity, DollarSign, Briefcase, Award, Copy, Check, BarChart3, TrendingUp, FileCheck, AlertCircle, Shuffle, Truck, MessageSquare } from 'lucide-react';
 
 const LOWER_IS_BETTER_METRICS = new Set(['total_die_area', 'raw_die_cost', 'gross_die_cost', 'break_even']);
 
@@ -22,6 +23,11 @@ interface MetricsLabProps {
   onHoverMetric: (metric: MetricCardData | null) => void;
   onClickMetric: (metric: MetricCardData) => void;
   activePersona: PersonaType;
+  comments: CommentType[];
+  onCommentMetric: (metricId: string, label: string) => void;
+  commentTarget: { elementId: string; label: string } | null;
+  onAddComment: (buildId: string, elementId: string, content: string) => void;
+  onCloseComments: () => void;
 }
 
 export default function MetricsLab({
@@ -30,6 +36,11 @@ export default function MetricsLab({
   onHoverMetric,
   onClickMetric,
   activePersona,
+  comments,
+  onCommentMetric,
+  commentTarget,
+  onAddComment,
+  onCloseComments,
 }: MetricsLabProps) {
   const [labTab, setLabTab] = useState<'metrics' | 'charts' | 'sensitivity' | 'risk' | 'anatomy' | 'cost' | 'supply'>('metrics');
 
@@ -154,6 +165,18 @@ export default function MetricsLab({
           <div className="flex justify-between items-start">
             <span className="text-[9px] font-bold uppercase text-art-ink/40 tracking-widest block truncate max-w-[130px] font-mono">{m.label}</span>
             <div className="flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-all duration-150">
+              <button
+                onClick={(e) => { e.stopPropagation(); onCommentMetric(m.id, m.label); }}
+                className="relative p-0.5 hover:text-art-rust transition-colors cursor-pointer"
+                title="Comment on this metric"
+              >
+                <MessageSquare className="w-3 h-3" />
+                {comments.filter(c => c.buildId === activeBuild.id && c.elementId === m.id).length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-art-rust text-white text-[6px] font-bold flex items-center justify-center">
+                    {comments.filter(c => c.buildId === activeBuild.id && c.elementId === m.id).length}
+                  </span>
+                )}
+              </button>
               <span className="text-[8px] font-mono text-art-rust uppercase font-bold tracking-wider bg-art-cream px-1 rounded border border-art-rust/10">Formula</span>
               <HelpCircle className="w-3.5 h-3.5 text-art-rust" />
             </div>
@@ -527,6 +550,21 @@ export default function MetricsLab({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Comments Panel */}
+      {commentTarget && (
+        <div className="fixed bottom-6 right-6 z-50 w-96 max-h-[70vh] shadow-2xl">
+          <CommentsPanel
+            comments={comments}
+            buildId={activeBuild.id}
+            elementId={commentTarget.elementId}
+            elementLabel={commentTarget.label}
+            activePersona={activePersona}
+            onAddComment={onAddComment}
+            onClose={onCloseComments}
+          />
         </div>
       )}
     </div>

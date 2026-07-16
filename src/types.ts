@@ -155,7 +155,7 @@ export interface Build {
   creator: string;
   organization: string;
   parentId?: string;
-  status: 'Approved' | 'Review' | 'Draft' | 'Alert';
+  status: BuildStatus;
   version: string;
   owner: string;
   portfolio: string;
@@ -165,6 +165,17 @@ export interface Build {
   architecture?: ArchitectureComposition;
   designModel: DesignModel;
 }
+
+export type BuildStatus = 'Draft' | 'TechnicalReview' | 'FinancialReview' | 'ProgramReview' | 'Approved' | 'Alert';
+
+export const STATUS_TRANSITIONS: Record<BuildStatus, { next: BuildStatus; requiredPersona: PersonaType; label: string } | null> = {
+  Draft: { next: 'TechnicalReview', requiredPersona: 'architect', label: 'Submit for Technical Review' },
+  TechnicalReview: { next: 'FinancialReview', requiredPersona: 'manufacturing', label: 'Approve - Pass to Finance' },
+  FinancialReview: { next: 'ProgramReview', requiredPersona: 'finance', label: 'Approve - Pass to Program' },
+  ProgramReview: { next: 'Approved', requiredPersona: 'executive', label: 'Final Approval' },
+  Approved: null,
+  Alert: null,
+};
 
 export interface Snapshot {
   totalDieArea: number;

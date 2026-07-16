@@ -52,7 +52,7 @@ export const DEFAULT_BUILDS: Build[] = [
     creator: 'Marc Lemaire',
     organization: 'Siliconomics Manhattan Corp',
     parentId: 'manhattan-x1', // Branched off X1
-    status: 'Review',
+    status: 'TechnicalReview',
     version: 'v0.9b',
     owner: 'Marc Lemaire (VP Architecture)',
     portfolio: 'Data Center AI',

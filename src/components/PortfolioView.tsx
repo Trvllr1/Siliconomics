@@ -243,7 +243,7 @@ export default function PortfolioView({
                                       <span className="text-xs font-bold text-art-ink">{b.name}</span>
                                       <span className={`text-[8px] font-mono font-bold px-1.5 py-0.5 rounded-full uppercase ${
                                         b.status === 'Approved' ? 'bg-green-50 text-green-700 border border-green-200' :
-                                        b.status === 'Review' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+                                        b.status === 'TechnicalReview' || b.status === 'FinancialReview' || b.status === 'ProgramReview' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
                                         b.status === 'Alert' ? 'bg-red-50 text-red-700 border border-red-200' :
                                         'bg-art-cream text-art-ink/50 border border-art-ink/10'
                                       }`}>{b.status}</span>
@@ -332,7 +332,7 @@ function LineageTree({ builds }: { builds: Build[] }) {
       <div key={build.id}>
         <div className="flex items-center space-x-2 py-1.5" style={{ paddingLeft: `${depth * 24}px` }}>
           {depth > 0 && <div className="w-4 h-px bg-art-rust/30" />}
-          <div className={`w-2 h-2 rounded-full ${build.status === 'Approved' ? 'bg-green-500' : build.status === 'Review' ? 'bg-yellow-500' : 'bg-art-ink/30'}`} />
+          <div className={`w-2 h-2 rounded-full ${build.status === 'Approved' ? 'bg-green-500' : build.status === 'TechnicalReview' || build.status === 'FinancialReview' || build.status === 'ProgramReview' ? 'bg-yellow-500' : 'bg-art-ink/30'}`} />
           <span className="text-[11px] font-semibold text-art-ink">{build.name}</span>
           <span className="text-[9px] font-mono text-art-ink/40">v{build.version}</span>
         </div>

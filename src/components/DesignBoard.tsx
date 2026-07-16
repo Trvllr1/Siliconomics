@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Build, PersonaType, ReferenceModel } from '../types';
+import { Build, PersonaType, ReferenceModel, BuildStatus, STATUS_TRANSITIONS } from '../types';
 import { Archetype } from '../data/archetypes';
 import { DEFAULT_BUILDS } from '../data/defaultBuilds';
 import { round } from '../utils/mathEngine';
 import {
-  Cpu, Activity, DollarSign, Briefcase,   Sliders, GitBranch, FileCheck, RotateCcw,
-  ChevronUp, ChevronDown, CheckCircle, BookOpen, Save, Shuffle, AlertCircle, ShieldCheck
+  Cpu, Activity, DollarSign, Briefcase, Sliders, GitBranch, FileCheck, RotateCcw,
+  ChevronUp, ChevronDown, CheckCircle, BookOpen, Save, Shuffle, AlertCircle, ShieldCheck, MessageSquare
 } from 'lucide-react';
 
 interface DesignBoardProps {
@@ -17,6 +17,7 @@ interface DesignBoardProps {
   lastSaved?: Date | null;
   onClearDraft?: () => void;
   models?: ReferenceModel[];
+  onStatusTransition?: () => void;
 }
 
 export default function DesignBoard({
@@ -28,6 +29,7 @@ export default function DesignBoard({
   lastSaved,
   onClearDraft,
   models,
+  onStatusTransition,
 }: DesignBoardProps) {
   const dm = activeBuild.designModel;
   const isReadOnly = activePersona !== 'architect';
@@ -253,8 +255,13 @@ export default function DesignBoard({
           <div>
             <div className="flex items-center space-x-2">
               <h2 className="text-lg font-serif font-black text-art-ink">{activeBuild.name}</h2>
-              <span className="bg-art-cream text-art-rust border border-art-rust/20 text-[9px] font-bold tracking-widest px-2.5 py-0.5 rounded-full uppercase font-mono">
-                {activeBuild.status === 'Approved' ? 'Immutable Approved Build' : 'Draft Modeling'}
+              <span className={`text-[9px] font-bold tracking-widest px-2.5 py-0.5 rounded-full uppercase font-mono ${
+                activeBuild.status === 'Approved' ? 'bg-green-100 text-green-700 border border-green-200' :
+                activeBuild.status === 'Alert' ? 'bg-red-100 text-red-700 border border-red-200' :
+                activeBuild.status === 'Draft' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+                'bg-blue-50 text-blue-700 border border-blue-200'
+              }`}>
+                {activeBuild.status}
               </span>
               {isDirty && (
                 <span className="text-[9px] bg-yellow-50 text-yellow-700 border border-yellow-200 px-2 py-0.5 rounded-full font-mono font-bold">
@@ -273,6 +280,28 @@ export default function DesignBoard({
         </div>
 
         <div className="flex items-center space-x-2 self-end md:self-center">
+          {/* Status transition button */}
+          {(() => {
+            const transition = STATUS_TRANSITIONS[activeBuild.status];
+            if (!transition) return null;
+            const canAct = activePersona === transition.requiredPersona;
+            return (
+              <button
+                onClick={onStatusTransition}
+                disabled={!canAct || !onStatusTransition}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-all cursor-pointer shadow-sm border-none ${
+                  canAct
+                    ? 'bg-art-ink text-art-cream hover:bg-art-rust'
+                    : 'bg-art-cream text-art-ink/30 cursor-not-allowed'
+                }`}
+                title={canAct ? transition.label : `Requires ${transition.requiredPersona} role`}
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>{transition.label}</span>
+              </button>
+            );
+          })()}
+
           <button
             onClick={handleResetToBaseline}
             className={`flex items-center space-x-1.5 px-3 py-1.5 border rounded text-xs font-semibold transition-all cursor-pointer shadow-sm ${

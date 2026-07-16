@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Build, PersonaType, MetricCardData, CalculationTrace, ActivityLog, Decision, Portfolio, ReferenceModel, FormulaEntry, Alert } from './types';
+import { Build, PersonaType, MetricCardData, CalculationTrace, ActivityLog, Decision, Portfolio, ReferenceModel, FormulaEntry, Alert, Comment, BuildStatus, STATUS_TRANSITIONS } from './types';
 import { DEFAULT_BUILDS } from './data/defaultBuilds';
 import { DEFAULT_REFERENCE_MODELS } from './data/defaultReferenceModels';
 import { DEFAULT_FORMULA_LIBRARY } from './data/defaultFormulaLibrary';
@@ -26,6 +26,7 @@ import ReferenceModelsView from './components/ReferenceModelsView';
 import FormulaLibraryView from './components/FormulaLibraryView';
 import MeetingMode from './components/MeetingMode';
 import CommandPalette from './components/CommandPalette';
+import CommentsPanel from './components/CommentsPanel';
 
 import {
   Monitor,
@@ -354,6 +355,54 @@ export default function App() {
 
   const handleAcknowledgeAlert = (alertId: string) => {
     setAlerts((prev) => prev.map((a) => a.id === alertId ? { ...a, acknowledged: true } : a));
+  };
+
+  const [comments, setComments] = useState<Comment[]>(() => {
+    try {
+      const saved = localStorage.getItem('siliconomics_comments');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('siliconomics_comments', JSON.stringify(comments));
+  }, [comments]);
+
+  const [commentTarget, setCommentTarget] = useState<{ elementId: string; label: string } | null>(null);
+
+  const handleAddComment = (buildId: string, elementId: string, content: string) => {
+    const newComment: Comment = {
+      id: `cmt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      buildId,
+      elementId,
+      author: 'eagleximpact',
+      role: activePersona,
+      content,
+      timestamp: new Date().toISOString(),
+      versionStamp: activeBuild.version,
+    };
+    setComments((prev) => [...prev, newComment]);
+  };
+
+  const handleStatusTransition = () => {
+    const transition = STATUS_TRANSITIONS[activeBuild.status];
+    if (!transition) return;
+    if (transition.requiredPersona !== activePersona) return;
+
+    const updated: Build = { ...activeBuild, status: transition.next };
+    handleUpdateBuild(updated);
+
+    const newLog: ActivityLog = {
+      id: `act-${Date.now()}`,
+      buildId: activeBuild.id,
+      buildName: activeBuild.name,
+      timestamp: new Date().toISOString(),
+      type: 'modification',
+      delta: `Status changed: ${activeBuild.status} → ${transition.next} by ${PERSONA_CONFIG[activePersona].label}`,
+    };
+    setActivities((act) => [newLog, ...act]);
   };
 
   const handleClearDraft = () => {
@@ -801,6 +850,7 @@ export default function App() {
                   lastSaved={lastSaved}
                   onClearDraft={handleClearDraft}
                   models={referenceModels}
+                  onStatusTransition={handleStatusTransition}
                 />
               </div>
               <div className="lg:w-1/2 xl:w-3/5 space-y-4 overflow-y-auto max-h-[calc(100vh-8rem)]">
@@ -810,6 +860,11 @@ export default function App() {
                   onHoverMetric={(m) => setHoveredTrace(m?.trace ?? null)}
                   onClickMetric={handleSelectMetric}
                   activePersona={activePersona}
+                  comments={comments}
+                  onCommentMetric={(metricId, label) => setCommentTarget({ elementId: metricId, label })}
+                  commentTarget={commentTarget}
+                  onAddComment={handleAddComment}
+                  onCloseComments={() => setCommentTarget(null)}
                 />
               </div>
             </div>
