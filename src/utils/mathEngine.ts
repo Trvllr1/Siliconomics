@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Build, DesignModel, MetricCardData, CalculationTrace, Snapshot } from '../types';
+import { Build, DesignModel, MetricCardData, CalculationTrace, Snapshot, CostContributor } from '../types';
 
 /**
  * Rounds a number to a specified number of decimal places
@@ -253,6 +253,46 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
   const marginPerUnit = asp - (grossCostPerGoodDie + totalRoyaltyBurden);
   const breakEvenVolumeMillion = marginPerUnit > 0 ? totalExtendedNre / marginPerUnit : 0;
   const roi = totalExtendedNre > 0 ? (lifetimeNetProfitMillion / totalExtendedNre) * 100 : 0;
+
+  // Cost Contributor Waterfall — break fully loaded cost into ranked slices
+  const volumeUnits = effectiveTargetVolume > 0 ? effectiveTargetVolume * 1_000_000 : 1;
+  const contributors: CostContributor[] = [];
+
+  const addContributor = (name: string, category: CostContributor['category'], costPerUnit: number, description: string) => {
+    if (costPerUnit > 0.001) {
+      contributors.push({ name, category, costPerUnit, percentageOfTotal: 0, description });
+    }
+  };
+
+  // Gross cost components (pre-NRE, pre-royalty)
+  addContributor('Silicon Wafer', 'silicon', rawDieCost / testYieldFraction, 'Raw silicon die cost from foundry wafer pricing.');
+  addContributor('Package Substrate & Assembly', 'packaging', packagingCost / testYieldFraction, 'Organic substrate, wirebond/flip-chip assembly, and lid.');
+  if (interposerCostPerUnit > 0) {
+    const pkgLabel = packagingType === 'emib' ? 'Intel EMIB Bridge' : `${cowosConfig?.label ?? 'Interposer'}`;
+    addContributor(pkgLabel, 'packaging', interposerCostPerUnit / testYieldFraction, 'Advanced packaging interposer or embedded bridge cost.');
+  }
+  addContributor('Electrical Test', 'test', (testTimeSeconds * testCostPerSecond) / testYieldFraction, 'ATE test insertion cost per good unit after yield.');
+
+  // Amortized NRE components
+  if (engineeringLaborCostM > 0) {
+    addContributor('Engineering Labor (amortized)', 'labor', (engineeringLaborCostM * 1_000_000) / volumeUnits, 'Design engineering effort amortized across lifetime volume.');
+  }
+  addContributor('Mask NRE (amortized)', 'mask', (effectiveNreCost * 1_000_000) / volumeUnits, 'Mask set and wafer process NRE amortized across lifetime volume.');
+  if (totalLicenseFeesM > 0) {
+    addContributor('IP License Fees (amortized)', 'ip-license', (totalLicenseFeesM * 1_000_000) / volumeUnits, 'Third-party IP block license fees amortized across lifetime volume.');
+  }
+  if (totalIpNreM > 0) {
+    addContributor('Internal IP NRE (amortized)', 'ip-license', (totalIpNreM * 1_000_000) / volumeUnits, 'Internal architecture block NRE investment amortized across lifetime volume.');
+  }
+  if (totalRoyaltyBurdenPerUnit > 0) {
+    addContributor('IP Royalties', 'ip-royalty', totalRoyaltyBurdenPerUnit, 'Per-unit royalty charges from licensed architecture blocks.');
+  }
+
+  // Sort descending by cost, compute percentages
+  const totalCost = contributors.reduce((s, c) => s + c.costPerUnit, 0);
+  const costContributors = contributors
+    .sort((a, b) => b.costPerUnit - a.costPerUnit)
+    .map(c => ({ ...c, percentageOfTotal: totalCost > 0 ? (c.costPerUnit / totalCost) * 100 : 0 }));
 
   // Create Metric Card Items with Calculation Trace
   const metricsList: MetricCardData[] = [];
@@ -845,6 +885,7 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     totalLicenseFeesM,
     totalRoyaltyBurdenPerUnit,
     engineeringLaborCostM,
+    costContributors,
     metricsList,
   };
 

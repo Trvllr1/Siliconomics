@@ -64,6 +64,16 @@ export interface ArchitectureComposition {
   rationale?: string;
 }
 
+export type CostContributorCategory = 'silicon' | 'packaging' | 'test' | 'ip-license' | 'ip-royalty' | 'labor' | 'mask' | 'architecture-block';
+
+export interface CostContributor {
+  name: string;
+  category: CostContributorCategory;
+  costPerUnit: number;
+  percentageOfTotal: number;
+  description: string;
+}
+
 export type FoundryType = 'tsmc' | 'intel' | 'samsung';
 
 export type PackagingType = 'standard' | 'cowos-s' | 'cowos-r' | 'cowos-l' | 'emib';
@@ -151,6 +161,7 @@ export interface Snapshot {
   totalLicenseFeesM: number;
   totalRoyaltyBurdenPerUnit: number;
   engineeringLaborCostM: number;
+  costContributors: CostContributor[];
   metricsList: MetricCardData[];
 }
 
