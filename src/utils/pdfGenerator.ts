@@ -41,8 +41,8 @@ export function generateComparisonPdf(
 
   // Helper to draw the header on any page
   const drawHeaderBanner = (pageNum: number) => {
-    // Elegant terracotta banner at top
-    doc.setFillColor(217, 78, 51); // Brand Terracotta Rust
+    // Elegant teal banner at top
+    doc.setFillColor(0, 191, 166); // Brand Quantum Teal
     doc.rect(margin, 12, contentWidth, 18, 'F');
 
     // Title text inside banner
@@ -64,7 +64,7 @@ export function generateComparisonPdf(
   // Helper to draw standard page footers for traceability
   const drawFooter = (pageNum: number) => {
     const footerY = pageHeight - 12;
-    doc.setDrawColor(217, 78, 51, 0.2);
+    doc.setDrawColor(0, 191, 166, 0.2);
     doc.setLineWidth(0.1);
     doc.line(margin, footerY - 3, margin + contentWidth, footerY - 3);
 
@@ -102,11 +102,11 @@ export function generateComparisonPdf(
 
   // Render Traceability Metadata Box (Principle 4 - Reproducibility)
   doc.setFillColor(249, 248, 246); // Off-white/cream light tint
-  doc.setDrawColor(217, 78, 51, 0.15);
+  doc.setDrawColor(0, 191, 166, 0.15);
   doc.setLineWidth(0.2);
   doc.rect(margin, y, contentWidth, 24, 'FD');
 
-  doc.setTextColor(217, 78, 51);
+  doc.setTextColor(0, 191, 166);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.text('IMMUTABLE TRACEABILITY LEDGER (V1.0 SPEC)', margin + 4, y + 5);
@@ -201,7 +201,7 @@ export function generateComparisonPdf(
       doc.setFillColor(235, 233, 229); // warm light cream background
       doc.rect(margin, y, contentWidth, 6, 'F');
 
-      doc.setTextColor(217, 78, 51); // Terracotta Accent
+      doc.setTextColor(0, 191, 166); // Teal Accent
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(7);
       doc.text(row.label, margin + 3, y + 4.2);
@@ -343,7 +343,7 @@ export function generateComparisonPdf(
         y += 3;
         const heading = trimmed.replace(/^###\s*/, '').replace(/\*\*/g, '').toUpperCase();
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(217, 78, 51);
+        doc.setTextColor(0, 191, 166);
         doc.setFontSize(8.5);
         doc.text(heading, margin + 4, y);
         y += 4.5;
@@ -405,13 +405,13 @@ export function generateComparisonPdf(
     }
 
     doc.setFillColor(249, 248, 246);
-    doc.setDrawColor(217, 78, 51, 0.1);
+    doc.setDrawColor(0, 191, 166, 0.1);
     doc.setLineWidth(0.2);
     doc.rect(margin, y, contentWidth, 26, 'FD');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
-    doc.setTextColor(217, 78, 51);
+    doc.setTextColor(0, 191, 166);
     doc.text('2. STRATEGIC AI ADVISORY SUMMARY (OPTIONAL)', margin + 5, y + 6);
 
     doc.setFont('helvetica', 'normal');

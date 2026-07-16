@@ -6,19 +6,19 @@
   --font-serif: "Fraunces", Georgia, serif;
   --font-mono: "JetBrains Mono", monospace;
 
-  /* Redefining core brand elements for rich, elegant industrial dark mode */
-  --color-art-cream: #0B0C0E;  /* Deep matte slate/charcoal black */
-  --color-art-ink: #F4F2EE;    /* Warm alabaster cream for primary typography/borders */
-  --color-art-rust: #D94E33;   /* High-fidelity terracotta orange for key callouts */
+  /* Redefining core brand elements for rich, elegant dark mode */
+  --color-art-cream: #0D1117;  /* Deep charcoal for backgrounds */
+  --color-art-ink: #F0F6FC;    /* Cool off-white for primary typography/borders */
+  --color-art-rust: #00BFA6;   /* Vibrant teal for key callouts */
 }
 
 /* Master class-level overrides to translate standard layouts to Dark Mode */
 .bg-white {
-  background-color: #141517 !important; /* Premium dark coal cards */
+  background-color: #161B22 !important; /* Dark slate cards */
 }
 
 .border-gray-200, .border-gray-150, .border-gray-100, .border-gray-300 {
-  border-color: rgba(244, 242, 238, 0.08) !important; /* Soft dark-mode wireframes */
+  border-color: rgba(240, 246, 252, 0.08) !important; /* Soft dark-mode wireframes */
 }
 
 /* Eye-safe dark mode alerts and status indicators */
@@ -54,7 +54,7 @@
 
 /* Text gray scale scaling to maintain legibility and hierarchy */
 .text-gray-900, .text-zinc-900 {
-  color: #F4F2EE !important;
+  color: #F0F6FC !important;
 }
 .text-gray-800, .text-zinc-800 {
   color: #E6E4E0 !important;
@@ -74,9 +74,9 @@
 
 /* Dropdown selections and utility inputs alignment */
 select, select option, input[type="text"] {
-  background-color: #1A1C1E !important;
-  color: #F4F2EE !important;
-  border-color: rgba(244, 242, 238, 0.12) !important;
+  background-color: #1C2128 !important;
+  color: #F0F6FC !important;
+  border-color: rgba(240, 246, 252, 0.12) !important;
 }
 
 /* Custom scrollbars matching Dark Mode Industrial aesthetic */
@@ -85,14 +85,14 @@ select, select option, input[type="text"] {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0B0C0E;
+  background: #0D1117;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(244, 242, 238, 0.1);
+  background: rgba(240, 246, 252, 0.1);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(244, 242, 238, 0.2);
+  background: rgba(240, 246, 252, 0.2);
 }
 
 /* Recharts legend item text color override for dark theme contrast */
