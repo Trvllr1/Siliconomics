@@ -3,6 +3,7 @@ import { Build, PersonaType, ReferenceModel, BuildStatus, STATUS_TRANSITIONS } f
 import { Archetype } from '../data/archetypes';
 import { DEFAULT_BUILDS } from '../data/defaultBuilds';
 import { round } from '../utils/mathEngine';
+import { PERSONA_CONFIG, FIELD_OWNER } from '../data/personaConfig';
 import {
   Cpu, Activity, DollarSign, Briefcase, Sliders, GitBranch, FileCheck, RotateCcw,
   ChevronUp, ChevronDown, CheckCircle, BookOpen, Save, Shuffle, AlertCircle, ShieldCheck, MessageSquare
@@ -32,18 +33,22 @@ export default function DesignBoard({
   onStatusTransition,
 }: DesignBoardProps) {
   const dm = activeBuild.designModel;
-  const isReadOnly = activePersona !== 'architect';
+  const canEditField = (field: string) => {
+    const owner = FIELD_OWNER[field];
+    if (!owner) return activePersona === 'architect';
+    return activePersona === owner;
+  };
 
   const [expanded, setExpanded] = useState({ engineering: true, manufacturing: false, financial: false, program: false });
   const toggleSection = (s: keyof typeof expanded) => setExpanded((p) => ({ ...p, [s]: !p[s] }));
 
   const handleInputChange = (field: string, value: string | number) => {
-    if (isReadOnly) return;
+    if (!canEditField(field)) return;
     onUpdateBuild({ ...activeBuild, designModel: { ...dm, [field]: value } });
   };
 
   const handleMpwToggle = () => {
-    if (isReadOnly) return;
+    if (!canEditField('mpw')) return;
     const enabled = !dm.mpw?.enabled;
     onUpdateBuild({
       ...activeBuild,
@@ -64,7 +69,7 @@ export default function DesignBoard({
   const laborModels = useMemo(() => (models ?? []).filter(m => m.category === 'labor'), [models]);
 
   const handleLaborRegionChange = (modelId: string) => {
-    if (isReadOnly) return;
+    if (!canEditField('laborReferenceModelId')) return;
     const model = laborModels.find(m => m.id === modelId);
     const rate = typeof model?.parameters?.hourlyRateDesign === 'number' ? model.parameters.hourlyRateDesign : 185;
     onUpdateBuild({
@@ -79,7 +84,7 @@ export default function DesignBoard({
   };
 
   const handleLaborEffortChange = (months: number) => {
-    if (isReadOnly) return;
+    if (!canEditField('designEffortPersonMonths')) return;
     onUpdateBuild({
       ...activeBuild,
       designModel: {
@@ -95,7 +100,7 @@ export default function DesignBoard({
   const totalBlockVerifPm = archBlocks.reduce((s, b) => s + (b.verificationEffortPersonMonths ?? 0), 0);
 
   const handleVerifRegionChange = (modelId: string) => {
-    if (isReadOnly) return;
+    if (!canEditField('verificationReferenceModelId')) return;
     const model = laborModels.find(m => m.id === modelId);
     const rate = typeof model?.parameters?.hourlyRateVerification === 'number' ? model.parameters.hourlyRateVerification : 145;
     onUpdateBuild({
@@ -155,7 +160,9 @@ export default function DesignBoard({
     step: number,
     fmt?: (v: number) => string,
     customHandler?: (field: string, value: number) => void,
-  ) => (
+  ) => {
+    const editable = canEditField(field);
+    return (
     <div className="space-y-1">
       <div className="flex justify-between text-[10px]">
         <label className="font-bold text-art-ink/50 uppercase font-mono">{label}</label>
@@ -167,46 +174,53 @@ export default function DesignBoard({
         max={max}
         step={step}
         value={value}
-        disabled={isReadOnly}
+        disabled={!editable}
         onChange={(e) => customHandler ? customHandler(field, Number(e.target.value)) : handleInputChange(field, Number(e.target.value))}
-        className={`w-full accent-art-rust ${isReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
+        className={`w-full accent-art-rust ${!editable ? 'opacity-60 cursor-not-allowed' : ''}`}
       />
     </div>
-  );
+    );
+  };
 
-  const selectField = (label: string, field: string, value: string, options: { v: string; l: string }[]) => (
+  const selectField = (label: string, field: string, value: string, options: { v: string; l: string }[]) => {
+    const editable = canEditField(field);
+    return (
     <div className="space-y-1">
       <label className="text-[10px] font-bold text-art-ink/50 uppercase font-mono tracking-wide">{label}</label>
       <select
         value={value}
-        disabled={isReadOnly}
+        disabled={!editable}
         onChange={(e) => handleInputChange(field, e.target.value)}
-        className={`w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-semibold cursor-pointer ${isReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
+        className={`w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-semibold cursor-pointer ${!editable ? 'opacity-60 cursor-not-allowed' : ''}`}
       >
         {options.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
       </select>
     </div>
-  );
+    );
+  };
 
-  const toggleField = (label: string, field: string, value: string, optA: string, optB: string) => (
+  const toggleField = (label: string, field: string, value: string, optA: string, optB: string) => {
+    const editable = canEditField(field);
+    return (
     <div className="space-y-1">
       <label className="text-[10px] font-bold text-art-ink/50 uppercase font-mono tracking-wide">{label}</label>
       <div className="flex bg-white rounded border border-art-ink/10 p-0.5">
         <button
-          onClick={() => handleInputChange(field, optA)}
-          className={`flex-1 text-[10px] py-1 rounded font-serif italic font-bold uppercase ${value === optA ? 'bg-art-ink text-art-cream' : 'text-art-ink/50 hover:bg-art-cream/30'}`}
+          onClick={() => editable && handleInputChange(field, optA)}
+          className={`flex-1 text-[10px] py-1 rounded font-serif italic font-bold uppercase ${value === optA ? 'bg-art-ink text-art-cream' : 'text-art-ink/50 hover:bg-art-cream/30'} ${!editable ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         >
           {optA}
         </button>
         <button
-          onClick={() => handleInputChange(field, optB)}
-          className={`flex-1 text-[10px] py-1 rounded font-serif italic font-bold uppercase ${value === optB ? 'bg-art-ink text-art-cream' : 'text-art-ink/50 hover:bg-art-cream/30'}`}
+          onClick={() => editable && handleInputChange(field, optB)}
+          className={`flex-1 text-[10px] py-1 rounded font-serif italic font-bold uppercase ${value === optB ? 'bg-art-ink text-art-cream' : 'text-art-ink/50 hover:bg-art-cream/30'} ${!editable ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         >
           {optB}
         </button>
       </div>
     </div>
-  );
+    );
+  };
 
   const knobSection = (
     title: string,
@@ -239,13 +253,24 @@ export default function DesignBoard({
     </div>
   );
 
+  const editableLabels: Record<string, string> = {
+    architect: 'Silicon Engineering',
+    manufacturing: 'Manufacturing & Yield',
+    finance: 'Financial',
+    program: 'Program Scheduling',
+  };
+
   return (
     <div className="space-y-4">
-      {/* Read-only banner for non-architects */}
-      {isReadOnly && (
-        <div className="bg-amber-50 border-2 border-amber-200 rounded-xl px-4 py-2.5 flex items-center space-x-2">
-          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-          <span className="text-[10px] font-bold text-amber-700 font-mono">Read-only view — parameters are locked for design review. Contact Silicon Architect to modify.</span>
+      {/* Persona-aware banner */}
+      {activePersona !== 'architect' && (
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl px-4 py-2.5 flex items-center space-x-2">
+          <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+          <span className="text-[10px] font-bold text-blue-700 font-mono">
+            {PERSONA_CONFIG[activePersona].designFields.length > 0
+              ? `Editing: ${editableLabels[activePersona] || activePersona} fields. Contact Architect for design changes.`
+              : 'Read-only view. No editable fields for this role. Contact Architect for design changes.'}
+          </span>
         </div>
       )}
 

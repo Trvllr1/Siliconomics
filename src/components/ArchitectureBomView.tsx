@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Build, ArchitectureBlock, BlockCategory } from '../types';
+import { Build, ArchitectureBlock, BlockCategory, PersonaType } from '../types';
 import { round } from '../utils/mathEngine';
+import { BLOCK_FIELD_OWNER } from '../data/personaConfig';
 import {
   Cpu, Plus, Trash2, Edit3, DollarSign, Save, AlertCircle,
   Sliders, Clock, ShieldAlert, Truck, Wrench, ArrowRight,
@@ -10,6 +11,7 @@ import {
 interface ArchitectureBomViewProps {
   activeBuild: Build;
   onUpdateBuild: (updated: Build) => void;
+  activePersona: PersonaType;
 }
 
 const CATEGORY_LABELS: Record<BlockCategory, string> = {
@@ -48,25 +50,42 @@ const CATEGORY_DEFECT: Record<BlockCategory, number> = {
   networking: 1.0, rf: 0.7, clocking: 0.9, other: 1.0,
 };
 
-const emptyBlock = (): ArchitectureBlock => ({
-  name: '',
-  category: 'cpu',
-  purpose: '',
-  implementation: 'internal',
-  estimatedAreaMm2: 0,
-  manufacturingCriticality: 'medium',
-  supplyChainRisk: 'none',
-});
-
-export default function ArchitectureBomView({ activeBuild, onUpdateBuild }: ArchitectureBomViewProps) {
+export default function ArchitectureBomView({ activeBuild, onUpdateBuild, activePersona }: ArchitectureBomViewProps) {
   const arch = activeBuild.architecture;
   const blocks = arch?.blocks ?? [];
-
   const [showForm, setShowForm] = useState(false);
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [form, setForm] = useState<ArchitectureBlock>(emptyBlock());
 
   const [expandedBlock, setExpandedBlock] = useState<number | null>(null);
+
+  const canEditBlockField = (field: string) => {
+    const owner = BLOCK_FIELD_OWNER[field];
+    if (!owner) return activePersona === 'architect';
+    return activePersona === owner;
+  };
+
+  function emptyBlock(): ArchitectureBlock {
+    return {
+      name: '',
+      category: 'cpu',
+      purpose: '',
+      implementation: 'internal',
+      estimatedAreaMm2: 0,
+      manufacturingCriticality: 'medium',
+      supplyChainRisk: 'none',
+    };
+  }
+
+  const setBlockForm = (field: string, value: any) => {
+    if (!canEditBlockField(field)) return;
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const inputDisabled = (field: string) => {
+    const editable = canEditBlockField(field);
+    return `${!editable ? 'opacity-50 cursor-not-allowed pointer-events-none bg-art-cream/30' : 'bg-art-cream cursor-pointer'}`;
+  };
 
   const reset = () => {
     setForm(emptyBlock());
@@ -180,13 +199,13 @@ export default function ArchitectureBomView({ activeBuild, onUpdateBuild }: Arch
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Block Name</label>
-              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" placeholder="e.g. CPU Cluster, PQC Engine" />
+              <input type="text" value={form.name} onChange={(e) => setBlockForm('name', e.target.value)}
+                className={`w-full ${inputDisabled('name')} border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust`} placeholder="e.g. CPU Cluster, PQC Engine" />
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Category</label>
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as BlockCategory })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2 py-2 text-xs font-semibold outline-none focus:border-art-rust cursor-pointer">
+              <select value={form.category} onChange={(e) => setBlockForm('category', e.target.value)}
+                className={`w-full ${inputDisabled('category')} border border-art-ink/15 rounded px-2 py-2 text-xs font-semibold outline-none focus:border-art-rust`}>
                 {(Object.entries(CATEGORY_LABELS) as [BlockCategory, string][]).map(([k, v]) => (
                   <option key={k} value={k}>{v}</option>
                 ))}
@@ -194,8 +213,8 @@ export default function ArchitectureBomView({ activeBuild, onUpdateBuild }: Arch
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Implementation</label>
-              <select value={form.implementation} onChange={(e) => setForm({ ...form, implementation: e.target.value as ArchitectureBlock['implementation'] })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2 py-2 text-xs font-semibold outline-none focus:border-art-rust cursor-pointer">
+              <select value={form.implementation} onChange={(e) => setBlockForm('implementation', e.target.value)}
+                className={`w-full ${inputDisabled('implementation')} border border-art-ink/15 rounded px-2 py-2 text-xs font-semibold outline-none focus:border-art-rust`}>
                 <option value="internal">Internal (Build)</option>
                 <option value="licensed">Licensed (3rd Party)</option>
                 <option value="open-source">Open Source</option>
@@ -204,62 +223,62 @@ export default function ArchitectureBomView({ activeBuild, onUpdateBuild }: Arch
             </div>
             <div className="space-y-1 md:col-span-3">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Purpose / Rationale</label>
-              <input type="text" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" placeholder="e.g. Post-quantum crypto migration, AI inference acceleration" />
+              <input type="text" value={form.purpose} onChange={(e) => setBlockForm('purpose', e.target.value)}
+                className={`w-full ${inputDisabled('purpose')} border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust`} placeholder="e.g. Post-quantum crypto migration, AI inference acceleration" />
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Est. Area (mm²)</label>
-              <input type="number" min={0} step={0.1} value={form.estimatedAreaMm2} onChange={(e) => setForm({ ...form, estimatedAreaMm2: Number(e.target.value) })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" />
+              <input type="number" min={0} step={0.1} value={form.estimatedAreaMm2} onChange={(e) => setBlockForm('estimatedAreaMm2', Number(e.target.value))}
+                className={`w-full ${inputDisabled('estimatedAreaMm2')} border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust`} />
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Measured Area (mm²)</label>
-              <input type="number" min={0} step={0.1} value={form.measuredAreaMm2 ?? ''} onChange={(e) => setForm({ ...form, measuredAreaMm2: e.target.value ? Number(e.target.value) : undefined })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" placeholder="Optional" />
+              <input type="number" min={0} step={0.1} value={form.measuredAreaMm2 ?? ''} onChange={(e) => setBlockForm('measuredAreaMm2', e.target.value ? Number(e.target.value) : undefined)}
+                className={`w-full ${inputDisabled('measuredAreaMm2')} border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust`} placeholder="Optional" />
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Est. Power (W)</label>
-              <input type="number" min={0} step={0.1} value={form.estimatedPowerW ?? ''} onChange={(e) => setForm({ ...form, estimatedPowerW: e.target.value ? Number(e.target.value) : undefined })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" placeholder="Optional" />
+              <input type="number" min={0} step={0.1} value={form.estimatedPowerW ?? ''} onChange={(e) => setBlockForm('estimatedPowerW', e.target.value ? Number(e.target.value) : undefined)}
+                className={`w-full ${inputDisabled('estimatedPowerW')} border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust`} placeholder="Optional" />
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Measured Power (W)</label>
-              <input type="number" min={0} step={0.1} value={form.measuredPowerW ?? ''} onChange={(e) => setForm({ ...form, measuredPowerW: e.target.value ? Number(e.target.value) : undefined })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" placeholder="Optional" />
+              <input type="number" min={0} step={0.1} value={form.measuredPowerW ?? ''} onChange={(e) => setBlockForm('measuredPowerW', e.target.value ? Number(e.target.value) : undefined)}
+                className={`w-full ${inputDisabled('measuredPowerW')} border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust`} placeholder="Optional" />
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Internal NRE ($M)</label>
-              <input type="number" min={0} step={0.1} value={form.nreImpactM ?? ''} onChange={(e) => setForm({ ...form, nreImpactM: e.target.value ? Number(e.target.value) : undefined })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" />
+              <input type="number" min={0} step={0.1} value={form.nreImpactM ?? ''} onChange={(e) => setBlockForm('nreImpactM', e.target.value ? Number(e.target.value) : undefined)}
+                className={`w-full ${inputDisabled('nreImpactM')} border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust`} />
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">License Fee ($M)</label>
-              <input type="number" min={0} step={0.1} value={form.licensingCostM ?? ''} onChange={(e) => setForm({ ...form, licensingCostM: e.target.value ? Number(e.target.value) : undefined })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" />
+              <input type="number" min={0} step={0.1} value={form.licensingCostM ?? ''} onChange={(e) => setBlockForm('licensingCostM', e.target.value ? Number(e.target.value) : undefined)}
+                className={`w-full ${inputDisabled('licensingCostM')} border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust`} />
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Royalty ($/unit)</label>
-              <input type="number" min={0} step={0.01} value={form.royaltyPerUnit ?? ''} onChange={(e) => setForm({ ...form, royaltyPerUnit: e.target.value ? Number(e.target.value) : undefined })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" />
+              <input type="number" min={0} step={0.01} value={form.royaltyPerUnit ?? ''} onChange={(e) => setBlockForm('royaltyPerUnit', e.target.value ? Number(e.target.value) : undefined)}
+                className={`w-full ${inputDisabled('royaltyPerUnit')} border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust`} />
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Schedule Impact (weeks)</label>
               <div className="flex items-center space-x-2">
                 <input type="range" min={0} max={52} step={1} value={form.scheduleImpactWeeks ?? 0}
-                  onChange={(e) => setForm({ ...form, scheduleImpactWeeks: Number(e.target.value) })}
-                  className="flex-1 accent-art-rust" />
+                  onChange={(e) => setBlockForm('scheduleImpactWeeks', Number(e.target.value))}
+                  className={`flex-1 accent-art-rust ${!canEditBlockField('scheduleImpactWeeks') ? 'opacity-50 cursor-not-allowed' : ''}`} />
                 <span className="font-mono text-xs font-bold w-8 text-right">{form.scheduleImpactWeeks ?? 0}w</span>
               </div>
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Verification Effort (person-months)</label>
-              <input type="number" min={0} step={0.5} value={form.verificationEffortPersonMonths ?? ''} onChange={(e) => setForm({ ...form, verificationEffortPersonMonths: e.target.value ? Number(e.target.value) : undefined })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" />
+              <input type="number" min={0} step={0.5} value={form.verificationEffortPersonMonths ?? ''} onChange={(e) => setBlockForm('verificationEffortPersonMonths', e.target.value ? Number(e.target.value) : undefined)}
+                className={`w-full ${inputDisabled('verificationEffortPersonMonths')} border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust`} />
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Manufacturing Criticality</label>
-              <select value={form.manufacturingCriticality} onChange={(e) => setForm({ ...form, manufacturingCriticality: e.target.value as ArchitectureBlock['manufacturingCriticality'] })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2 py-2 text-xs font-semibold outline-none focus:border-art-rust cursor-pointer">
+              <select value={form.manufacturingCriticality} onChange={(e) => setBlockForm('manufacturingCriticality', e.target.value)}
+                className={`w-full ${inputDisabled('manufacturingCriticality')} border border-art-ink/15 rounded px-2 py-2 text-xs font-semibold outline-none focus:border-art-rust`}>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
@@ -268,8 +287,8 @@ export default function ArchitectureBomView({ activeBuild, onUpdateBuild }: Arch
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Supply Chain Risk</label>
-              <select value={form.supplyChainRisk} onChange={(e) => setForm({ ...form, supplyChainRisk: e.target.value as ArchitectureBlock['supplyChainRisk'] })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2 py-2 text-xs font-semibold outline-none focus:border-art-rust cursor-pointer">
+              <select value={form.supplyChainRisk} onChange={(e) => setBlockForm('supplyChainRisk', e.target.value)}
+                className={`w-full ${inputDisabled('supplyChainRisk')} border border-art-ink/15 rounded px-2 py-2 text-xs font-semibold outline-none focus:border-art-rust`}>
                 <option value="none">None</option>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -278,8 +297,8 @@ export default function ArchitectureBomView({ activeBuild, onUpdateBuild }: Arch
             </div>
             <div className="space-y-1">
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Replaces (decision trace)</label>
-              <input type="text" value={form.replaces ?? ''} onChange={(e) => setForm({ ...form, replaces: e.target.value })}
-                className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" placeholder="e.g. ECC-256" />
+              <input type="text" value={form.replaces ?? ''} onChange={(e) => setBlockForm('replaces', e.target.value)}
+                className={`w-full ${inputDisabled('replaces')} border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust`} placeholder="e.g. ECC-256" />
             </div>
           </div>
           <div className="flex justify-between pt-2">

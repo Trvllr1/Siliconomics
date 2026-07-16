@@ -578,6 +578,13 @@ export default function App() {
             <Cpu className="w-3.5 h-3.5" style={{ color: pc.color }} />
             <span className="font-bold">{pc.label}</span>
             <ChevronDown className="w-3 h-3" />
+            {pc.designFields.length > 0 && comments.filter(c =>
+              c.buildId === activeBuild.id && pc.designFields.includes(c.elementId ?? '')
+            ).length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[7px] font-bold flex items-center justify-center">
+                {comments.filter(c => c.buildId === activeBuild.id && pc.designFields.includes(c.elementId ?? '')).length}
+              </span>
+            )}
           </button>
 
           {personaDropdownOpen && (
@@ -911,6 +918,7 @@ export default function App() {
             <ArchitectureBomView
               activeBuild={activeBuild}
               onUpdateBuild={handleUpdateBuild}
+              activePersona={activePersona}
             />
           )}
 
