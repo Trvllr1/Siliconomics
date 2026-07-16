@@ -1,21 +1,340 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { jsPDF } from 'jspdf';
-import { Build, Snapshot } from '../types';
-import { round } from './mathEngine';
+import { Build, MetricCardData, CostContributor, ArchitectureBlock, SupplyChainSnapshot, Snapshot, Decision } from '../types';
 
-interface TableRow {
-  label: string;
-  valA: string | number;
-  valB: string | number;
-  rawA?: number;
-  rawB?: number;
-  isBetterLower?: boolean;
-  unit?: string;
-  isHeader?: boolean;
+const PAGE_W = 210;
+const PAGE_H = 297;
+const MARGIN = 20;
+const CONTENT_W = PAGE_W - MARGIN * 2;
+const COLORS = {
+  bg: '#0D1117',
+  text: '#F0F6FC',
+  accent: '#00BFA6',
+  muted: '#7D7B78',
+  card: '#161B22',
+} as const;
+
+function parseRgb(css: string): [number, number, number] {
+  const m = css.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return [0, 0, 0];
+  return [parseInt(m[1]!, 16), parseInt(m[2]!, 16), parseInt(m[3]!, 16)];
+}
+
+function addMetricCard(doc: jsPDF, y: number, label: string, value: string, unit: string): number {
+  const [tr, tg, tb] = parseRgb(COLORS.text);
+  const [mr, mg, mb] = parseRgb(COLORS.muted);
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(mr, mg, mb);
+  doc.text(label.toUpperCase(), MARGIN, y);
+  doc.setFontSize(14);
+  doc.setTextColor(tr, tg, tb);
+  doc.text(value, MARGIN, y + 6);
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(mr, mg, mb);
+  doc.text(unit, MARGIN + doc.getTextWidth(value) + 2, y + 6);
+  return y + 14;
+}
+
+export function generateExecutiveReport(
+  build: Build,
+  metrics: MetricCardData[],
+  contributors: CostContributor[],
+  blocks: ArchitectureBlock[],
+  supplyChain: SupplyChainSnapshot
+): jsPDF {
+  const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+  const [br, bg, bc] = parseRgb(COLORS.bg);
+  const [tr, tg, tb] = parseRgb(COLORS.text);
+  const [ar, ag, ab] = parseRgb(COLORS.accent);
+  const [mr, mg, mb] = parseRgb(COLORS.muted);
+
+  doc.setFillColor(br, bg, bc);
+  doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(ar, ag, ab);
+  doc.text('SILICONOMICS', MARGIN, 80);
+
+  doc.setFontSize(28);
+  doc.setTextColor(tr, tg, tb);
+  doc.text('Executive Report', MARGIN, 95);
+
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(12);
+  doc.setTextColor(mr, mg, mb);
+  doc.text(build.name, MARGIN, 110);
+
+  doc.setFontSize(9);
+  doc.setTextColor(mr, mg, mb);
+  doc.text(`Process: ${build.designModel.processNode}  |  Version: ${build.version}  |  Status: ${build.status}`, MARGIN, 120);
+  doc.text(`Generated: ${new Date().toISOString().slice(0, 10)}`, MARGIN, 127);
+
+  doc.setDrawColor(ar, ag, ab);
+  doc.setLineWidth(0.5);
+  doc.line(MARGIN, 140, PAGE_W - MARGIN, 140);
+
+  doc.addPage();
+  doc.setFillColor(br, bg, bc);
+  doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(tr, tg, tb);
+  doc.text('Key Metrics', MARGIN, 25);
+
+  const fin = metrics.filter(m => m.category === 'financial');
+  const eng = metrics.filter(m => m.category === 'engineering');
+
+  let y = 35;
+  if (fin.length > 0) {
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(ar, ag, ab);
+    doc.text('FINANCIAL', MARGIN, y);
+    y += 8;
+    for (const m of fin.slice(0, 8)) {
+      y = addMetricCard(doc, y, m.label, m.value, m.unit);
+    }
+  }
+
+  y += 5;
+  if (eng.length > 0) {
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(ar, ag, ab);
+    doc.text('ENGINEERING', MARGIN, y);
+    y += 8;
+    for (const m of eng.slice(0, 6)) {
+      y = addMetricCard(doc, y, m.label, m.value, m.unit);
+    }
+  }
+
+  doc.addPage();
+  doc.setFillColor(br, bg, bc);
+  doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(tr, tg, tb);
+  doc.text('Cost Breakdown', MARGIN, 25);
+
+  const sorted = [...contributors].sort((a, b) => b.costPerUnit - a.costPerUnit);
+  const maxCost = sorted.length > 0 ? sorted[0]!.costPerUnit : 1;
+  const barMaxW = 140;
+  let cy = 38;
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(8);
+  for (const c of sorted.slice(0, 12)) {
+    const barW = (c.costPerUnit / maxCost) * barMaxW;
+    doc.setTextColor(tr, tg, tb);
+    doc.text(c.name, MARGIN, cy);
+    doc.setTextColor(mr, mg, mb);
+    doc.text(`$${c.costPerUnit.toFixed(4)}`, MARGIN + barMaxW + 5, cy);
+    doc.text(`(${c.percentageOfTotal.toFixed(1)}%)`, MARGIN + barMaxW + 30, cy);
+    doc.setFillColor(ar, ag, ab);
+    doc.rect(MARGIN + 50, cy - 2, barW, 3, 'F');
+    cy += 8;
+  }
+
+  doc.addPage();
+  doc.setFillColor(br, bg, bc);
+  doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(tr, tg, tb);
+  doc.text('Supply Chain Risk', MARGIN, 25);
+
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(tr, tg, tb);
+  doc.text(`Composite Risk Score: ${supplyChain.compositeRiskScore}%`, MARGIN, 38);
+  doc.setFontSize(9);
+  doc.setTextColor(mr, mg, mb);
+  doc.text(`Risk Level: ${supplyChain.riskLevel.toUpperCase()}`, MARGIN, 46);
+  doc.text(`Risk-Adjusted Cost Adder: $${supplyChain.riskAdjustedCostAdder.toFixed(2)}/wafer`, MARGIN, 53);
+  doc.text(`High-Risk Blocks: ${supplyChain.highRiskBlockCount} / ${supplyChain.totalBlockCount}`, MARGIN, 60);
+
+  doc.setFontSize(8);
+  doc.setTextColor(mr, mg, mb);
+  doc.text(`Supplier Concentration: ${supplyChain.supplierConcentrationScore.toFixed(1)}%`, MARGIN, 72);
+  doc.text(`Geopolitical Exposure: ${supplyChain.geopoliticalRiskScore.toFixed(1)}%`, MARGIN, 79);
+  doc.text(`Lead Time Volatility: ${supplyChain.leadTimeVolatilityScore.toFixed(1)}%`, MARGIN, 86);
+
+  if (blocks.length > 0) {
+    y = 100;
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(tr, tg, tb);
+    doc.text('Architecture Blocks', MARGIN, y);
+    y += 8;
+
+    const cols = [
+      { label: 'Block', w: 50 },
+      { label: 'Category', w: 25 },
+      { label: 'Area', w: 20 },
+      { label: 'Risk', w: 18 },
+      { label: 'Imp.', w: 16 },
+      { label: 'NRE', w: 18 },
+      { label: 'Royalty', w: 18 },
+    ];
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(ar, ag, ab);
+    let cx = MARGIN;
+    for (const col of cols) {
+      doc.text(col.label, cx, y);
+      cx += col.w;
+    }
+    doc.setDrawColor(ar, ag, ab);
+    doc.setLineWidth(0.3);
+    doc.line(MARGIN, y + 1, PAGE_W - MARGIN, y + 1);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(tr, tg, tb);
+    let rowY = y + 6;
+    for (const b of blocks) {
+      if (rowY > PAGE_H - 20) break;
+      cx = MARGIN;
+      const vals = [b.name, b.category, `${b.estimatedAreaMm2} mm²`, b.supplyChainRisk, b.implementation.slice(0, 4), b.nreImpactM ? `$${b.nreImpactM}M` : '-', b.royaltyPerUnit ? `$${b.royaltyPerUnit}` : '-'];
+      for (let vi = 0; vi < vals.length; vi++) {
+        doc.text(vals[vi]!, cx, rowY);
+        cx += cols[vi]!.w;
+      }
+      rowY += 5;
+    }
+  }
+
+  return doc;
+}
+
+export function generateConsolidatedAudit(
+  builds: Build[],
+  decisions: Decision[]
+): jsPDF {
+  const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+  const [br, bg, bc] = parseRgb(COLORS.bg);
+  const [tr, tg, tb] = parseRgb(COLORS.text);
+  const [ar, ag, ab] = parseRgb(COLORS.accent);
+  const [mr, mg, mb] = parseRgb(COLORS.muted);
+
+  doc.setFillColor(br, bg, bc);
+  doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(ar, ag, ab);
+  doc.text('SILICONOMICS', MARGIN, 80);
+
+  doc.setFontSize(24);
+  doc.setTextColor(tr, tg, tb);
+  doc.text('Consolidated Audit Report', MARGIN, 95);
+
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(mr, mg, mb);
+  doc.text(`Generated: ${new Date().toISOString().slice(0, 10)}`, MARGIN, 110);
+  doc.text(`Builds: ${builds.length}  |  Decisions: ${decisions.length}`, MARGIN, 118);
+
+  doc.addPage();
+  doc.setFillColor(br, bg, bc);
+  doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(tr, tg, tb);
+  doc.text('Build Register', MARGIN, 25);
+
+  const bcols = [
+    { label: 'Name', w: 40 },
+    { label: 'Version', w: 15 },
+    { label: 'Node', w: 15 },
+    { label: 'Status', w: 18 },
+    { label: 'Die', w: 18 },
+    { label: 'Wafer $', w: 18 },
+    { label: 'ASP', w: 18 },
+    { label: 'Vol (M)', w: 20 },
+  ];
+
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(ar, ag, ab);
+  let cx = MARGIN;
+  for (const col of bcols) {
+    doc.text(col.label, cx, 35);
+    cx += col.w;
+  }
+  doc.setDrawColor(ar, ag, ab);
+  doc.setLineWidth(0.3);
+  doc.line(MARGIN, 37, PAGE_W - MARGIN, 37);
+
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(tr, tg, tb);
+  let rowY = 43;
+  for (const b of builds) {
+    if (rowY > PAGE_H - 20) break;
+    cx = MARGIN;
+    const vals = [b.name, b.version, b.designModel.processNode, b.status, `${b.designModel.dieArea} mm²`, `$${b.designModel.waferCost}`, `$${b.designModel.asp}`, b.designModel.targetVolume.toString()];
+    for (let vi = 0; vi < vals.length; vi++) {
+      doc.text(vals[vi]!, cx, rowY);
+      cx += bcols[vi]!.w;
+    }
+    rowY += 5;
+  }
+
+  if (decisions.length > 0) {
+    doc.addPage();
+    doc.setFillColor(br, bg, bc);
+    doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(tr, tg, tb);
+    doc.text('Decision History', MARGIN, 25);
+
+    const dcols = [
+      { label: 'Builds', w: 35 },
+      { label: 'Outcome', w: 30 },
+      { label: 'Approver', w: 25 },
+      { label: 'Date', w: 20 },
+      { label: 'Rationale', w: 55 },
+    ];
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(ar, ag, ab);
+    cx = MARGIN;
+    for (const col of dcols) {
+      doc.text(col.label, cx, 35);
+      cx += col.w;
+    }
+    doc.setDrawColor(ar, ag, ab);
+    doc.setLineWidth(0.3);
+    doc.line(MARGIN, 37, PAGE_W - MARGIN, 37);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(tr, tg, tb);
+    rowY = 43;
+    for (const d of decisions) {
+      if (rowY > PAGE_H - 20) break;
+      cx = MARGIN;
+      const rationale = d.rationale || '';
+      const vals = [d.buildIds.join(', '), d.outcome, d.approver, d.timestamp.slice(0, 10), rationale.length > 60 ? rationale.slice(0, 60) + '...' : rationale];
+      for (let vi = 0; vi < vals.length; vi++) {
+        doc.text(vals[vi]!, cx, rowY);
+        cx += dcols[vi]!.w;
+      }
+      rowY += 5;
+    }
+  }
+
+  return doc;
 }
 
 export function generateComparisonPdf(
@@ -24,440 +343,117 @@ export function generateComparisonPdf(
   buildB: Build,
   snapB: Snapshot,
   aiComparison: string | null
-) {
-  const dmA = buildA.designModel;
-  const dmB = buildB.designModel;
+): void {
+  const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+  const [br, bg, bc] = parseRgb(COLORS.bg);
+  const [tr, tg, tb] = parseRgb(COLORS.text);
+  const [ar, ag, ab] = parseRgb(COLORS.accent);
+  const [mr, mg, mb] = parseRgb(COLORS.muted);
 
-  // Create PDF document (portrait, mm, a4: 210 x 297 mm)
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
-  });
+  doc.setFillColor(br, bg, bc);
+  doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
 
-  const pageWidth = 210;
-  const pageHeight = 297;
-  const margin = 15;
-  const contentWidth = pageWidth - (margin * 2); // 180mm
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(ar, ag, ab);
+  doc.text('SILICONOMICS', MARGIN, 80);
 
-  let currentPage = 1;
+  doc.setFontSize(24);
+  doc.setTextColor(tr, tg, tb);
+  doc.text('Comparison Report', MARGIN, 95);
 
-  // Helper to draw the header on any page
-  const drawHeaderBanner = (pageNum: number) => {
-    // Elegant teal banner at top
-    doc.setFillColor(0, 191, 166); // Brand Quantum Teal
-    doc.rect(margin, 12, contentWidth, 18, 'F');
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(mr, mg, mb);
+  doc.text(`${buildA.name} vs ${buildB.name}`, MARGIN, 110);
+  doc.setFontSize(9);
+  doc.text(`Generated: ${new Date().toISOString().slice(0, 10)}`, MARGIN, 118);
 
-    // Title text inside banner
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text('SILICONOMICS', margin + 6, 20);
+  doc.addPage();
+  doc.setFillColor(br, bg, bc);
+  doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text('EXECUTIVE COMPARISON & FEASIBILITY BRIEFING', margin + 6, 25);
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(tr, tg, tb);
+  doc.text('Side-by-Side Comparison', MARGIN, 25);
 
-    // Document type / Page indicator on top right
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.text(`PAGE ${pageNum}`, margin + contentWidth - 18, 22);
-  };
-
-  // Helper to draw standard page footers for traceability
-  const drawFooter = (pageNum: number) => {
-    const footerY = pageHeight - 12;
-    doc.setDrawColor(0, 191, 166, 0.2);
-    doc.setLineWidth(0.1);
-    doc.line(margin, footerY - 3, margin + contentWidth, footerY - 3);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(120, 120, 120);
-
-    // Traceability indicators as required by the Siliconomics Build Specification
-    const leftText = `Siliconomics platform v1.0.3-C • Deterministic Engine Compliant`;
-    const rightText = `Generated: ${new Date().toLocaleString()} • Authorized Audit Copy`;
-    doc.text(leftText, margin, footerY);
-    doc.text(rightText, margin + contentWidth - doc.getTextWidth(rightText), footerY);
-  };
-
-  // Initial draw of page 1 frame
-  drawHeaderBanner(currentPage);
-  drawFooter(currentPage);
-
-  let y = 38;
-
-  // Write Scenario Title Details
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(26, 28, 30); // Dark Ink
-  doc.text('1. COMPARISON OF ACTIVE SEMICONDUCTOR SCENARIOS', margin, y);
-  y += 5;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(80, 80, 80);
-  const introText = `This board-ready comparative audit isolates and evaluates technical performance bottlenecks, manufacturing yields, and financial architectures between Scenario A (${buildA.name}) and Scenario B (${buildB.name}).`;
-  const splitIntro = doc.splitTextToSize(introText, contentWidth);
-  doc.text(splitIntro, margin, y);
-  y += (splitIntro.length * 3.5) + 3;
-
-  // Render Traceability Metadata Box (Principle 4 - Reproducibility)
-  doc.setFillColor(249, 248, 246); // Off-white/cream light tint
-  doc.setDrawColor(0, 191, 166, 0.15);
-  doc.setLineWidth(0.2);
-  doc.rect(margin, y, contentWidth, 24, 'FD');
-
-  doc.setTextColor(0, 191, 166);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.text('IMMUTABLE TRACEABILITY LEDGER (V1.0 SPEC)', margin + 4, y + 5);
-
-  doc.setTextColor(26, 28, 30);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  
-  // Left Column of ledger
-  doc.text(`Build A Name: ${buildA.name}`, margin + 4, y + 10);
-  doc.text(`Build A ID:   ${buildA.id}`, margin + 4, y + 14);
-  doc.text(`Formula Lib:  ${buildA.formulaVersion}`, margin + 4, y + 18);
-
-  // Right Column of ledger
-  const col2X = margin + (contentWidth / 2) + 2;
-  doc.text(`Build B Name: ${buildB.name}`, col2X, y + 10);
-  doc.text(`Build B ID:   ${buildB.id}`, col2X, y + 14);
-  doc.text(`Ref Model:    ${buildA.referenceModel}`, col2X, y + 18);
-
-  y += 29;
-
-  // Setup Comparison Table Rows
-  const tableData: TableRow[] = [
-    // ENGINEERING SECTION
-    { label: 'ENGINEERING METRICS', valA: '', valB: '', isHeader: true },
-    { label: 'Process Node Class', valA: dmA.processNode, valB: dmB.processNode },
-    { label: 'Silicon Die Area', valA: `${round(snapA.totalDieArea, 1)} mm²`, valB: `${round(snapB.totalDieArea, 1)} mm²`, rawA: snapA.totalDieArea, rawB: snapB.totalDieArea, unit: ' mm²', isBetterLower: true },
-    { label: 'Transistor Count', valA: `${dmA.transistorCount} B`, valB: `${dmB.transistorCount} B`, rawA: dmA.transistorCount, rawB: dmB.transistorCount, unit: ' B' },
-    { label: 'Silicon Topology Design', valA: dmA.topology, valB: dmB.topology },
-    { label: 'Dies per Wafer (DPW)', valA: `${snapA.dpw} dies`, valB: `${snapB.dpw} dies`, rawA: snapA.dpw, rawB: snapB.dpw, unit: ' dies' },
-    { label: 'Murphy Die Yield', valA: `${round(snapA.dieYield * 100, 1)}%`, valB: `${round(snapB.dieYield * 100, 1)}%`, rawA: snapA.dieYield * 100, rawB: snapB.dieYield * 100, unit: '%' },
-
-    // MANUFACTURING SECTION
-    { label: 'MANUFACTURING & ASSEMBLY YIELDS', valA: '', valB: '', isHeader: true },
-    { label: 'Defect Density (D0)', valA: `${dmA.defectDensity} /cm²`, valB: `${dmB.defectDensity} /cm²`, rawA: dmA.defectDensity, rawB: dmB.defectDensity, unit: '/cm²', isBetterLower: true },
-    { label: 'Packaging Yield', valA: `${dmA.packagingYield}%`, valB: `${dmB.packagingYield}%`, rawA: dmA.packagingYield, rawB: dmB.packagingYield, unit: '%' },
-    { label: 'Electrical Test Yield', valA: `${dmA.testYield}%`, valB: `${dmB.testYield}%`, rawA: dmA.testYield, rawB: dmB.testYield, unit: '%' },
-
-    // FINANCIAL ARCHITECTURE
-    { label: 'FINANCIAL ARCHITECTURE', valA: '', valB: '', isHeader: true },
-    { label: 'Foundry Wafer Cost', valA: `$${dmA.waferCost.toLocaleString()}`, valB: `$${dmB.waferCost.toLocaleString()}`, rawA: dmA.waferCost, rawB: dmB.waferCost, unit: '', isBetterLower: true },
-    { label: 'Calculated Silicon Die Cost', valA: `$${round(snapA.rawDieCost, 2)}`, valB: `$${round(snapB.rawDieCost, 2)}`, rawA: snapA.rawDieCost, rawB: snapB.rawDieCost, unit: '', isBetterLower: true },
-    { label: 'Packaged Unit COGS', valA: `$${round(snapA.grossCostPerGoodDie, 2)}`, valB: `$${round(snapB.grossCostPerGoodDie, 2)}`, rawA: snapA.grossCostPerGoodDie, rawB: snapB.grossCostPerGoodDie, unit: '', isBetterLower: true },
-    { label: 'Average Selling Price (ASP)', valA: `$${dmA.asp.toLocaleString()}`, valB: `$${dmB.asp.toLocaleString()}`, rawA: dmA.asp, rawB: dmB.asp, unit: '' },
-    { label: 'Gross Program Margin', valA: `${round(snapA.grossMargin, 1)}%`, valB: `${round(snapB.grossMargin, 1)}%`, rawA: snapA.grossMargin, rawB: snapB.grossMargin, unit: '%' },
-    { label: 'Non-Recurring Engineering (NRE)', valA: `$${dmA.nreCost} M`, valB: `$${dmB.nreCost} M`, rawA: dmA.nreCost, rawB: dmB.nreCost, unit: ' M', isBetterLower: true },
-    { label: 'Amortized Program Break-Even', valA: `${round(snapA.breakEvenVolumeMillion, 2)} M`, valB: `${round(snapB.breakEvenVolumeMillion, 2)} M`, rawA: snapA.breakEvenVolumeMillion, rawB: snapB.breakEvenVolumeMillion, unit: ' M', isBetterLower: true },
-    { label: 'Projected Net Lifetime Profit', valA: `$${round(snapA.lifetimeNetProfitMillion, 1)} M`, valB: `$${round(snapB.lifetimeNetProfitMillion, 1)} M`, rawA: snapA.lifetimeNetProfitMillion, rawB: snapB.lifetimeNetProfitMillion, unit: ' M' },
-    { label: 'Program Return (ROI)', valA: `${round(snapA.roi, 1)}%`, valB: `${round(snapB.roi, 1)}%`, rawA: snapA.roi, rawB: snapB.roi, unit: '%' }
+  const rows: [string, string, string][] = [
+    ['Die Area', `${snapA.totalDieArea.toFixed(1)} mm²`, `${snapB.totalDieArea.toFixed(1)} mm²`],
+    ['Die Yield', `${(snapA.dieYield * 100).toFixed(1)}%`, `${(snapB.dieYield * 100).toFixed(1)}%`],
+    ['DPW', `${snapA.dpw}`, `${snapB.dpw}`],
+    ['Raw Die Cost', `$${snapA.rawDieCost.toFixed(2)}`, `$${snapB.rawDieCost.toFixed(2)}`],
+    ['Fully Loaded Cost', `$${snapA.fullyLoadedCostPerDie.toFixed(2)}`, `$${snapB.fullyLoadedCostPerDie.toFixed(2)}`],
+    ['Gross Margin', `${snapA.grossMargin.toFixed(1)}%`, `${snapB.grossMargin.toFixed(1)}%`],
+    ['Operating Margin', `${snapA.operatingMargin.toFixed(1)}%`, `${snapB.operatingMargin.toFixed(1)}%`],
+    ['Break-Even Volume', `${snapA.breakEvenVolumeMillion.toFixed(2)}M`, `${snapB.breakEvenVolumeMillion.toFixed(2)}M`],
+    ['ROI', `${snapA.roi.toFixed(1)}%`, `${snapB.roi.toFixed(1)}%`],
+    ['Lifetime Net Profit', `$${snapA.lifetimeNetProfitMillion.toFixed(1)}M`, `$${snapB.lifetimeNetProfitMillion.toFixed(1)}M`],
   ];
 
-  // Draw Table Columns Headers
-  const colWidths = {
-    param: 65,
-    valA: 45,
-    valB: 45,
-    delta: 25
-  };
+  const rcols = [
+    { label: 'Metric', w: 45 },
+    { label: buildA.name, w: 55 },
+    { label: buildB.name, w: 55 },
+  ];
 
-  const drawTableHeaderRow = (currentY: number) => {
-    doc.setFillColor(26, 28, 30); // Deep Ink/Charcoal background
-    doc.rect(margin, currentY, contentWidth, 7.5, 'F');
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    
-    doc.text('PARAMETER LENS', margin + 3, currentY + 5);
-    doc.text('SCENARIO A', margin + colWidths.param + 3, currentY + 5);
-    doc.text('SCENARIO B', margin + colWidths.param + colWidths.valA + 3, currentY + 5);
-    doc.text('DELTA (B VS A)', margin + colWidths.param + colWidths.valA + colWidths.valB + 3, currentY + 5);
-  };
-
-  drawTableHeaderRow(y);
-  y += 7.5;
-
-  // Render Table Data Rows
-  tableData.forEach((row) => {
-    // Check page space
-    if (y + 8 > pageHeight - 18) {
-      doc.addPage();
-      currentPage++;
-      drawHeaderBanner(currentPage);
-      drawFooter(currentPage);
-      y = 38;
-      drawTableHeaderRow(y);
-      y += 7.5;
-    }
-
-    if (row.isHeader) {
-      // Draw category section subheader
-      doc.setFillColor(235, 233, 229); // warm light cream background
-      doc.rect(margin, y, contentWidth, 6, 'F');
-
-      doc.setTextColor(0, 191, 166); // Teal Accent
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
-      doc.text(row.label, margin + 3, y + 4.2);
-      y += 6;
-      return;
-    }
-
-    // Draw alternating row background
-    if (y % 12 === 0) {
-      doc.setFillColor(252, 251, 249);
-    } else {
-      doc.setFillColor(255, 255, 255);
-    }
-    doc.rect(margin, y, contentWidth, 7, 'F');
-
-    // Draw grid bottom divider line
-    doc.setDrawColor(220, 220, 220, 0.4);
-    doc.setLineWidth(0.1);
-    doc.line(margin, y + 7, margin + contentWidth, y + 7);
-
-    doc.setTextColor(60, 60, 60);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-
-    // Render Parameter Name
-    doc.text(row.label, margin + 3, y + 4.5);
-
-    // Highlight differences
-    const isDifferent = row.valA !== row.valB;
-    if (isDifferent) {
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(26, 28, 30);
-    } else {
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(110, 110, 110);
-    }
-
-    // Render Build A Value
-    doc.text(String(row.valA), margin + colWidths.param + 3, y + 4.5);
-
-    // Render Build B Value
-    doc.text(String(row.valB), margin + colWidths.param + colWidths.valA + 3, y + 4.5);
-
-    // Render Delta calculations
-    if (row.rawA !== undefined && row.rawB !== undefined) {
-      const diff = row.rawB - row.rawA;
-      if (diff === 0) {
-        doc.setTextColor(150, 150, 150);
-        doc.setFont('helvetica', 'normal');
-        doc.text('-', margin + colWidths.param + colWidths.valA + colWidths.valB + 3, y + 4.5);
-      } else {
-        const isPositive = diff > 0;
-        const isGood = row.isBetterLower ? !isPositive : isPositive;
-
-        const prefix = isPositive ? '+' : '';
-        const diffText = `${prefix}${round(diff, 2)}${row.unit || ''}`;
-
-        // Set green for positive/good shifts, red for negative/bad
-        if (isGood) {
-          doc.setFillColor(230, 245, 235); // Light green bg pill
-          doc.rect(margin + colWidths.param + colWidths.valA + colWidths.valB + 1, y + 1.2, 22, 4.6, 'F');
-          doc.setTextColor(20, 115, 80); // Deep green
-        } else {
-          doc.setFillColor(254, 235, 235); // Light red bg pill
-          doc.rect(margin + colWidths.param + colWidths.valA + colWidths.valB + 1, y + 1.2, 22, 4.6, 'F');
-          doc.setTextColor(185, 28, 28); // Deep red
-        }
-        
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(6.5);
-        // Center text within the pill
-        const textOffset = 12 - (doc.getTextWidth(diffText) / 2);
-        doc.text(diffText, margin + colWidths.param + colWidths.valA + colWidths.valB + textOffset, y + 4.4);
-      }
-    } else {
-      doc.setTextColor(150, 150, 150);
-      doc.setFont('helvetica', 'normal');
-      doc.text('-', margin + colWidths.param + colWidths.valA + colWidths.valB + 3, y + 4.5);
-    }
-
-    y += 7;
-  });
-
-  y += 6;
-
-  // Render Section 2: AI CONSULTANT ADVISORY IF ACTIVE
-  if (aiComparison) {
-    // We force a new page for the AI analysis to ensure professional clean spacing!
-    doc.addPage();
-    currentPage++;
-    drawHeaderBanner(currentPage);
-    drawFooter(currentPage);
-    y = 38;
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(26, 28, 30);
-    doc.text('2. STRATEGIC DECISION-SUPPORT ASSESSMENT', margin, y);
-    y += 5;
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(80, 80, 80);
-    const advisoryIntroText = `The following expert strategic audit has been compiled dynamically by the Siliconomics AI Advisor. It details structural trade-offs, technology and yield scaling risks, and financial return analysis to assist executive leadership in tape-out approvals.`;
-    const splitAdvisoryIntro = doc.splitTextToSize(advisoryIntroText, contentWidth);
-    doc.text(splitAdvisoryIntro, margin, y);
-    y += (splitAdvisoryIntro.length * 3.5) + 5;
-
-    // AI summary card border
-    const aiCardStartY = y;
-    doc.setFillColor(249, 248, 246);
-    doc.setDrawColor(26, 28, 30, 0.1);
-    doc.setLineWidth(0.2);
-    // Draw temporary rectangle to capture text, we fill it first then draw content. We will draw the actual outer box later or use simple lines.
-    
-    // Parse markdown into plain text lines cleanly
-    const lines = aiComparison.split('\n');
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(40, 40, 40);
-
-    lines.forEach((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) {
-        y += 2;
-        return;
-      }
-
-      // Check if page overflow
-      if (y > pageHeight - 20) {
-        doc.addPage();
-        currentPage++;
-        drawHeaderBanner(currentPage);
-        drawFooter(currentPage);
-        y = 38;
-      }
-
-      if (trimmed.startsWith('###')) {
-        y += 3;
-        const heading = trimmed.replace(/^###\s*/, '').replace(/\*\*/g, '').toUpperCase();
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 191, 166);
-        doc.setFontSize(8.5);
-        doc.text(heading, margin + 4, y);
-        y += 4.5;
-        // reset font styles
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(40, 40, 40);
-      } else if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
-        const listContent = trimmed.replace(/^[-*]\s*/, '');
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(60, 60, 60);
-        
-        // Handle nested bold formatting in list
-          const boldMatch = listContent.match(/^\*\*(.*?)\*\*:(.*)$/);
-        if (boldMatch) {
-          const boldPart = `• ${boldMatch[1] ?? ''}:`;
-          const normalPart = boldMatch[2] ?? '';
-          
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(26, 28, 30);
-          doc.text(boldPart, margin + 4, y);
-          
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(60, 60, 60);
-          
-          const textX = margin + 4 + doc.getTextWidth(boldPart) + 1;
-          const remainingW = contentWidth - 8 - doc.getTextWidth(boldPart) - 1;
-          const splitNormal = doc.splitTextToSize(normalPart, remainingW);
-          
-          doc.text(splitNormal, textX, y);
-          y += (splitNormal.length * 3.5);
-        } else {
-          const bulletText = `• ${listContent}`;
-          const splitBullet = doc.splitTextToSize(bulletText, contentWidth - 8);
-          doc.text(splitBullet, margin + 4, y);
-          y += (splitBullet.length * 3.5);
-        }
-      } else {
-        // Plain paragraph
-        const splitParagraph = doc.splitTextToSize(trimmed, contentWidth - 8);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(50, 50, 50);
-        doc.text(splitParagraph, margin + 4, y);
-        y += (splitParagraph.length * 3.5) + 1.5;
-      }
-    });
-
-    // Draw enclosing card outline for AI advisory
-    const aiCardEndY = y;
-    doc.rect(margin, aiCardStartY - 2, contentWidth, (aiCardEndY - aiCardStartY) + 4, 'S');
-  } else {
-    // If no AI comparison executed yet, draw a placeholder container prompting user
-    if (y + 35 > pageHeight - 18) {
-      doc.addPage();
-      currentPage++;
-      drawHeaderBanner(currentPage);
-      drawFooter(currentPage);
-      y = 38;
-    }
-
-    doc.setFillColor(249, 248, 246);
-    doc.setDrawColor(0, 191, 166, 0.1);
-    doc.setLineWidth(0.2);
-    doc.rect(margin, y, contentWidth, 26, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(0, 191, 166);
-    doc.text('2. STRATEGIC AI ADVISORY SUMMARY (OPTIONAL)', margin + 5, y + 6);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(110, 110, 110);
-    const promptText = `No dynamic AI expert comparison is appended to this report. To include full-text tactical recommendation matrices, exit this PDF, click 'Run Expert AI Comparison' on the Side-by-Side Comparison Desk to compute advisory recommendations, then re-generate this PDF report.`;
-    const splitPrompt = doc.splitTextToSize(promptText, contentWidth - 10);
-    doc.text(splitPrompt, margin + 5, y + 11);
-    y += 28;
-  }
-
-  // Draw signature / sign-off section
-  if (y + 25 > pageHeight - 18) {
-    doc.addPage();
-    currentPage++;
-    drawHeaderBanner(currentPage);
-    drawFooter(currentPage);
-    y = 38;
-  }
-
-  y += 4;
-  doc.setDrawColor(200, 200, 200, 0.5);
-  doc.setLineWidth(0.15);
-  doc.line(margin, y, margin + contentWidth, y);
-  y += 6;
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(26, 28, 30);
-  doc.text('FEASIBILITY SIGN-OFF PANEL', margin, y);
-
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('Helvetica', 'bold');
   doc.setFontSize(7);
-  doc.setTextColor(120, 120, 120);
-  doc.text('Prepared by: Siliconomics Architecture Committee', margin, y + 5);
-  doc.text('Approved by: VP Engineering Operations', margin, y + 9);
+  doc.setTextColor(ar, ag, ab);
+  let cx = MARGIN;
+  for (const col of rcols) {
+    doc.text(col.label, cx, 35);
+    cx += col.w;
+  }
+  doc.setDrawColor(ar, ag, ab);
+  doc.setLineWidth(0.3);
+  doc.line(MARGIN, 37, PAGE_W - MARGIN, 37);
 
-  // Signature lines on right
-  const signX = margin + contentWidth - 65;
-  doc.line(signX, y + 5, signX + 60, y + 5);
-  doc.text('CHIEF SEMICONDUCTOR ARCHITECT SIGNATURE', signX, y + 8.5);
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(tr, tg, tb);
+  let rowY = 43;
+  for (const [label, valA, valB] of rows) {
+    cx = MARGIN;
+    doc.text(label, cx, rowY);
+    cx += rcols[0]!.w;
+    doc.text(valA, cx, rowY);
+    cx += rcols[1]!.w;
+    doc.text(valB, cx, rowY);
+    rowY += 6;
+  }
 
-  // Save the PDF
-  const safeTitle = `${buildA.name.split(' ')[0]}_vs_${buildB.name.split(' ')[0]}`.replace(/[^a-zA-Z0-9_]/g, '_');
-  doc.save(`Siliconomics_Executive_Summary_${safeTitle}.pdf`);
+  if (aiComparison) {
+    if (rowY > PAGE_H - 60 || true) {
+      doc.addPage();
+      doc.setFillColor(br, bg, bc);
+      doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+      rowY = 25;
+    }
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(ar, ag, ab);
+    doc.text('AI Comparison Analysis', MARGIN, rowY);
+    rowY += 8;
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(tr, tg, tb);
+    const lines = doc.splitTextToSize(aiComparison, CONTENT_W);
+    for (const line of lines) {
+      if (rowY > PAGE_H - 20) {
+        doc.addPage();
+        doc.setFillColor(br, bg, bc);
+        doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+        rowY = 25;
+      }
+      doc.text(line, MARGIN, rowY);
+      rowY += 5;
+    }
+  }
+
+  doc.save(`siliconomics-comparison-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+export function downloadPdf(doc: jsPDF, filename: string) {
+  doc.save(filename);
 }
