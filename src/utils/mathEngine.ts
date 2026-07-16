@@ -110,7 +110,8 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
   // Block-weighted effective defect density (from category → defect mapping)
   const catDefect: Record<string, number> = {
     cpu: 1.0, memory: 1.5, security: 1.0, interconnect: 1.0,
-    accelerator: 1.0, io: 1.0, power: 0.8, packaging: 0, other: 1.0,
+    accelerator: 1.0, io: 1.0, power: 0.8, packaging: 0,
+    networking: 1.0, rf: 0.7, clocking: 0.9, other: 1.0,
   };
   let blockBreakdownAreaWarning = '';
   if (archBlocks.length > 0) {

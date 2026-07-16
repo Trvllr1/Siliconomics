@@ -32,7 +32,7 @@ export interface MetricCardData {
   category: 'engineering' | 'manufacturing' | 'financial' | 'program' | 'commercial';
 }
 
-export type BlockCategory = 'cpu' | 'memory' | 'security' | 'interconnect' | 'accelerator' | 'io' | 'power' | 'packaging' | 'other';
+export type BlockCategory = 'cpu' | 'memory' | 'security' | 'interconnect' | 'accelerator' | 'io' | 'power' | 'packaging' | 'networking' | 'rf' | 'clocking' | 'other';
 
 export interface ArchitectureBlock {
   name: string;

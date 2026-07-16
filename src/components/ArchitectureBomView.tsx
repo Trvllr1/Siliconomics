@@ -21,6 +21,9 @@ const CATEGORY_LABELS: Record<BlockCategory, string> = {
   io: 'I/O Interface',
   power: 'Power Management',
   packaging: 'Packaging / Interposer',
+  networking: 'Networking / Ethernet',
+  rf: 'RF / Analog',
+  clocking: 'Clocking / PLL',
   other: 'Custom / Other',
 };
 
@@ -33,13 +36,16 @@ const CATEGORY_COLORS: Record<BlockCategory, string> = {
   io: 'bg-cyan-50 border-cyan-200 text-cyan-700',
   power: 'bg-orange-50 border-orange-200 text-orange-700',
   packaging: 'bg-indigo-50 border-indigo-200 text-indigo-700',
+  networking: 'bg-teal-50 border-teal-200 text-teal-700',
+  rf: 'bg-rose-50 border-rose-200 text-rose-700',
+  clocking: 'bg-slate-50 border-slate-200 text-slate-700',
   other: 'bg-gray-50 border-gray-200 text-gray-700',
 };
 
 const CATEGORY_DEFECT: Record<BlockCategory, number> = {
   cpu: 1.0, memory: 1.5, security: 1.0, interconnect: 1.0,
   accelerator: 1.0, io: 1.0, power: 0.8, packaging: 0,
-  other: 1.0,
+  networking: 1.0, rf: 0.7, clocking: 0.9, other: 1.0,
 };
 
 const emptyBlock = (): ArchitectureBlock => ({
