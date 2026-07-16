@@ -276,3 +276,33 @@ export interface ActivityLog {
   type: 'modification' | 'commit';
   delta: string;
 }
+
+export type AlertSeverity = 'info' | 'warning' | 'critical';
+
+export interface AlertRule {
+  id: string;
+  name: string;
+  description: string;
+  category: 'financial' | 'engineering' | 'manufacturing' | 'supply-chain' | 'program';
+  field: string;
+  operator: 'gt' | 'lt' | 'gte' | 'lte' | 'eq';
+  threshold: number;
+  severity: AlertSeverity;
+  messageTemplate: string;
+}
+
+export interface Alert {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  buildId: string;
+  buildName: string;
+  triggeredValue: number;
+  threshold: number;
+  operator: string;
+  timestamp: string;
+  severity: AlertSeverity;
+  category: string;
+  message: string;
+  acknowledged: boolean;
+}

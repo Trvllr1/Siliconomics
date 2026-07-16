@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Build, DesignModel, MetricCardData, CalculationTrace, Snapshot, CostContributor, SupplyChainSnapshot, SupplyChainRiskLevel, CommodityPrice, ArchitectureBlock } from '../types';
+import { Build, DesignModel, MetricCardData, CalculationTrace, Snapshot, CostContributor, SupplyChainSnapshot, SupplyChainRiskLevel, CommodityPrice, ArchitectureBlock, AlertRule, Alert, AlertSeverity } from '../types';
 
 /**
  * Rounds a number to a specified number of decimal places
@@ -988,4 +988,83 @@ export function runSensitivityAnalysis(
       margin: round(res.snapshot.grossMargin, 1),
     };
   });
+}
+
+function resolveField(obj: Record<string, any>, path: string): number {
+  const parts = path.split('.');
+  let val: any = obj;
+  for (const p of parts) {
+    if (val == null || typeof val !== 'object') return NaN;
+    val = val[p];
+  }
+  return typeof val === 'number' ? val : NaN;
+}
+
+function compareValues(actual: number, threshold: number, operator: string): boolean {
+  switch (operator) {
+    case 'gt': return actual > threshold;
+    case 'lt': return actual < threshold;
+    case 'gte': return actual >= threshold;
+    case 'lte': return actual <= threshold;
+    case 'eq': return Math.abs(actual - threshold) < 1e-9;
+    default: return false;
+  }
+}
+
+export function checkAlerts(
+  build: Build,
+  snapshot: Snapshot,
+  rules: AlertRule[],
+  lifetimeVolumeMillion?: number
+): Alert[] {
+  const alerts: Alert[] = [];
+  const now = new Date().toISOString();
+  const flat: Record<string, any> = {
+    ...snapshot,
+    totalNreCombined: (snapshot.totalIpNreM || 0) + (snapshot.engineeringLaborCostM || 0),
+  };
+
+  for (const rule of rules) {
+    let actual: number;
+    if (rule.field === 'breakEvenVolumeMillion' && rule.operator === 'gt' && lifetimeVolumeMillion != null) {
+      actual = snapshot.breakEvenVolumeMillion;
+      if (!compareValues(actual, lifetimeVolumeMillion, 'gt')) continue;
+    } else if (rule.field === 'fullyLoadedCostPerDie' && rule.operator === 'gt') {
+      actual = snapshot.fullyLoadedCostPerDie;
+      const asp = build.designModel.asp;
+      if (!compareValues(actual, asp, 'gt')) continue;
+    } else {
+      actual = resolveField(flat, rule.field);
+    }
+
+    if (isNaN(actual)) continue;
+
+    let threshold = rule.threshold;
+    if (rule.id === 'alert-breakeven-gt-lifetime' && lifetimeVolumeMillion != null) {
+      threshold = lifetimeVolumeMillion;
+    } else if (rule.id === 'alert-fully-loaded-cost') {
+      threshold = build.designModel.asp;
+    }
+
+    if (compareValues(actual, threshold, rule.operator)) {
+      const message = rule.messageTemplate.replace('{value}', round(actual, 2).toString());
+      alerts.push({
+        id: `alert-${rule.id}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        ruleId: rule.id,
+        ruleName: rule.name,
+        buildId: build.id,
+        buildName: build.name,
+        triggeredValue: round(actual, 2),
+        threshold,
+        operator: rule.operator,
+        timestamp: now,
+        severity: rule.severity,
+        category: rule.category,
+        message,
+        acknowledged: false,
+      });
+    }
+  }
+
+  return alerts;
 }

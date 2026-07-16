@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { Build, PersonaType, MetricCardData, CalculationTrace, ActivityLog, Decision, Portfolio, ReferenceModel, FormulaEntry } from './types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Build, PersonaType, MetricCardData, CalculationTrace, ActivityLog, Decision, Portfolio, ReferenceModel, FormulaEntry, Alert } from './types';
 import { DEFAULT_BUILDS } from './data/defaultBuilds';
 import { DEFAULT_REFERENCE_MODELS } from './data/defaultReferenceModels';
 import { DEFAULT_FORMULA_LIBRARY } from './data/defaultFormulaLibrary';
+import { DEFAULT_ALERT_RULES } from './data/defaultAlertRules';
 import { Archetype } from './data/archetypes';
-import { computeBuildMetrics } from './utils/mathEngine';
+import { computeBuildMetrics, checkAlerts } from './utils/mathEngine';
 import DashboardView from './components/DashboardView';
 import DesignBoard from './components/DesignBoard';
 import MetricsLab from './components/MetricsLab';
@@ -316,6 +317,36 @@ export default function App() {
   const activeBuild = builds.find((b) => b.id === activeBuildId) ?? builds[0]!;
   const computedMetrics = computeBuildMetrics(activeBuild);
 
+  const [alerts, setAlerts] = useState<Alert[]>(() => {
+    try {
+      const saved = localStorage.getItem('siliconomics_alerts');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    const freshAlerts = checkAlerts(activeBuild, computedMetrics.snapshot, DEFAULT_ALERT_RULES);
+    setAlerts((prev) => {
+      const merged = [...freshAlerts];
+      for (const a of prev) {
+        if (!freshAlerts.some(f => f.ruleId === a.ruleId && f.buildId === a.buildId)) {
+          merged.push(a);
+        }
+      }
+      return merged;
+    });
+  }, [activeBuild.id, computedMetrics.snapshot.fullyLoadedCostPerDie]);
+
+  useEffect(() => {
+    localStorage.setItem('siliconomics_alerts', JSON.stringify(alerts));
+  }, [alerts]);
+
+  const handleAcknowledgeAlert = (alertId: string) => {
+    setAlerts((prev) => prev.map((a) => a.id === alertId ? { ...a, acknowledged: true } : a));
+  };
+
   const handleClearDraft = () => {
     try {
       localStorage.removeItem('siliconomics_builds');
@@ -555,6 +586,11 @@ export default function App() {
                 >
                   <FileCheck className="w-4 h-4" />
                   <span>Decision Center</span>
+                  {alerts.filter(a => !a.acknowledged).length > 0 && (
+                    <span className="ml-auto flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold font-mono">
+                      {alerts.filter(a => !a.acknowledged).length}
+                    </span>
+                  )}
                 </button>
 
                 <button
@@ -721,7 +757,12 @@ export default function App() {
 
           {/* Decision Center Tab */}
           {activeTab === 'decisions' && (
-            <DecisionCenterView decisions={decisions} builds={builds} />
+            <DecisionCenterView
+              decisions={decisions}
+              builds={builds}
+              alerts={alerts}
+              onAcknowledgeAlert={handleAcknowledgeAlert}
+            />
           )}
 
           {/* Reports Tab */}
