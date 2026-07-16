@@ -22,6 +22,7 @@ import DecisionCenterView from './components/DecisionCenterView';
 import ReportsView from './components/ReportsView';
 import PortfolioView from './components/PortfolioView';
 import ArchitectureBomView from './components/ArchitectureBomView';
+import ReviewBoardView from './components/ReviewBoardView';
 import ReferenceModelsView from './components/ReferenceModelsView';
 import FormulaLibraryView from './components/FormulaLibraryView';
 import MeetingMode from './components/MeetingMode';
@@ -48,6 +49,7 @@ import {
   DollarSign,
   Clock,
   Award,
+  Activity,
 } from 'lucide-react';
 
 const INITIAL_ACTIVITIES: ActivityLog[] = [
@@ -534,6 +536,14 @@ export default function App() {
     setActiveTab('compare');
   };
 
+  const handleNavigateCompare = (idA: string, idB: string) => {
+    setActiveBuildId(idA);
+    setTimeout(() => {
+      setActiveBuildId(idB);
+      setActiveTab('compare');
+    }, 0);
+  };
+
   const handleRecordDecision = (decision: Decision) => {
     setDecisions((prev) => [decision, ...prev]);
   };
@@ -676,6 +686,24 @@ export default function App() {
                 >
                   <CircuitBoard className="w-4 h-4" />
                   <span>Architecture BOM</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('review')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                    activeTab === 'review'
+                      ? 'bg-art-cream text-art-rust border-l-2 border-art-rust pl-2'
+                      : 'text-art-ink/70 hover:text-art-ink hover:bg-art-cream/30'
+                  }`}
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Review Board</span>
+                  {(() => {
+                    const c = comments.filter(cm => cm.buildId === activeBuild.id && !cm.content.startsWith('system:'));
+                    return c.length > 0 ? (
+                      <span className="ml-auto flex items-center justify-center w-4 h-4 rounded-full bg-art-rust text-white text-[8px] font-bold font-mono">{c.length}</span>
+                    ) : null;
+                  })()}
                 </button>
 
                 <button
@@ -921,6 +949,17 @@ export default function App() {
             />
           )}
 
+          {/* Review Board Tab */}
+          {activeTab === 'review' && (
+            <ReviewBoardView
+              activeBuild={activeBuild}
+              comments={comments}
+              activePersona={activePersona}
+              onStatusTransition={handleStatusTransition}
+              onNavigateCompare={handleNavigateCompare}
+            />
+          )}
+
           {/* Compare Tab */}
           {activeTab === 'compare' && (
             <ComparisonView
@@ -991,6 +1030,8 @@ export default function App() {
           builds={builds}
           decisions={decisions}
           onClose={() => setMeetingModeOpen(false)}
+          activeBuildId={activeBuildId}
+          onRecordDecision={handleRecordDecision}
         />
       )}
 

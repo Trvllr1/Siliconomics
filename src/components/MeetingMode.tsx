@@ -1,15 +1,17 @@
 import React, { useEffect, useCallback, useState } from 'react';
-import { Build, Snapshot, Decision } from '../types';
+import { Build, Snapshot, Decision, PersonaType, DecisionOutcome } from '../types';
 import { computeBuildMetrics } from '../utils/mathEngine';
 import { computeBusinessImpact, BusinessImpact } from '../utils/BusinessImpact';
 import { evaluateBuild, RecommendationDetail } from '../utils/ExecutiveRecommendation';
 import { round } from '../utils/mathEngine';
-import { TrendingUp, ShieldAlert, XCircle, FileCheck, ArrowRight, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, ShieldAlert, XCircle, FileCheck, ArrowRight, X, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 interface MeetingModeProps {
   builds: Build[];
   decisions: Decision[];
   onClose: () => void;
+  activeBuildId: string;
+  onRecordDecision?: (decision: Decision) => void;
 }
 
 type Slide = 'overview' | 'comparison' | 'impact' | 'recommendation' | 'decisions';
@@ -30,10 +32,14 @@ const outcomeBg: Record<string, string> = {
   'Reject': 'bg-red-950/40 border-red-800',
 };
 
-export default function MeetingMode({ builds, decisions, onClose }: MeetingModeProps) {
+export default function MeetingMode({ builds, decisions, onClose, activeBuildId, onRecordDecision }: MeetingModeProps) {
   const [slide, setSlide] = useState<Slide>('overview');
-  const [buildAIdx, setBuildAIdx] = useState(0);
-  const [buildBIdx, setBuildBIdx] = useState(Math.min(1, builds.length - 1));
+  const activeIdx = builds.findIndex(b => b.id === activeBuildId);
+  const [buildAIdx, setBuildAIdx] = useState(activeIdx >= 0 ? activeIdx : 0);
+  const [buildBIdx, setBuildBIdx] = useState(() => {
+    const otherIdx = builds.findIndex(b => b.id !== activeBuildId && builds[activeIdx]?.parentId !== b.id);
+    return otherIdx >= 0 ? otherIdx : Math.min(1, builds.length - 1);
+  });
 
   const buildA = builds[buildAIdx] ?? builds[0]!;
   const buildB = builds[buildBIdx] ?? builds[0]!;
@@ -99,6 +105,20 @@ export default function MeetingMode({ builds, decisions, onClose }: MeetingModeP
           <div className="w-6 h-6 rounded bg-art-rust flex items-center justify-center font-serif font-black text-xs text-white italic">S</div>
           <span className="text-sm font-serif font-black text-white tracking-widest uppercase">Siliconomics</span>
           <span className="text-[10px] text-white/40 font-mono bg-white/5 px-2 py-0.5 rounded">Meeting Mode</span>
+          {builds.length > 1 && (
+            <div className="flex items-center space-x-2 ml-4 pl-4 border-l border-white/10">
+              <span className="text-[10px] text-white/40 font-mono">A:</span>
+              <select value={buildAIdx} onChange={(e) => setBuildAIdx(Number(e.target.value))}
+                className="text-[10px] bg-white/10 border border-white/20 rounded px-2 py-1 text-white font-mono outline-none cursor-pointer">
+                {builds.map((b, i) => <option key={b.id} value={i}>{b.name}</option>)}
+              </select>
+              <span className="text-[10px] text-white/40 font-mono">B:</span>
+              <select value={buildBIdx} onChange={(e) => setBuildBIdx(Number(e.target.value))}
+                className="text-[10px] bg-white/10 border border-white/20 rounded px-2 py-1 text-white font-mono outline-none cursor-pointer">
+                {builds.map((b, i) => <option key={b.id} value={i}>{b.name}</option>)}
+              </select>
+            </div>
+          )}
         </div>
         <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-all cursor-pointer">
           <X className="w-5 h-5" />
@@ -113,9 +133,11 @@ export default function MeetingMode({ builds, decisions, onClose }: MeetingModeP
         )}
         {slide === 'impact' && <ImpactSlide impacts={impacts} />}
         {slide === 'recommendation' && (
-          <RecommendationSlide recA={recA} recB={recA} buildA={buildA} buildB={buildB} />
+          <RecommendationSlide recA={recA} recB={recB} buildA={buildA} buildB={buildB} />
         )}
-        {slide === 'decisions' && <DecisionsSlide decisions={decisions} builds={builds} />}
+        {slide === 'decisions' && (
+          <DecisionsSlide decisions={decisions} builds={builds} buildA={buildA} buildB={buildB} onRecordDecision={onRecordDecision} />
+        )}
       </div>
 
       <SlideNav />
@@ -315,12 +337,93 @@ function RecommendationSlide({ recA, recB, buildA, buildB }: { recA: Recommendat
   );
 }
 
-function DecisionsSlide({ decisions, builds }: { decisions: Decision[]; builds: Build[] }) {
+function DecisionsSlide({ decisions, builds, buildA, buildB, onRecordDecision }: {
+  decisions: Decision[]; builds: Build[]; buildA: Build; buildB: Build; onRecordDecision?: (d: Decision) => void;
+}) {
   const getBuildName = (id: string) => builds.find((b) => b.id === id)?.name ?? id;
+  const [showDecisionModal, setShowDecisionModal] = useState(false);
+  const [decisionOutcome, setDecisionOutcome] = useState<DecisionOutcome>('Proceed');
+  const [decisionRationale, setDecisionRationale] = useState('');
+  const [decisionApprover, setDecisionApprover] = useState('eagleximpact');
+  const [decisionFollowUp, setDecisionFollowUp] = useState('');
+
+  const handleRecord = () => {
+    if (!onRecordDecision) return;
+    const decision: Decision = {
+      id: `dec-meeting-${Date.now()}`,
+      buildIds: [buildA.id, buildB.id],
+      outcome: decisionOutcome,
+      approver: decisionApprover,
+      rationale: decisionRationale,
+      followUpActions: decisionFollowUp ? [decisionFollowUp] : [],
+      timestamp: new Date().toISOString(),
+    };
+    onRecordDecision(decision);
+    setShowDecisionModal(false);
+    setDecisionOutcome('Proceed');
+    setDecisionRationale('');
+    setDecisionFollowUp('');
+  };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <h2 className="text-3xl font-serif font-black text-white tracking-tight">Decision Log</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-serif font-black text-white tracking-tight">Decision Log</h2>
+        {onRecordDecision && (
+          <button
+            onClick={() => setShowDecisionModal(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-art-rust hover:bg-art-rust/80 rounded-lg text-white text-xs font-bold cursor-pointer transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Record Decision</span>
+          </button>
+        )}
+      </div>
+
+      {showDecisionModal && (
+        <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-4">
+          <h3 className="text-lg font-serif font-black text-white">New Decision</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-mono tracking-wider text-white/50">Builds Under Review</label>
+              <p className="text-white font-mono font-bold">{buildA.name} vs {buildB.name}</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-mono tracking-wider text-white/50">Decision Outcome</label>
+              <select value={decisionOutcome} onChange={(e) => setDecisionOutcome(e.target.value as DecisionOutcome)}
+                className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white text-xs font-semibold outline-none focus:border-art-rust cursor-pointer">
+                <option value="Proceed">Proceed</option>
+                <option value="Proceed with Risk">Proceed with Risk</option>
+                <option value="Requires Investigation">Requires Investigation</option>
+                <option value="Hold">Hold</option>
+                <option value="Reject">Reject</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-mono tracking-wider text-white/50">Approver</label>
+              <input type="text" value={decisionApprover} onChange={(e) => setDecisionApprover(e.target.value)}
+                className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white text-xs font-semibold outline-none focus:border-art-rust" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-mono tracking-wider text-white/50">Follow-Up Action</label>
+              <input type="text" value={decisionFollowUp} onChange={(e) => setDecisionFollowUp(e.target.value)}
+                className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white text-xs font-semibold outline-none focus:border-art-rust" placeholder="Optional" />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-[10px] uppercase font-mono tracking-wider text-white/50">Rationale</label>
+              <textarea value={decisionRationale} onChange={(e) => setDecisionRationale(e.target.value)} rows={2}
+                className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white text-xs font-semibold outline-none focus:border-art-rust" />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-3">
+            <button onClick={() => setShowDecisionModal(false)} className="px-4 py-2 text-white/60 hover:text-white text-xs font-bold cursor-pointer">Cancel</button>
+            <button onClick={handleRecord} disabled={!decisionRationale.trim()}
+              className="px-4 py-2 bg-art-rust hover:bg-art-rust/80 rounded-lg text-white text-xs font-bold cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              Record Decision
+            </button>
+          </div>
+        </div>
+      )}
       {decisions.length === 0 ? (
         <p className="text-white/40 text-lg italic">No decisions have been recorded for this portfolio.</p>
       ) : (
