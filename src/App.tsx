@@ -38,6 +38,8 @@ import {
   FolderOpen,
   BookOpen,
   CircuitBoard,
+  Copy,
+  GitBranch,
 } from 'lucide-react';
 
 const INITIAL_ACTIVITIES: ActivityLog[] = [
@@ -396,6 +398,34 @@ export default function App() {
     setActiveBuildId(newBuild.id);
   };
 
+  const handleDuplicateScenario = (sourceBuild: Build) => {
+    const dupId = `build-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const verParts = sourceBuild.version.match(/^v?(\d+)\.(\d+)$/);
+    const newVersion = verParts && verParts[1] && verParts[2]
+      ? `v${verParts[1]}.${parseInt(verParts[2]) + 1}`
+      : `v1.1`;
+    const newBuild: Build = {
+      ...sourceBuild,
+      id: dupId,
+      name: `Copy of ${sourceBuild.name}`,
+      version: newVersion,
+      description: `Derived from ${sourceBuild.name} v${sourceBuild.version}`,
+      parentId: sourceBuild.id,
+      status: 'Draft',
+    };
+    const newLog: ActivityLog = {
+      id: `act-${Date.now()}`,
+      buildId: newBuild.id,
+      buildName: newBuild.name,
+      timestamp: new Date().toISOString(),
+      type: 'commit',
+      delta: `Duplicated from ${sourceBuild.name} as ${newBuild.name} v${newVersion}`,
+    };
+    setActivities((act) => [newLog, ...act]);
+    setBuilds((prev) => [...prev, newBuild]);
+    setActiveBuildId(newBuild.id);
+  };
+
   const handleSelectMetric = (m: MetricCardData) => {
     setClickedTrace(m.trace);
     setContextTab('explain');
@@ -582,6 +612,26 @@ export default function App() {
               <span className="text-[9px] font-bold text-art-ink/40 uppercase tracking-[0.25em] block px-2 font-mono">
                 Active Scenario
               </span>
+              <div className="flex items-center gap-1 px-2">
+                <button
+                  onClick={() => handleDuplicateScenario(activeBuild)}
+                  className="flex-1 flex items-center justify-center space-x-1 px-2 py-1.5 bg-art-ink/5 hover:bg-art-ink/10 border border-art-ink/10 rounded text-[10px] font-semibold text-art-ink/70 hover:text-art-ink transition-all cursor-pointer"
+                  title="One-click duplicate of active scenario"
+                >
+                  <Copy className="w-3 h-3" />
+                  <span>Duplicate</span>
+                </button>
+                {activeBuild.parentId && builds.find(b => b.id === activeBuild.parentId) && (
+                  <button
+                    onClick={() => { const pid = activeBuild.parentId; if (pid) { handleQuickCompare(pid, activeBuild.id); setActiveTab('compare'); } }}
+                    className="flex-1 flex items-center justify-center space-x-1 px-2 py-1.5 bg-art-ink/5 hover:bg-art-ink/10 border border-art-ink/10 rounded text-[10px] font-semibold text-art-ink/70 hover:text-art-ink transition-all cursor-pointer"
+                    title="Compare with parent scenario"
+                  >
+                    <GitBranch className="w-3 h-3" />
+                    <span>Diff Parent</span>
+                  </button>
+                )}
+              </div>
               <div className="space-y-1">
                 {builds.map((b) => (
                   <button
