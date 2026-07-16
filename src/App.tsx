@@ -568,15 +568,14 @@ export default function App() {
         </button>
 
         {/* Persona badge + dropdown */}
-        <div className="relative">
+        <div className="relative" onMouseLeave={() => setPersonaDropdownOpen(false)}>
           <button
             onClick={() => setPersonaDropdownOpen(!personaDropdownOpen)}
-            onBlur={() => setTimeout(() => setPersonaDropdownOpen(false), 200)}
             className="flex items-center space-x-1.5 px-2.5 py-1 rounded border border-art-ink/10 hover:bg-art-cream transition-all cursor-pointer text-[10px] font-mono"
             style={{ color: pc.color }}
           >
             <Cpu className="w-3.5 h-3.5" style={{ color: pc.color }} />
-            <span className="font-bold">{pc.label}</span>
+            <span className="font-bold whitespace-nowrap">{pc.label}</span>
             <ChevronDown className="w-3 h-3" />
             {pc.designFields.length > 0 && comments.filter(c =>
               c.buildId === activeBuild.id && pc.designFields.includes(c.elementId ?? '')
@@ -588,7 +587,7 @@ export default function App() {
           </button>
 
           {personaDropdownOpen && (
-            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-art-ink/10 rounded-xl shadow-lg z-50 py-1 space-y-0.5">
+            <div className="absolute right-0 top-full mt-1 min-w-56 bg-white border border-art-ink/10 rounded-xl shadow-lg z-50 py-1 space-y-0.5">
               {([['architect', <Cpu className="w-3.5 h-3.5" />],
                 ['manufacturing', <Wrench className="w-3.5 h-3.5" />],
                 ['finance', <DollarSign className="w-3.5 h-3.5" />],
@@ -607,8 +606,8 @@ export default function App() {
                     style={key === activePersona ? { color: cfg.color, borderLeft: `3px solid ${cfg.color}` } : {}}
                   >
                     {icon}
-                    <span>{cfg.label}</span>
-                    {key === activePersona && <span className="ml-auto text-[8px] font-mono opacity-50">Active</span>}
+                    <span className="whitespace-nowrap">{cfg.label}</span>
+                    {key === activePersona && <span className="ml-auto text-[8px] font-mono opacity-50 whitespace-nowrap">Active</span>}
                   </button>
                 );
               })}
