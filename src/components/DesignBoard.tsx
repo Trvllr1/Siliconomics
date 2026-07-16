@@ -6,7 +6,7 @@ import { round } from '../utils/mathEngine';
 import { PERSONA_CONFIG, FIELD_OWNER } from '../data/personaConfig';
 import {
   Cpu, Activity, DollarSign, Briefcase, Sliders, GitBranch, FileCheck, RotateCcw,
-  ChevronUp, ChevronDown, CheckCircle, BookOpen, Save, Shuffle, AlertCircle, ShieldCheck, MessageSquare
+  ChevronUp, ChevronDown, CheckCircle, BookOpen, Save, Shuffle, AlertCircle, ShieldCheck, MessageSquare, Wrench
 } from 'lucide-react';
 
 interface DesignBoardProps {
@@ -411,29 +411,6 @@ export default function DesignBoard({
             )}
             {inputField('Transistor Count', 'transistorCount', dm.transistorCount, 1, 150, 0.5, (v) => `${v} B`)}
             {inputField('Thermal Limit (TDP)', 'tdp', dm.tdp, 1, 450, 5, (v) => `${v} Watts`)}
-          </>
-        )}
-
-        {knobSection('Manufacturing & Packaging Yield', <Activity className="w-4.5 h-4.5 text-art-rust" />, 'manufacturing',
-          <>
-            {inputField('Defect Density (D0)', 'defectDensity', dm.defectDensity, 0.02, 0.30, 0.01, (v) => `${v} /cm²`)}
-            {inputField('Wafer Starts/Month', 'waferStartsPerMonth', dm.waferStartsPerMonth, 1000, 50000, 1000, (v) => v.toLocaleString())}
-            {inputField('OSAT Packaging Yield', 'packagingYield', dm.packagingYield, 90, 100, 0.1, (v) => `${v}%`)}
-            {inputField('Electrical Test Yield', 'testYield', dm.testYield, 90, 100, 0.1, (v) => `${v}%`)}
-          </>
-        )}
-
-        {knobSection('Financial & Capital Architecture', <DollarSign className="w-4.5 h-4.5 text-art-rust" />, 'financial',
-          <>
-            {inputField('Silicon Wafer Cost', 'waferCost', dm.waferCost, 1000, 25000, 500, (v) => `$${v.toLocaleString()}`)}
-            {inputField('NRE Capital Investment', 'nreCost', dm.nreCost, 5, 500, 5, (v) => `$${v}M`)}
-            {inputField('Average Selling Price', 'asp', dm.asp, 5, 2000, 5, (v) => `$${v.toLocaleString()}`)}
-            {inputField('Target Lifetime Volume', 'targetVolume', dm.targetVolume, 0.5, 100, 0.5, (v) => `${v} M`)}
-          </>
-        )}
-
-        {knobSection('Program Schedule & Risks', <Briefcase className="w-4.5 h-4.5 text-art-rust" />, 'program',
-          <>
             {selectField('Packaging Type', 'packagingType', dm.packagingType, [
               { v: 'standard', l: 'Standard Organic Substrate' },
               { v: 'cowos-s', l: 'CoWoS-S (Silicon Interposer)' },
@@ -441,21 +418,39 @@ export default function DesignBoard({
               { v: 'cowos-l', l: 'CoWoS-L (Local SI + RDL)' },
               { v: 'emib', l: 'Intel EMIB' },
             ])}
-            {inputField('Base Assembly Cost', 'packagingCost', dm.packagingCost, 0.5, 100, 0.5, (v) => `$${v.toFixed(2)}`)}
             {(dm.packagingType === 'cowos-s' || dm.packagingType === 'cowos-r' || dm.packagingType === 'cowos-l') && (
               inputField('Interposer Area', 'interposerArea', dm.interposerArea ?? dm.dieArea * 1.2, 100, 3000, 10, (v) => `${v} mm²`)
             )}
+          </>
+        )}
+
+        {knobSection('Manufacturing, Packaging & Test', <Wrench className="w-4.5 h-4.5 text-art-rust" />, 'manufacturing',
+          <>
+            {inputField('Defect Density (D0)', 'defectDensity', dm.defectDensity, 0.02, 0.30, 0.01, (v) => `${v} /cm²`)}
+            {inputField('Wafer Starts/Month', 'waferStartsPerMonth', dm.waferStartsPerMonth, 1000, 50000, 1000, (v) => v.toLocaleString())}
+            {inputField('OSAT Packaging Yield', 'packagingYield', dm.packagingYield, 90, 100, 0.1, (v) => `${v}%`)}
+            {inputField('Electrical Test Yield', 'testYield', dm.testYield, 90, 100, 0.1, (v) => `${v}%`)}
+            {inputField('Silicon Wafer Cost', 'waferCost', dm.waferCost, 1000, 25000, 500, (v) => `$${v.toLocaleString()}`)}
+            {inputField('Base Assembly Cost', 'packagingCost', dm.packagingCost, 0.5, 100, 0.5, (v) => `$${v.toFixed(2)}`)}
             {inputField('Test Insertion Time', 'testTimeSeconds', dm.testTimeSeconds, 5, 150, 1, (v) => `${v}s`)}
             {inputField('Test Cost / Second', 'testCostPerSecond', dm.testCostPerSecond, 0.01, 1, 0.01, (v) => `$${v.toFixed(2)}`)}
           </>
         )}
 
-        {/* Engineering Labor Section */}
+        {knobSection('Financial & Capital Architecture', <DollarSign className="w-4.5 h-4.5 text-art-rust" />, 'financial',
+          <>
+            {inputField('NRE Capital Investment', 'nreCost', dm.nreCost, 5, 500, 5, (v) => `$${v}M`)}
+            {inputField('Average Selling Price', 'asp', dm.asp, 5, 2000, 5, (v) => `$${v.toLocaleString()}`)}
+            {inputField('Target Lifetime Volume', 'targetVolume', dm.targetVolume, 0.5, 100, 0.5, (v) => `${v} M`)}
+          </>
+        )}
+
+        {/* Program Schedule & Staffing (formerly Engineering Labor) */}
         <div className="bg-white border-2 border-art-ink/10 rounded-xl shadow-sm overflow-hidden">
           <div className="px-4 py-3 bg-art-cream/30 border-b border-art-ink/10 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Briefcase className="w-4.5 h-4.5 text-art-rust" />
-              <span className="text-xs font-bold uppercase tracking-[0.15em] font-mono text-art-ink">Engineering Labor</span>
+              <span className="text-xs font-bold uppercase tracking-[0.15em] font-mono text-art-ink">Program Schedule & Staffing</span>
             </div>
           </div>
           <div className="p-5 bg-white">
@@ -519,12 +514,12 @@ export default function DesignBoard({
           </div>
         </div>
 
-        {/* Verification Labor Section */}
+        {/* Verification Resources (formerly Verification Labor) */}
         <div className="bg-white border-2 border-art-ink/10 rounded-xl shadow-sm overflow-hidden">
           <div className="px-4 py-3 bg-art-cream/30 border-b border-art-ink/10 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <ShieldCheck className="w-4.5 h-4.5 text-art-rust" />
-              <span className="text-xs font-bold uppercase tracking-[0.15em] font-mono text-art-ink">Verification Labor</span>
+              <span className="text-xs font-bold uppercase tracking-[0.15em] font-mono text-art-ink">Verification Resources</span>
             </div>
           </div>
           <div className="p-5 bg-white">
