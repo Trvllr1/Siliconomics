@@ -41,7 +41,17 @@ export default function ReviewBoardView({ activeBuild, comments, activePersona, 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-serif font-black text-art-ink">Review Board</h1>
+        <div className="flex items-center space-x-3">
+          <h1 className="text-xl font-serif font-black text-art-ink">Review Board</h1>
+          <span className={`text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded-full border ${
+            activeBuild.status === 'Approved' ? 'bg-green-50 text-green-700 border-green-200' :
+            activeBuild.status === 'Alert' ? 'bg-red-50 text-red-700 border-red-200' :
+            activeBuild.status === 'Draft' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+            'bg-blue-50 text-blue-700 border-blue-200'
+          }`}>
+            {STATUS_LABELS[activeBuild.status]}
+          </span>
+        </div>
         <p className="text-xs text-art-ink/60 mt-1 italic">{activeBuild.name} · lifecycle and review status.</p>
       </div>
 
@@ -60,7 +70,7 @@ export default function ReviewBoardView({ activeBuild, comments, activePersona, 
                 )}
                 <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-[10px] font-mono font-bold whitespace-nowrap border ${
                   isPast ? 'bg-art-rust/10 text-art-rust border-art-rust/20' :
-                  isCurrent ? 'bg-art-ink text-art-cream border-art-ink shadow-sm' :
+                  isCurrent ? 'bg-art-rust text-white border-art-rust shadow-md' :
                   'bg-art-cream/30 text-art-ink/30 border-art-ink/10'
                 }`}>
                   {STATUS_ICONS[s]}
@@ -72,14 +82,23 @@ export default function ReviewBoardView({ activeBuild, comments, activePersona, 
         </div>
 
         {/* Current status + action */}
-        <div className="mt-4 p-3 bg-art-cream/30 rounded-lg border border-art-ink/10 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="text-xs text-art-ink/60">Current:</span>
-            <span className="text-xs font-bold font-mono uppercase">{STATUS_LABELS[activeBuild.status]}</span>
+        <div className="mt-4 p-4 bg-art-cream/20 rounded-xl border border-art-ink/10 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center space-x-3 flex-wrap">
+            <span className="text-[10px] font-bold font-mono uppercase text-art-ink/50">Status</span>
+            <span className={`text-xs font-bold font-mono uppercase px-2.5 py-1 rounded-full border ${
+              activeBuild.status === 'Approved' ? 'bg-green-50 text-green-700 border-green-200' :
+              activeBuild.status === 'Alert' ? 'bg-red-50 text-red-700 border-red-200' :
+              activeBuild.status === 'Draft' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+              'bg-blue-50 text-blue-700 border-blue-200'
+            }`}>
+              {STATUS_LABELS[activeBuild.status]}
+            </span>
             {currentOwner && (
-              <span className="text-[10px] font-mono text-art-ink/40 flex items-center space-x-1">
-                <ArrowRight className="w-3 h-3" />
-                <span style={{ color: PERSONA_CONFIG[currentOwner]?.color }}>Waiting: {PERSONA_CONFIG[currentOwner]?.label}</span>
+              <span className="text-[10px] font-mono flex items-center space-x-1.5 pl-2 border-l border-art-ink/10">
+                <ArrowRight className="w-3 h-3 text-art-ink/40" />
+                <span className="font-bold" style={{ color: PERSONA_CONFIG[currentOwner]!.color }}>
+                  Waiting: {PERSONA_CONFIG[currentOwner]!.label}
+                </span>
               </span>
             )}
           </div>
