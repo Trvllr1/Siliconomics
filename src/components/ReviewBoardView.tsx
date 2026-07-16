@@ -13,6 +13,15 @@ interface ReviewBoardViewProps {
 
 const STATUS_ORDER: BuildStatus[] = ['Draft', 'TechnicalReview', 'FinancialReview', 'ProgramReview', 'Approved'];
 
+const STATUS_COLORS: Record<BuildStatus, { chip: string; text: string; border: string }> = {
+  Draft: { chip: 'bg-gray-500', text: 'text-gray-700', border: 'border-gray-200' },
+  TechnicalReview: { chip: 'bg-blue-500', text: 'text-blue-700', border: 'border-blue-200' },
+  FinancialReview: { chip: 'bg-emerald-500', text: 'text-emerald-700', border: 'border-emerald-200' },
+  ProgramReview: { chip: 'bg-amber-500', text: 'text-amber-700', border: 'border-amber-200' },
+  Approved: { chip: 'bg-teal-500', text: 'text-teal-700', border: 'border-teal-200' },
+  Alert: { chip: 'bg-red-500', text: 'text-red-700', border: 'border-red-200' },
+};
+
 const STATUS_LABELS: Record<BuildStatus, string> = {
   Draft: 'Draft',
   TechnicalReview: 'Technical Review',
@@ -43,12 +52,7 @@ export default function ReviewBoardView({ activeBuild, comments, activePersona, 
       <div>
         <div className="flex items-center space-x-3">
           <h1 className="text-xl font-serif font-black text-art-ink">Review Board</h1>
-          <span className={`text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded-full border ${
-            activeBuild.status === 'Approved' ? 'bg-green-50 text-green-700 border-green-200' :
-            activeBuild.status === 'Alert' ? 'bg-red-50 text-red-700 border-red-200' :
-            activeBuild.status === 'Draft' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-            'bg-blue-50 text-blue-700 border-blue-200'
-          }`}>
+          <span className={`text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded-full border ${STATUS_COLORS[activeBuild.status]?.text} ${STATUS_COLORS[activeBuild.status]?.border}`}>
             {STATUS_LABELS[activeBuild.status]}
           </span>
         </div>
@@ -63,14 +67,15 @@ export default function ReviewBoardView({ activeBuild, comments, activePersona, 
             const isPast = currentIdx > i;
             const isCurrent = currentIdx === i;
             const isFuture = currentIdx < i;
+            const sc = STATUS_COLORS[s];
             return (
               <React.Fragment key={s}>
                 {i > 0 && (
                   <div className={`h-0.5 w-6 flex-shrink-0 ${isPast || isCurrent ? 'bg-art-rust' : 'bg-art-ink/10'}`} />
                 )}
-                <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-[10px] font-mono font-bold whitespace-nowrap border ${
-                  isPast ? 'bg-art-rust/10 text-art-rust border-art-rust/20' :
-                  isCurrent ? 'bg-art-rust text-white border-art-rust shadow-md' :
+                <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-[10px] font-mono font-bold whitespace-nowrap border transition-all ${
+                  isPast ? `${sc.text} ${sc.border} opacity-60` :
+                  isCurrent ? `${sc.chip} text-white ${sc.border} shadow-md` :
                   'bg-art-cream/30 text-art-ink/30 border-art-ink/10'
                 }`}>
                   {STATUS_ICONS[s]}
@@ -85,12 +90,7 @@ export default function ReviewBoardView({ activeBuild, comments, activePersona, 
         <div className="mt-4 p-4 bg-art-cream/20 rounded-xl border border-art-ink/10 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center space-x-3 flex-wrap">
             <span className="text-[10px] font-bold font-mono uppercase text-art-ink/50">Status</span>
-            <span className={`text-xs font-bold font-mono uppercase px-2.5 py-1 rounded-full border ${
-              activeBuild.status === 'Approved' ? 'bg-green-50 text-green-700 border-green-200' :
-              activeBuild.status === 'Alert' ? 'bg-red-50 text-red-700 border-red-200' :
-              activeBuild.status === 'Draft' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-              'bg-blue-50 text-blue-700 border-blue-200'
-            }`}>
+            <span className={`text-xs font-bold font-mono uppercase px-2.5 py-1 rounded-full border ${STATUS_COLORS[activeBuild.status]?.text} ${STATUS_COLORS[activeBuild.status]?.border}`}>
               {STATUS_LABELS[activeBuild.status]}
             </span>
             {currentOwner && (
