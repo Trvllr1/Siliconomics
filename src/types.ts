@@ -144,6 +144,8 @@ export interface DesignModel {
   laborReferenceModelId?: string;
   designEffortPersonMonths?: number;
   resolvedLaborRateDesign?: number;
+  verificationReferenceModelId?: string;
+  resolvedLaborRateVerification?: number;
 }
 
 export interface Build {
@@ -190,6 +192,7 @@ export interface Snapshot {
   totalLicenseFeesM: number;
   totalRoyaltyBurdenPerUnit: number;
   engineeringLaborCostM: number;
+  verificationLaborCostM: number;
   costContributors: CostContributor[];
   supplyChain: SupplyChainSnapshot;
   metricsList: MetricCardData[];

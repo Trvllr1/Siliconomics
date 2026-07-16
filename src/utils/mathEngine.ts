@@ -231,8 +231,13 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
   const laborEffortMonths = dm.designEffortPersonMonths ?? 0;
   const engineeringLaborCostM = (laborRate * 160 * laborEffortMonths) / 1_000_000;
 
-  // IP-extended NRE includes mask NRE + IP license fees + internal IP NRE + engineering labor
-  const totalExtendedNre = effectiveNreCostIp + engineeringLaborCostM;
+  // Verification labor cost — computed from block sum × verification rate
+  const verifRate = dm.resolvedLaborRateVerification ?? 145;
+  const verifEffortMonths = archBlocks.reduce((s, b) => s + (b.verificationEffortPersonMonths ?? 0), 0);
+  const verificationLaborCostM = (verifRate * 160 * verifEffortMonths) / 1_000_000;
+
+  // IP-extended NRE includes mask NRE + IP license fees + internal IP NRE + engineering labor + verification labor
+  const totalExtendedNre = effectiveNreCostIp + engineeringLaborCostM + verificationLaborCostM;
   const totalRoyaltyBurden = totalRoyaltyBurdenPerUnit;
 
   // NRE Amortized Cost ($/unit)
@@ -277,6 +282,9 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
   // Amortized NRE components
   if (engineeringLaborCostM > 0) {
     addContributor('Engineering Labor (amortized)', 'labor', (engineeringLaborCostM * 1_000_000) / volumeUnits, 'Design engineering effort amortized across lifetime volume.');
+  }
+  if (verificationLaborCostM > 0) {
+    addContributor('Verification Labor (amortized)', 'labor', (verificationLaborCostM * 1_000_000) / volumeUnits, 'Block-level verification effort amortized across lifetime volume.');
   }
   addContributor('Mask NRE (amortized)', 'mask', (effectiveNreCost * 1_000_000) / volumeUnits, 'Mask set and wafer process NRE amortized across lifetime volume.');
   if (totalLicenseFeesM > 0) {
@@ -577,6 +585,29 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
         `Selected labor rate: $${laborRate}/hr (Design)`,
         `Design effort: ${laborEffortMonths} person-months`,
         `Total labor NRE: $${laborRate} × 160 × ${laborEffortMonths} = $${round(engineeringLaborCostM, 1)}M`
+      ]
+    );
+  }
+
+  if (verificationLaborCostM > 0) {
+    addMetric(
+      'verification_labor_cost',
+      'Verification Labor Cost',
+      `$${round(verificationLaborCostM, 1)}M`,
+      'USD',
+      82,
+      `Rate: $${verifRate}/hr × ${verifEffortMonths} block person-months`,
+      'neutral',
+      'up',
+      'financial',
+      'VerifNRE = hourlyRateVerification × 160 hrs/month × sum(blockVerificationPM)',
+      { hourlyRateVerification: verifRate, effortMonths: verifEffortMonths },
+      'Block-level verification labor component of total NRE. Summed from architecture block verification efforts.',
+      verifEffortMonths > 0 ? `${dm.verificationReferenceModelId ?? 'ref-labor-northamerica'} Labor Rates v1.0` : 'Global Labor Rate Index',
+      [
+        `Selected verification rate: $${verifRate}/hr`,
+        `Total verification effort: ${verifEffortMonths} person-months (across ${archBlocks.filter(b => (b.verificationEffortPersonMonths ?? 0) > 0).length} blocks)`,
+        `Total verification NRE: $${verifRate} × 160 × ${verifEffortMonths} = $${round(verificationLaborCostM, 1)}M`
       ]
     );
   }
@@ -888,6 +919,7 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     totalLicenseFeesM,
     totalRoyaltyBurdenPerUnit,
     engineeringLaborCostM,
+    verificationLaborCostM,
     costContributors,
     supplyChain,
     metricsList,
@@ -1021,7 +1053,7 @@ export function checkAlerts(
   const now = new Date().toISOString();
   const flat: Record<string, any> = {
     ...snapshot,
-    totalNreCombined: (snapshot.totalIpNreM || 0) + (snapshot.engineeringLaborCostM || 0),
+    totalNreCombined: (snapshot.totalIpNreM || 0) + (snapshot.engineeringLaborCostM || 0) + (snapshot.verificationLaborCostM || 0),
   };
 
   for (const rule of rules) {

@@ -86,6 +86,8 @@ export const DEFAULT_BUILDS: Build[] = [
       laborReferenceModelId: 'ref-labor-northamerica',
       designEffortPersonMonths: 96,
       resolvedLaborRateDesign: 185,
+      verificationReferenceModelId: 'ref-labor-northamerica',
+      resolvedLaborRateVerification: 145,
     },
     architecture: {
       version: 'v1.0',

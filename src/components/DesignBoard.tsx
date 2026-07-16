@@ -4,8 +4,8 @@ import { Archetype } from '../data/archetypes';
 import { DEFAULT_BUILDS } from '../data/defaultBuilds';
 import { round } from '../utils/mathEngine';
 import {
-  Cpu, Activity, DollarSign, Briefcase, Sliders, GitBranch, FileCheck, RotateCcw,
-  ChevronUp, ChevronDown, CheckCircle, BookOpen, Save, Shuffle, AlertCircle
+  Cpu, Activity, DollarSign, Briefcase,   Sliders, GitBranch, FileCheck, RotateCcw,
+  ChevronUp, ChevronDown, CheckCircle, BookOpen, Save, Shuffle, AlertCircle, ShieldCheck
 } from 'lucide-react';
 
 interface DesignBoardProps {
@@ -80,6 +80,22 @@ export default function DesignBoard({
         designEffortPersonMonths: months,
         laborReferenceModelId: dm.laborReferenceModelId ?? 'ref-labor-northamerica',
         resolvedLaborRateDesign: dm.resolvedLaborRateDesign ?? 185,
+      },
+    });
+  };
+
+  const archBlocks = activeBuild.architecture?.blocks ?? [];
+  const totalBlockVerifPm = archBlocks.reduce((s, b) => s + (b.verificationEffortPersonMonths ?? 0), 0);
+
+  const handleVerifRegionChange = (modelId: string) => {
+    const model = laborModels.find(m => m.id === modelId);
+    const rate = typeof model?.parameters?.hourlyRateVerification === 'number' ? model.parameters.hourlyRateVerification : 145;
+    onUpdateBuild({
+      ...activeBuild,
+      designModel: {
+        ...dm,
+        verificationReferenceModelId: modelId,
+        resolvedLaborRateVerification: rate,
       },
     });
   };
@@ -429,6 +445,52 @@ export default function DesignBoard({
                   <span>Effort set to zero — labor NRE contribution will be $0.</span>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Verification Labor Section */}
+        <div className="bg-white border-2 border-art-ink/10 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-4 py-3 bg-art-cream/30 border-b border-art-ink/10 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <ShieldCheck className="w-4.5 h-4.5 text-art-rust" />
+              <span className="text-xs font-bold uppercase tracking-[0.15em] font-mono text-art-ink">Verification Labor</span>
+            </div>
+          </div>
+          <div className="p-5 bg-white">
+            <div className="bg-art-cream/40 p-4 rounded-xl border border-art-ink/10 space-y-4">
+              <div className="flex items-center space-x-1.5 border-b border-art-ink/10 pb-2">
+                <Sliders className="w-4 h-4 text-art-rust" />
+                <span className="text-[10px] font-bold text-art-ink/50 uppercase tracking-[0.15em] font-mono">Verification Staffing</span>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-art-ink/50 uppercase font-mono tracking-wide">Verification Labor Region</label>
+                <select
+                  value={dm.verificationReferenceModelId ?? 'ref-labor-northamerica'}
+                  onChange={(e) => handleVerifRegionChange(e.target.value)}
+                  className="w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-semibold cursor-pointer"
+                >
+                  {laborModels.map((m) => {
+                    const rate = typeof m.parameters.hourlyRateVerification === 'number' ? m.parameters.hourlyRateVerification : 0;
+                    return <option key={m.id} value={m.id}>{m.name} — ${rate}/hr</option>;
+                  })}
+                </select>
+              </div>
+              <div className="bg-white border border-art-ink/10 rounded-lg p-3 text-[10px] font-mono mt-2">
+                <div className="flex justify-between items-center text-art-ink/60">
+                  <span>Verification Rate</span>
+                  <span className="text-art-ink font-bold">${(dm.resolvedLaborRateVerification ?? 145)}/hr</span>
+                </div>
+                <div className="flex justify-between items-center text-art-ink/60 mt-1">
+                  <span>Block Verification Effort</span>
+                  <span className="text-art-ink font-bold">{totalBlockVerifPm} person-months</span>
+                </div>
+                <div className="flex justify-between items-center text-art-ink/60 mt-1 border-t border-art-ink/5 pt-1">
+                  <span>Total Verification NRE</span>
+                  <span className="text-art-rust font-bold">${round((dm.resolvedLaborRateVerification ?? 145) * 160 * totalBlockVerifPm / 1_000_000, 1)}M</span>
+                </div>
+              </div>
+              <p className="text-[9px] text-art-ink/40 font-mono italic">Verification effort is defined per architecture block in the Architecture BOM.</p>
             </div>
           </div>
         </div>
