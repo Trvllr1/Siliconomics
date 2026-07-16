@@ -92,7 +92,7 @@ export const PERSONA_CONFIG: Record<PersonaType, PersonaConfig> = {
     icon: 'Clock',
     color: '#D97706',
     label: 'Program Director',
-    defaultTab: 'archbom',
+    defaultTab: 'build',
     metricOrder: ['program', 'engineering', 'manufacturing', 'financial'],
     ...personaFields(
       Object.entries(FIELD_OWNER).filter(([_, p]) => p === 'program').map(([f]) => f),
