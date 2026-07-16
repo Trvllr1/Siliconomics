@@ -30,15 +30,18 @@ export default function DesignBoard({
   models,
 }: DesignBoardProps) {
   const dm = activeBuild.designModel;
+  const isReadOnly = activePersona !== 'architect';
 
   const [expanded, setExpanded] = useState({ engineering: true, manufacturing: false, financial: false, program: false });
   const toggleSection = (s: keyof typeof expanded) => setExpanded((p) => ({ ...p, [s]: !p[s] }));
 
   const handleInputChange = (field: string, value: string | number) => {
+    if (isReadOnly) return;
     onUpdateBuild({ ...activeBuild, designModel: { ...dm, [field]: value } });
   };
 
   const handleMpwToggle = () => {
+    if (isReadOnly) return;
     const enabled = !dm.mpw?.enabled;
     onUpdateBuild({
       ...activeBuild,
@@ -59,6 +62,7 @@ export default function DesignBoard({
   const laborModels = useMemo(() => (models ?? []).filter(m => m.category === 'labor'), [models]);
 
   const handleLaborRegionChange = (modelId: string) => {
+    if (isReadOnly) return;
     const model = laborModels.find(m => m.id === modelId);
     const rate = typeof model?.parameters?.hourlyRateDesign === 'number' ? model.parameters.hourlyRateDesign : 185;
     onUpdateBuild({
@@ -73,6 +77,7 @@ export default function DesignBoard({
   };
 
   const handleLaborEffortChange = (months: number) => {
+    if (isReadOnly) return;
     onUpdateBuild({
       ...activeBuild,
       designModel: {
@@ -88,6 +93,7 @@ export default function DesignBoard({
   const totalBlockVerifPm = archBlocks.reduce((s, b) => s + (b.verificationEffortPersonMonths ?? 0), 0);
 
   const handleVerifRegionChange = (modelId: string) => {
+    if (isReadOnly) return;
     const model = laborModels.find(m => m.id === modelId);
     const rate = typeof model?.parameters?.hourlyRateVerification === 'number' ? model.parameters.hourlyRateVerification : 145;
     onUpdateBuild({
@@ -159,8 +165,9 @@ export default function DesignBoard({
         max={max}
         step={step}
         value={value}
+        disabled={isReadOnly}
         onChange={(e) => customHandler ? customHandler(field, Number(e.target.value)) : handleInputChange(field, Number(e.target.value))}
-        className="w-full accent-art-rust"
+        className={`w-full accent-art-rust ${isReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
       />
     </div>
   );
@@ -170,8 +177,9 @@ export default function DesignBoard({
       <label className="text-[10px] font-bold text-art-ink/50 uppercase font-mono tracking-wide">{label}</label>
       <select
         value={value}
+        disabled={isReadOnly}
         onChange={(e) => handleInputChange(field, e.target.value)}
-        className="w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-semibold cursor-pointer"
+        className={`w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-semibold cursor-pointer ${isReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
       >
         {options.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
       </select>
@@ -231,6 +239,14 @@ export default function DesignBoard({
 
   return (
     <div className="space-y-4">
+      {/* Read-only banner for non-architects */}
+      {isReadOnly && (
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-xl px-4 py-2.5 flex items-center space-x-2">
+          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+          <span className="text-[10px] font-bold text-amber-700 font-mono">Read-only view — parameters are locked for design review. Contact Silicon Architect to modify.</span>
+        </div>
+      )}
+
       {/* Top bar */}
       <div className="bg-white border-2 border-art-ink/10 rounded-xl p-4 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0 text-xs">
         <div className="flex items-center space-x-4">

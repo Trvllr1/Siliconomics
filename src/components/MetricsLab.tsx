@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Build, MetricCardData } from '../types';
+import { Build, MetricCardData, PersonaType } from '../types';
 import { DEFAULT_BUILDS } from '../data/defaultBuilds';
 import { ComputedBuildMetrics, computeBuildMetrics, round } from '../utils/mathEngine';
+import { PERSONA_CONFIG } from '../data/personaConfig';
 import ChartsView from './ChartsView';
 import SensitivityView from './SensitivityView';
 import CostContributorView from './CostContributorView';
@@ -20,6 +21,7 @@ interface MetricsLabProps {
   computedMetrics: ComputedBuildMetrics;
   onHoverMetric: (metric: MetricCardData | null) => void;
   onClickMetric: (metric: MetricCardData) => void;
+  activePersona: PersonaType;
 }
 
 export default function MetricsLab({
@@ -27,6 +29,7 @@ export default function MetricsLab({
   computedMetrics,
   onHoverMetric,
   onClickMetric,
+  activePersona,
 }: MetricsLabProps) {
   const [labTab, setLabTab] = useState<'metrics' | 'charts' | 'sensitivity' | 'risk' | 'anatomy' | 'cost' | 'supply'>('metrics');
 
@@ -174,6 +177,13 @@ export default function MetricsLab({
   const financialMetrics = snap.metricsList.filter(m => m.category === 'financial');
   const programMetrics = snap.metricsList.filter(m => m.category === 'program');
 
+  const metricSections = [
+    { key: 'engineering', title: 'Silicon Architecture & Engineering', icon: <Cpu className="w-4 h-4 text-art-rust" />, metrics: engineeringMetrics },
+    { key: 'manufacturing', title: 'Manufacturing & Packaging Yield', icon: <Activity className="w-4 h-4 text-art-rust" />, metrics: manufacturingMetrics },
+    { key: 'financial', title: 'Financial & Capital Architecture', icon: <DollarSign className="w-4 h-4 text-art-rust" />, metrics: financialMetrics },
+    { key: 'program', title: 'Program Schedule & Risks', icon: <Briefcase className="w-4 h-4 text-art-rust" />, metrics: programMetrics },
+  ];
+
   const tabButton = (key: typeof labTab, label: string, icon: React.ReactNode) => (
     <button onClick={() => setLabTab(key)}
       className={`flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-semibold cursor-pointer transition-all ${labTab === key ? 'bg-art-ink text-art-cream shadow-sm' : 'text-art-ink/60 hover:text-art-ink hover:bg-art-cream/60 bg-white border border-art-ink/10'}`}>
@@ -197,10 +207,19 @@ export default function MetricsLab({
       {/* Metrics Cards */}
       {labTab === 'metrics' && (
         <div className="space-y-6">
-          <MetricSection title="Silicon Architecture & Engineering" icon={<Cpu className="w-4 h-4 text-art-rust" />} metrics={engineeringMetrics} renderCard={renderMetricCard} />
-          <MetricSection title="Manufacturing & Packaging Yield" icon={<Activity className="w-4 h-4 text-art-rust" />} metrics={manufacturingMetrics} renderCard={renderMetricCard} />
-          <MetricSection title="Financial & Capital Architecture" icon={<DollarSign className="w-4 h-4 text-art-rust" />} metrics={financialMetrics} renderCard={renderMetricCard} />
-          <MetricSection title="Program Schedule & Risks" icon={<Briefcase className="w-4 h-4 text-art-rust" />} metrics={programMetrics} renderCard={renderMetricCard} />
+          {PERSONA_CONFIG[activePersona].metricOrder.map((cat) => {
+            const section = metricSections.find(s => s.key === cat);
+            if (!section) return null;
+            return (
+              <MetricSection
+                key={cat}
+                title={section.title}
+                icon={section.icon}
+                metrics={section.metrics}
+                renderCard={renderMetricCard}
+              />
+            );
+          })}
         </div>
       )}
 

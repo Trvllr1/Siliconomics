@@ -10,6 +10,7 @@ import { DEFAULT_REFERENCE_MODELS } from './data/defaultReferenceModels';
 import { DEFAULT_FORMULA_LIBRARY } from './data/defaultFormulaLibrary';
 import { DEFAULT_ALERT_RULES } from './data/defaultAlertRules';
 import { Archetype } from './data/archetypes';
+import { PERSONA_CONFIG } from './data/personaConfig';
 import { computeBuildMetrics, checkAlerts } from './utils/mathEngine';
 import DashboardView from './components/DashboardView';
 import DesignBoard from './components/DesignBoard';
@@ -41,6 +42,11 @@ import {
   CircuitBoard,
   Copy,
   GitBranch,
+  ChevronDown,
+  Wrench,
+  DollarSign,
+  Clock,
+  Award,
 } from 'lucide-react';
 
 const INITIAL_ACTIVITIES: ActivityLog[] = [
@@ -310,6 +316,9 @@ export default function App() {
 
   // Meeting mode state
   const [meetingModeOpen, setMeetingModeOpen] = useState(false);
+  const [personaDropdownOpen, setPersonaDropdownOpen] = useState(false);
+
+  const pc = PERSONA_CONFIG[activePersona];
 
   // Context sidebar mode: 'explain' | 'consult'
   const [contextTab, setContextTab] = useState<'explain' | 'consult'>('explain');
@@ -392,6 +401,14 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Persona auto-navigation
+  useEffect(() => {
+    const targetTab = pc.defaultTab;
+    if (activeTab !== targetTab) {
+      setActiveTab(targetTab);
+    }
+  }, [activePersona]);
 
   // Update active build within local state array to preserve modifications
   const handleUpdateBuild = (updated: Build) => {
@@ -500,6 +517,48 @@ export default function App() {
             ⌘K
           </span>
         </button>
+
+        {/* Persona badge + dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setPersonaDropdownOpen(!personaDropdownOpen)}
+            onBlur={() => setTimeout(() => setPersonaDropdownOpen(false), 200)}
+            className="flex items-center space-x-1.5 px-2.5 py-1 rounded border border-art-ink/10 hover:bg-art-cream transition-all cursor-pointer text-[10px] font-mono"
+            style={{ color: pc.color }}
+          >
+            <Cpu className="w-3.5 h-3.5" style={{ color: pc.color }} />
+            <span className="font-bold">{pc.label}</span>
+            <ChevronDown className="w-3 h-3" />
+          </button>
+
+          {personaDropdownOpen && (
+            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-art-ink/10 rounded-xl shadow-lg z-50 py-1 space-y-0.5">
+              {([['architect', <Cpu className="w-3.5 h-3.5" />],
+                ['manufacturing', <Wrench className="w-3.5 h-3.5" />],
+                ['finance', <DollarSign className="w-3.5 h-3.5" />],
+                ['program', <Clock className="w-3.5 h-3.5" />],
+                ['executive', <Award className="w-3.5 h-3.5" />]] as const).map(([key, icon]) => {
+                const cfg = PERSONA_CONFIG[key];
+                return (
+                  <button
+                    key={key}
+                    onMouseDown={() => { setActivePersona(key); setPersonaDropdownOpen(false); }}
+                    className={`w-full flex items-center space-x-2 px-3 py-2 text-xs transition-all cursor-pointer ${
+                      key === activePersona
+                        ? 'bg-art-cream font-bold'
+                        : 'hover:bg-art-cream/50 text-art-ink/70'
+                    }`}
+                    style={key === activePersona ? { color: cfg.color, borderLeft: `3px solid ${cfg.color}` } : {}}
+                  >
+                    {icon}
+                    <span>{cfg.label}</span>
+                    {key === activePersona && <span className="ml-auto text-[8px] font-mono opacity-50">Active</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center space-x-3 text-[11px] font-mono text-art-ink/70">
           <button
@@ -750,6 +809,7 @@ export default function App() {
                   computedMetrics={computedMetrics}
                   onHoverMetric={(m) => setHoveredTrace(m?.trace ?? null)}
                   onClickMetric={handleSelectMetric}
+                  activePersona={activePersona}
                 />
               </div>
             </div>
