@@ -177,7 +177,7 @@ export default function CommandPalette({
     if (!grouped[cmd.category]) {
       grouped[cmd.category] = [];
     }
-    grouped[cmd.category].push(cmd);
+    grouped[cmd.category]!.push(cmd);
   });
 
   // Flat list index for hover matching

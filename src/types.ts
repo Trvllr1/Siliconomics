@@ -32,6 +32,78 @@ export interface MetricCardData {
   category: 'engineering' | 'manufacturing' | 'financial' | 'program' | 'commercial';
 }
 
+export type BlockCategory = 'cpu' | 'memory' | 'security' | 'interconnect' | 'accelerator' | 'io' | 'power' | 'packaging' | 'other';
+
+export interface ArchitectureBlock {
+  name: string;
+  category: BlockCategory;
+  purpose: string;
+  implementation: 'internal' | 'licensed' | 'open-source' | 'custom';
+
+  estimatedAreaMm2: number;
+  measuredAreaMm2?: number;
+
+  estimatedPowerW?: number;
+  measuredPowerW?: number;
+
+  nreImpactM?: number;
+  licensingCostM?: number;
+  royaltyPerUnit?: number;
+  scheduleImpactWeeks?: number;
+
+  verificationEffortPersonMonths?: number;
+  manufacturingCriticality: 'low' | 'medium' | 'high' | 'critical';
+  supplyChainRisk: 'none' | 'low' | 'medium' | 'high';
+
+  replaces?: string;
+}
+
+export interface ArchitectureComposition {
+  blocks: ArchitectureBlock[];
+  version: string;
+  rationale?: string;
+}
+
+export type FoundryType = 'tsmc' | 'intel' | 'samsung';
+
+export type PackagingType = 'standard' | 'cowos-s' | 'cowos-r' | 'cowos-l' | 'emib';
+
+export interface MpwConfig {
+  enabled: boolean;
+  participants: number;
+  shuttleCostPerSlot: number;
+  diesPerSlot: number;
+  shuttlesPerYear: number;
+  reticleSlotArea: number;
+}
+
+export interface DesignModel {
+  processNode: string;
+  dieArea: number;
+  dieWidth: number;
+  dieHeight: number;
+  transistorCount: number;
+  tdp: number;
+  topology: 'monolithic' | 'chiplet';
+  chipletCount: number;
+  ioDieArea: number;
+  defectDensity: number;
+  waferStartsPerMonth: number;
+  packagingCost: number;
+  testTimeSeconds: number;
+  testCostPerSecond: number;
+  packagingYield: number;
+  testYield: number;
+  waferCost: number;
+  nreCost: number;
+  asp: number;
+  targetVolume: number;
+  foundry: FoundryType;
+  packagingType: PackagingType;
+  interposerArea?: number;
+  mpw?: MpwConfig;
+}
+
 export interface Build {
   id: string;
   name: string;
@@ -46,32 +118,36 @@ export interface Build {
   createdDate: string;
   referenceModel: string;
   formulaVersion: string;
-  
-  // Engineering inputs
-  processNode: string; // Node choice
-  dieArea: number; // mm2
-  dieWidth: number; // mm
-  dieHeight: number; // mm
-  transistorCount: number; // Billions
-  tdp: number; // Watts (Thermal Design Power)
-  topology: 'monolithic' | 'chiplet';
-  chipletCount: number; // Number of chiplets if chiplet topology
-  ioDieArea: number; // Area of I/O die if chiplet
+  architecture?: ArchitectureComposition;
+  designModel: DesignModel;
+}
 
-  // Manufacturing inputs
-  defectDensity: number; // defects/cm2 (D0)
-  waferStartsPerMonth: number; // wafers run per month
-  packagingCost: number; // dollars
-  testTimeSeconds: number; // seconds
-  testCostPerSecond: number; // dollars
-  packagingYield: number; // percentage (e.g. 98)
-  testYield: number; // percentage (e.g. 97)
-
-  // Financial inputs
-  waferCost: number; // dollars
-  nreCost: number; // Million dollars
-  asp: number; // dollars (Average Selling Price)
-  targetVolume: number; // Million units over program lifetime
+export interface Snapshot {
+  totalDieArea: number;
+  transistorDensity: number;
+  tdpPowerDensity: number;
+  dieYield: number;
+  dpw: number;
+  waferUtilization: number;
+  rawDieCost: number;
+  packagingAndTestingCost: number;
+  grossCostPerGoodDie: number;
+  amortizedNreCost: number;
+  fullyLoadedCostPerDie: number;
+  grossMargin: number;
+  operatingMargin: number;
+  monthlyVolumeMillion: number;
+  annualVolumeMillion: number;
+  lifetimeRevenueMillion: number;
+  lifetimeCOGSMillion: number;
+  lifetimeGrossProfitMillion: number;
+  lifetimeNetProfitMillion: number;
+  breakEvenVolumeMillion: number;
+  roi: number;
+  totalIpNreM: number;
+  totalLicenseFeesM: number;
+  totalRoyaltyBurdenPerUnit: number;
+  metricsList: MetricCardData[];
 }
 
 export interface Comment {
@@ -98,6 +174,53 @@ export interface SavedView {
   name: string;
   persona: PersonaType;
   buildId: string;
+}
+
+export type DecisionOutcome = 'Proceed' | 'Proceed with Risk' | 'Requires Investigation' | 'Hold' | 'Reject';
+
+export interface Decision {
+  id: string;
+  buildIds: string[];
+  outcome: DecisionOutcome;
+  approver: string;
+  rationale: string;
+  followUpActions: string[];
+  timestamp: string;
+}
+
+export type ReferenceModelCategory = 'foundry' | 'packaging' | 'labor' | 'mask' | 'certification' | 'cloud';
+
+export interface ReferenceModel {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  category: ReferenceModelCategory;
+  parameters: { [key: string]: number | string | boolean };
+  createdDate: string;
+  updatedDate: string;
+}
+
+export interface FormulaEntry {
+  id: string;
+  name: string;
+  category: 'engineering' | 'manufacturing' | 'financial' | 'program';
+  equation: string;
+  description: string;
+  inputs: { name: string; unit: string; description: string }[];
+  output: { name: string; unit: string; description: string };
+  version: string;
+  references: string[];
+  affectedMetrics: string[];
+}
+
+export interface Portfolio {
+  id: string;
+  name: string;
+  description: string;
+  buildIds: string[];
+  tags: string[];
+  createdDate: string;
 }
 
 export interface ActivityLog {

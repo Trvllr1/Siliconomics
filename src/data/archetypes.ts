@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Build } from '../types';
+import { Build, FoundryType, PackagingType } from '../types';
 
 export interface Archetype {
   id: string;
@@ -30,6 +30,9 @@ export interface Archetype {
   nreCost: number;
   asp: number;
   targetVolume: number;
+  foundry: FoundryType;
+  packagingType: PackagingType;
+  interposerArea?: number;
   creator?: string;
   isCustom?: boolean;
 }
@@ -60,6 +63,8 @@ export const PRECONFIG_ARCHETYPES: Archetype[] = [
     nreCost: 145,
     asp: 450,
     targetVolume: 3.5,
+    foundry: 'tsmc',
+    packagingType: 'standard',
   },
   {
     id: 'arch-fpga',
@@ -86,6 +91,8 @@ export const PRECONFIG_ARCHETYPES: Archetype[] = [
     nreCost: 45,
     asp: 850,
     targetVolume: 0.8,
+    foundry: 'tsmc',
+    packagingType: 'standard',
   },
   {
     id: 'arch-automotive',
@@ -112,6 +119,8 @@ export const PRECONFIG_ARCHETYPES: Archetype[] = [
     nreCost: 110,
     asp: 285,
     targetVolume: 4.5,
+    foundry: 'tsmc',
+    packagingType: 'standard',
   },
   {
     id: 'arch-smartnic',
@@ -138,6 +147,8 @@ export const PRECONFIG_ARCHETYPES: Archetype[] = [
     nreCost: 65,
     asp: 195,
     targetVolume: 2.5,
+    foundry: 'tsmc',
+    packagingType: 'standard',
   },
   {
     id: 'arch-noc',
@@ -164,6 +175,8 @@ export const PRECONFIG_ARCHETYPES: Archetype[] = [
     nreCost: 15,
     asp: 85,
     targetVolume: 8.0,
+    foundry: 'tsmc',
+    packagingType: 'standard',
   },
   {
     id: 'arch-cowos',
@@ -190,6 +203,9 @@ export const PRECONFIG_ARCHETYPES: Archetype[] = [
     nreCost: 260,
     asp: 1250,
     targetVolume: 1.2,
+    foundry: 'tsmc',
+    packagingType: 'cowos-s',
+    interposerArea: 760,
   },
   {
     id: 'arch-mobile',
@@ -216,6 +232,8 @@ export const PRECONFIG_ARCHETYPES: Archetype[] = [
     nreCost: 210,
     asp: 115,
     targetVolume: 45.0,
+    foundry: 'tsmc',
+    packagingType: 'standard',
   },
   {
     id: 'arch-edge',
@@ -242,6 +260,8 @@ export const PRECONFIG_ARCHETYPES: Archetype[] = [
     nreCost: 15,
     asp: 18,
     targetVolume: 150.0,
+    foundry: 'tsmc',
+    packagingType: 'standard',
   }
 ];
 
@@ -258,28 +278,33 @@ export function convertArchetypeToBuild(archetype: Archetype, name: string, vers
     version: version || 'v1.0',
     owner: `${creator || 'eagleximpact'} (Silicon Architect)`,
     portfolio: `${archetype.category} Projects`,
-    createdDate: new Date().toISOString().split('T')[0],
+    createdDate: new Date().toISOString().split('T')[0] ?? '',
     referenceModel: `${archetype.name} Baseline Template`,
     formulaVersion: 'Murphy-SIA-v4.1',
-    processNode: archetype.processNode,
-    dieArea: archetype.dieArea,
-    dieWidth: archetype.dieWidth,
-    dieHeight: archetype.dieHeight,
-    transistorCount: archetype.transistorCount,
-    tdp: archetype.tdp,
-    topology: archetype.topology,
-    chipletCount: archetype.chipletCount,
-    ioDieArea: archetype.ioDieArea,
-    defectDensity: archetype.defectDensity,
-    waferStartsPerMonth: archetype.waferStartsPerMonth,
-    packagingCost: archetype.packagingCost,
-    testTimeSeconds: archetype.testTimeSeconds,
-    testCostPerSecond: archetype.testCostPerSecond,
-    packagingYield: archetype.packagingYield,
-    testYield: archetype.testYield,
-    waferCost: archetype.waferCost,
-    nreCost: archetype.nreCost,
-    asp: archetype.asp,
-    targetVolume: archetype.targetVolume,
+    designModel: {
+      processNode: archetype.processNode,
+      dieArea: archetype.dieArea,
+      dieWidth: archetype.dieWidth,
+      dieHeight: archetype.dieHeight,
+      transistorCount: archetype.transistorCount,
+      tdp: archetype.tdp,
+      topology: archetype.topology,
+      chipletCount: archetype.chipletCount,
+      ioDieArea: archetype.ioDieArea,
+      defectDensity: archetype.defectDensity,
+      waferStartsPerMonth: archetype.waferStartsPerMonth,
+      packagingCost: archetype.packagingCost,
+      testTimeSeconds: archetype.testTimeSeconds,
+      testCostPerSecond: archetype.testCostPerSecond,
+      packagingYield: archetype.packagingYield,
+      testYield: archetype.testYield,
+      waferCost: archetype.waferCost,
+      nreCost: archetype.nreCost,
+      asp: archetype.asp,
+      targetVolume: archetype.targetVolume,
+      foundry: archetype.foundry ?? 'tsmc',
+      packagingType: archetype.packagingType ?? 'standard',
+      interposerArea: archetype.interposerArea,
+    },
   };
 }

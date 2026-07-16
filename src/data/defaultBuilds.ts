@@ -20,32 +20,30 @@ export const DEFAULT_BUILDS: Build[] = [
     createdDate: '2026-03-12',
     referenceModel: 'TSMC N4P Reference Model v1.2',
     formulaVersion: 'Murphy-SIA-v4.1',
-    
-    // Engineering inputs
-    processNode: '5nm', // Representing 5nm/4nm class
-    dieArea: 260, // mm2 (large automotive SoC)
-    dieWidth: 16.1,
-    dieHeight: 16.1,
-    transistorCount: 22.4, // 22.4 Billion
-    tdp: 45, // 45 Watts
-    topology: 'monolithic',
-    chipletCount: 1,
-    ioDieArea: 0,
-
-    // Manufacturing inputs
-    defectDensity: 0.08, // defects/cm2 (excellent mature yield)
-    waferStartsPerMonth: 8500, // solid automotive run rate
-    packagingCost: 12.50, // high-reliability ball grid array
-    testTimeSeconds: 45, // intensive automotive safety testing
-    testCostPerSecond: 0.18, // safety-grade test cell
-    packagingYield: 99.2, // high quality
-    testYield: 98.5,
-
-    // Financial inputs
-    waferCost: 9500, // Mature 5nm wafer cost
-    nreCost: 110, // $110M NRE (mask sets, IP validation)
-    asp: 285, // $285 Average Selling Price
-    targetVolume: 4.5, // 4.5 Million units over lifetime
+    designModel: {
+      processNode: '5nm',
+      dieArea: 260,
+      dieWidth: 16.1,
+      dieHeight: 16.1,
+      transistorCount: 22.4,
+      tdp: 45,
+      topology: 'monolithic',
+      chipletCount: 1,
+      ioDieArea: 0,
+      defectDensity: 0.08,
+      waferStartsPerMonth: 8500,
+      packagingCost: 12.50,
+      testTimeSeconds: 45,
+      testCostPerSecond: 0.18,
+      packagingYield: 99.2,
+      testYield: 98.5,
+      waferCost: 9500,
+      nreCost: 110,
+      asp: 285,
+      targetVolume: 4.5,
+      foundry: 'tsmc',
+      packagingType: 'standard',
+    },
   },
   {
     id: 'manhattan-x2',
@@ -61,32 +59,87 @@ export const DEFAULT_BUILDS: Build[] = [
     createdDate: '2026-06-01',
     referenceModel: 'TSMC N3E High-Density Platform v2.0',
     formulaVersion: 'Murphy-SIA-v4.1',
-    
-    // Engineering inputs
-    processNode: '3nm', // Leading edge 3nm
-    dieArea: 145, // mm2 per Core Chiplet (smaller die keeps yield high)
-    dieWidth: 12.0,
-    dieHeight: 12.0,
-    transistorCount: 92.0, // 92.0 Billion combined
-    tdp: 350, // 350 Watts server class
-    topology: 'chiplet',
-    chipletCount: 4, // 4 Core chiplets
-    ioDieArea: 180, // 1 I/O Die in 5nm or 6nm
-
-    // Manufacturing inputs
-    defectDensity: 0.12, // early 3nm defect density (higher risk)
-    waferStartsPerMonth: 4000, // early production ramp
-    packagingCost: 48.00, // CoWoS (Chip-on-Wafer-on-Substrate) advanced packaging
-    testTimeSeconds: 90, // massive test suite for 92B transistors
-    testCostPerSecond: 0.25, // ultra-high performance tester
-    packagingYield: 97.5, // early advanced packaging yield
-    testYield: 96.0,
-
-    // Financial inputs
-    waferCost: 18000, // Premium 3nm wafer cost
-    nreCost: 260, // $260M (extreme leading-edge cost)
-    asp: 1250, // $1250 Premium ASP for AI Server silicon
-    targetVolume: 1.2, // 1.2 Million units for high-end server
+    designModel: {
+      processNode: '3nm',
+      dieArea: 145,
+      dieWidth: 12.0,
+      dieHeight: 12.0,
+      transistorCount: 92.0,
+      tdp: 350,
+      topology: 'chiplet',
+      chipletCount: 4,
+      ioDieArea: 180,
+      defectDensity: 0.12,
+      waferStartsPerMonth: 4000,
+      packagingCost: 48.00,
+      testTimeSeconds: 90,
+      testCostPerSecond: 0.25,
+      packagingYield: 97.5,
+      testYield: 96.0,
+      waferCost: 18000,
+      nreCost: 260,
+      asp: 1250,
+      targetVolume: 1.2,
+      foundry: 'tsmc',
+      packagingType: 'cowos-s',
+      interposerArea: 760,
+    },
+    architecture: {
+      version: 'v1.0',
+      rationale: 'Multi-chiplet AI accelerator with licensed compute IP and internal I/O. CoWoS-S packaging for HBM3 integration.',
+      blocks: [
+        {
+          name: 'AI Accelerator Core',
+          category: 'accelerator',
+          purpose: 'Deep learning training and inference engine for enterprise datacenter workloads',
+          implementation: 'licensed',
+          estimatedAreaMm2: 48,
+          nreImpactM: 0,
+          licensingCostM: 8.5,
+          royaltyPerUnit: 1.25,
+          scheduleImpactWeeks: 0,
+          verificationEffortPersonMonths: 24,
+          manufacturingCriticality: 'high',
+          supplyChainRisk: 'medium',
+        },
+        {
+          name: 'HBM3 PHY (x8 stack)',
+          category: 'memory',
+          purpose: 'High-bandwidth memory interface for accelerator data bandwidth',
+          implementation: 'licensed',
+          estimatedAreaMm2: 36,
+          licensingCostM: 4.2,
+          royaltyPerUnit: 0.75,
+          scheduleImpactWeeks: 4,
+          verificationEffortPersonMonths: 12,
+          manufacturingCriticality: 'critical',
+          supplyChainRisk: 'high',
+          replaces: 'HBM2 PHY',
+        },
+        {
+          name: 'PCIe Gen6 Controller',
+          category: 'io',
+          purpose: 'Host interface with Gen6 64 GT/s signaling for multi-node scaling',
+          implementation: 'internal',
+          estimatedAreaMm2: 22,
+          nreImpactM: 6.0,
+          scheduleImpactWeeks: 12,
+          verificationEffortPersonMonths: 18,
+          manufacturingCriticality: 'medium',
+          supplyChainRisk: 'low',
+          replaces: 'PCIe Gen5 Controller',
+        },
+        {
+          name: 'L3 Cache (SRAM)',
+          category: 'memory',
+          purpose: 'Shared last-level cache for accelerator complex',
+          implementation: 'internal',
+          estimatedAreaMm2: 32,
+          manufacturingCriticality: 'critical',
+          supplyChainRisk: 'none',
+        },
+      ],
+    },
   },
   {
     id: 'brooklyn-a2',
@@ -102,31 +155,29 @@ export const DEFAULT_BUILDS: Build[] = [
     createdDate: '2026-07-10',
     referenceModel: 'Intel 16 / TSMC N7 Mature Platform v4.0',
     formulaVersion: 'Murphy-SIA-v4.1',
-    
-    // Engineering inputs
-    processNode: '7nm', // mature low-cost node
-    dieArea: 65, // mm2 (small MCU die)
-    dieWidth: 8.0,
-    dieHeight: 8.1,
-    transistorCount: 2.1, // 2.1 Billion
-    tdp: 4, // ultra low power
-    topology: 'monolithic',
-    chipletCount: 1,
-    ioDieArea: 0,
-
-    // Manufacturing inputs
-    defectDensity: 0.04, // mature node with super clean yield
-    waferStartsPerMonth: 25000, // high run-rate consumer/IoT
-    packagingCost: 1.20, // cheap wirebond QFN package
-    testTimeSeconds: 12, // fast simple test flow
-    testCostPerSecond: 0.10, // low-cost edge tester
-    packagingYield: 99.7, 
-    testYield: 99.2,
-
-    // Financial inputs
-    waferCost: 5500, // Mature wafer pricing
-    nreCost: 35, // Low NRE cost
-    asp: 18.50, // Low cost commodity ASP
-    targetVolume: 40.0, // Large volume 40 Million units
+    designModel: {
+      processNode: '7nm',
+      dieArea: 65,
+      dieWidth: 8.0,
+      dieHeight: 8.1,
+      transistorCount: 2.1,
+      tdp: 4,
+      topology: 'monolithic',
+      chipletCount: 1,
+      ioDieArea: 0,
+      defectDensity: 0.04,
+      waferStartsPerMonth: 25000,
+      packagingCost: 1.20,
+      testTimeSeconds: 12,
+      testCostPerSecond: 0.10,
+      packagingYield: 99.7,
+      testYield: 99.2,
+      waferCost: 5500,
+      nreCost: 35,
+      asp: 18.50,
+      targetVolume: 40.0,
+      foundry: 'tsmc',
+      packagingType: 'standard',
+    },
   }
 ];

@@ -3,16 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { Build } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Build, Decision, DecisionOutcome } from '../types';
 import { computeBuildMetrics, round } from '../utils/mathEngine';
-import { Sparkles, Loader2, ArrowRightLeft, ShieldAlert, CheckCircle, TrendingUp, DollarSign, FileText, Pin, Trash2 } from 'lucide-react';
+import { computeBusinessImpact } from '../utils/BusinessImpact';
+import { evaluateBuild } from '../utils/ExecutiveRecommendation';
+import { Sparkles, Loader2, ArrowRightLeft, ShieldAlert, CheckCircle, TrendingUp, DollarSign, FileText, Pin, Trash2, FileCheck } from 'lucide-react';
 import { generateComparisonPdf } from '../utils/pdfGenerator';
 
 interface ComparisonViewProps {
   builds: Build[];
   initialBuildAId?: string;
   initialBuildBId?: string;
+  onRecordDecision?: (decision: Decision) => void;
 }
 
 interface ComparisonSnapshot {
@@ -23,7 +26,7 @@ interface ComparisonSnapshot {
   timestamp: string;
 }
 
-export default function ComparisonView({ builds, initialBuildAId, initialBuildBId }: ComparisonViewProps) {
+export default function ComparisonView({ builds, initialBuildAId, initialBuildBId, onRecordDecision }: ComparisonViewProps) {
   const [buildAId, setBuildAId] = useState(initialBuildAId || builds[0]?.id || '');
   const [buildBId, setBuildBId] = useState(initialBuildBId || builds[1]?.id || builds[0]?.id || '');
   
@@ -52,11 +55,30 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const buildA = builds.find((b) => b.id === buildAId) || builds[0];
-  const buildB = builds.find((b) => b.id === buildBId) || builds[1] || builds[0];
+  // Decision recording modal state
+  const [showDecisionModal, setShowDecisionModal] = useState(false);
+  const [decisionOutcome, setDecisionOutcome] = useState<DecisionOutcome>('Proceed');
+  const [decisionRationale, setDecisionRationale] = useState('');
+  const [decisionApprover, setDecisionApprover] = useState('eagleximpact');
+  const [decisionFollowUp, setDecisionFollowUp] = useState('');
+
+  const buildA = builds.find((b) => b.id === buildAId) ?? builds[0]!;
+  const buildB = builds.find((b) => b.id === buildBId) ?? builds[1] ?? builds[0]!;
 
   const metricsA = computeBuildMetrics(buildA);
   const metricsB = computeBuildMetrics(buildB);
+
+  const dmA = buildA.designModel;
+  const dmB = buildB.designModel;
+  const snapA = metricsA.snapshot;
+  const snapB = metricsB.snapshot;
+
+  const impacts = useMemo(() => computeBusinessImpact(buildA, snapA, buildB, snapB), [buildA, buildB, snapA, snapB]);
+  const recommendation = useMemo(() => {
+    const recA = evaluateBuild(snapA, buildA.designModel);
+    const recB = evaluateBuild(snapB, buildB.designModel);
+    return recA.confidence >= recB.confidence ? recA : recB;
+  }, [snapA, snapB, buildA, buildB]);
 
   // Clear AI comparison when builds change
   useEffect(() => {
@@ -305,12 +327,20 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
           </div>
 
           <button
-            onClick={() => generateComparisonPdf(buildA, metricsA, buildB, metricsB, aiComparison)}
+            onClick={() => generateComparisonPdf(buildA, snapA, buildB, snapB, aiComparison)}
             className="flex items-center justify-center space-x-2 bg-art-rust hover:bg-art-rust/90 text-white rounded-lg px-4 py-3 text-xs font-bold font-serif italic transition-all duration-150 cursor-pointer shadow-md border-none h-fit whitespace-nowrap self-stretch sm:self-center"
             title="Download high-fidelity, board-ready comparative PDF summary with full compliance markers"
           >
             <FileText className="w-4 h-4" />
             <span>Generate PDF Executive Summary</span>
+          </button>
+          <button
+            onClick={() => setShowDecisionModal(true)}
+            className="flex items-center justify-center space-x-2 bg-art-ink hover:bg-art-rust text-art-cream hover:text-white rounded-lg px-4 py-3 text-xs font-bold font-serif italic transition-all duration-150 cursor-pointer shadow-md border-none h-fit whitespace-nowrap self-stretch sm:self-center"
+            title="Record an executive decision against this comparison"
+          >
+            <FileCheck className="w-4 h-4" />
+            <span>Record Decision</span>
           </button>
         </div>
       </div>
@@ -335,70 +365,70 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Process Node</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(buildA.processNode, buildB.processNode)}`}>
-                {buildA.processNode}
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(dmA.processNode, dmB.processNode)}`}>
+                {dmA.processNode}
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(buildA.processNode, buildB.processNode)}`}>
-                {buildB.processNode}
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(dmA.processNode, dmB.processNode)}`}>
+                {dmB.processNode}
               </td>
               <td className="px-4 py-2.5 text-center font-mono text-art-ink/30">-</td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Silicon Area</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(metricsA.totalDieArea, metricsB.totalDieArea)}`}>
-                {round(metricsA.totalDieArea, 1)} mm²
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(snapA.totalDieArea, snapB.totalDieArea)}`}>
+                {round(snapA.totalDieArea, 1)} mm²
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(metricsA.totalDieArea, metricsB.totalDieArea)}`}>
-                {round(metricsB.totalDieArea, 1)} mm²
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(snapA.totalDieArea, snapB.totalDieArea)}`}>
+                {round(snapB.totalDieArea, 1)} mm²
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(metricsA.totalDieArea, metricsB.totalDieArea, ' mm²', true)}
+                {formatDelta(snapA.totalDieArea, snapB.totalDieArea, ' mm²', true)}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Transistor Count</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(buildA.transistorCount, buildB.transistorCount)}`}>
-                {buildA.transistorCount} B
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(dmA.transistorCount, dmB.transistorCount)}`}>
+                {dmA.transistorCount} B
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(buildA.transistorCount, buildB.transistorCount)}`}>
-                {buildB.transistorCount} B
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(dmA.transistorCount, dmB.transistorCount)}`}>
+                {dmB.transistorCount} B
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(buildA.transistorCount, buildB.transistorCount, ' B')}
+                {formatDelta(dmA.transistorCount, dmB.transistorCount, ' B')}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Topology Design</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic uppercase ${highlightDifference(buildA.topology, buildB.topology)}`}>
-                {buildA.topology}
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic uppercase ${highlightDifference(dmA.topology, dmB.topology)}`}>
+                {dmA.topology}
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic uppercase ${highlightDifference(buildA.topology, buildB.topology)}`}>
-                {buildB.topology}
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic uppercase ${highlightDifference(dmA.topology, dmB.topology)}`}>
+                {dmB.topology}
               </td>
               <td className="px-4 py-2.5 text-center font-mono text-art-ink/30">-</td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Silicon Yield</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(metricsA.dieYield, metricsB.dieYield)}`}>
-                {round(metricsA.dieYield * 100, 1)}%
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(snapA.dieYield, snapB.dieYield)}`}>
+                {round(snapA.dieYield * 100, 1)}%
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(metricsA.dieYield, metricsB.dieYield)}`}>
-                {round(metricsB.dieYield * 100, 1)}%
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(snapA.dieYield, snapB.dieYield)}`}>
+                {round(snapB.dieYield * 100, 1)}%
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(metricsA.dieYield * 100, metricsB.dieYield * 100, '%')}
+                {formatDelta(snapA.dieYield * 100, snapB.dieYield * 100, '%')}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Dies Per Wafer (DPW)</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(metricsA.dpw, metricsB.dpw)}`}>
-                {metricsA.dpw} dies
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(snapA.dpw, snapB.dpw)}`}>
+                {snapA.dpw} dies
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(metricsA.dpw, metricsB.dpw)}`}>
-                {metricsB.dpw} dies
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(snapA.dpw, snapB.dpw)}`}>
+                {snapB.dpw} dies
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(metricsA.dpw, metricsB.dpw, ' dies')}
+                {formatDelta(snapA.dpw, snapB.dpw, ' dies')}
               </td>
             </tr>
 
@@ -410,38 +440,38 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Defect Density (D0)</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(buildA.defectDensity, buildB.defectDensity)}`}>
-                {buildA.defectDensity} /cm²
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(dmA.defectDensity, dmB.defectDensity)}`}>
+                {dmA.defectDensity} /cm²
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(buildA.defectDensity, buildB.defectDensity)}`}>
-                {buildB.defectDensity} /cm²
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(dmA.defectDensity, dmB.defectDensity)}`}>
+                {dmB.defectDensity} /cm²
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(buildA.defectDensity, buildB.defectDensity, '/cm²', true)}
+                {formatDelta(dmA.defectDensity, dmB.defectDensity, '/cm²', true)}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Packaging Yield</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(buildA.packagingYield, buildB.packagingYield)}`}>
-                {buildA.packagingYield}%
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(dmA.packagingYield, dmB.packagingYield)}`}>
+                {dmA.packagingYield}%
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(buildA.packagingYield, buildB.packagingYield)}`}>
-                {buildB.packagingYield}%
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(dmA.packagingYield, dmB.packagingYield)}`}>
+                {dmB.packagingYield}%
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(buildA.packagingYield, buildB.packagingYield, '%')}
+                {formatDelta(dmA.packagingYield, dmB.packagingYield, '%')}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Electrical Test Yield</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(buildA.testYield, buildB.testYield)}`}>
-                {buildA.testYield}%
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(dmA.testYield, dmB.testYield)}`}>
+                {dmA.testYield}%
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(buildA.testYield, buildB.testYield)}`}>
-                {buildB.testYield}%
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(dmA.testYield, dmB.testYield)}`}>
+                {dmB.testYield}%
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(buildA.testYield, buildB.testYield, '%')}
+                {formatDelta(dmA.testYield, dmB.testYield, '%')}
               </td>
             </tr>
 
@@ -453,102 +483,168 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Silicon Wafer Cost</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(buildA.waferCost, buildB.waferCost)}`}>
-                ${buildA.waferCost.toLocaleString()}
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(dmA.waferCost, dmB.waferCost)}`}>
+                ${dmA.waferCost.toLocaleString()}
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(buildA.waferCost, buildB.waferCost)}`}>
-                ${buildB.waferCost.toLocaleString()}
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(dmA.waferCost, dmB.waferCost)}`}>
+                ${dmB.waferCost.toLocaleString()}
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(buildA.waferCost, buildB.waferCost, '', true)}
+                {formatDelta(dmA.waferCost, dmB.waferCost, '', true)}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Silicon Die Cost</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(metricsA.rawDieCost, metricsB.rawDieCost)}`}>
-                ${round(metricsA.rawDieCost, 2)}
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(snapA.rawDieCost, snapB.rawDieCost)}`}>
+                ${round(snapA.rawDieCost, 2)}
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(metricsA.rawDieCost, metricsB.rawDieCost)}`}>
-                ${round(metricsB.rawDieCost, 2)}
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(snapA.rawDieCost, snapB.rawDieCost)}`}>
+                ${round(snapB.rawDieCost, 2)}
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(metricsA.rawDieCost, metricsB.rawDieCost, '', true)}
+                {formatDelta(snapA.rawDieCost, snapB.rawDieCost, '', true)}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Packaged Unit Cost (COGS)</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(metricsA.grossCostPerGoodDie, metricsB.grossCostPerGoodDie)}`}>
-                ${round(metricsA.grossCostPerGoodDie, 2)}
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(snapA.grossCostPerGoodDie, snapB.grossCostPerGoodDie)}`}>
+                ${round(snapA.grossCostPerGoodDie, 2)}
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(metricsA.grossCostPerGoodDie, metricsB.grossCostPerGoodDie)}`}>
-                ${round(metricsB.grossCostPerGoodDie, 2)}
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(snapA.grossCostPerGoodDie, snapB.grossCostPerGoodDie)}`}>
+                ${round(snapB.grossCostPerGoodDie, 2)}
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(metricsA.grossCostPerGoodDie, metricsB.grossCostPerGoodDie, '', true)}
+                {formatDelta(snapA.grossCostPerGoodDie, snapB.grossCostPerGoodDie, '', true)}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Average Selling Price (ASP)</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(buildA.asp, buildB.asp)}`}>
-                ${buildA.asp.toLocaleString()}
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(dmA.asp, dmB.asp)}`}>
+                ${dmA.asp.toLocaleString()}
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(buildA.asp, buildB.asp)}`}>
-                ${buildB.asp.toLocaleString()}
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(dmA.asp, dmB.asp)}`}>
+                ${dmB.asp.toLocaleString()}
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(buildA.asp, buildB.asp, '')}
+                {formatDelta(dmA.asp, dmB.asp, '')}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Gross Margin</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(metricsA.grossMargin, metricsB.grossMargin)}`}>
-                {round(metricsA.grossMargin, 1)}%
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(snapA.grossMargin, snapB.grossMargin)}`}>
+                {round(snapA.grossMargin, 1)}%
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(metricsA.grossMargin, metricsB.grossMargin)}`}>
-                {round(metricsB.grossMargin, 1)}%
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(snapA.grossMargin, snapB.grossMargin)}`}>
+                {round(snapB.grossMargin, 1)}%
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(metricsA.grossMargin, metricsB.grossMargin, '%')}
+                {formatDelta(snapA.grossMargin, snapB.grossMargin, '%')}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Non-Recurring Eng (NRE)</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(buildA.nreCost, buildB.nreCost)}`}>
-                ${buildA.nreCost} M
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(dmA.nreCost, dmB.nreCost)}`}>
+                ${dmA.nreCost} M
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(buildA.nreCost, buildB.nreCost)}`}>
-                ${buildB.nreCost} M
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(dmA.nreCost, dmB.nreCost)}`}>
+                ${dmB.nreCost} M
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(buildA.nreCost, buildB.nreCost, ' M', true)}
+                {formatDelta(dmA.nreCost, dmB.nreCost, ' M', true)}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Net Lifetime Profit</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(metricsA.lifetimeNetProfitMillion, metricsB.lifetimeNetProfitMillion)}`}>
-                ${round(metricsA.lifetimeNetProfitMillion, 1)} M
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(snapA.lifetimeNetProfitMillion, snapB.lifetimeNetProfitMillion)}`}>
+                ${round(snapA.lifetimeNetProfitMillion, 1)} M
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(metricsA.lifetimeNetProfitMillion, metricsB.lifetimeNetProfitMillion)}`}>
-                ${round(metricsB.lifetimeNetProfitMillion, 1)} M
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(snapA.lifetimeNetProfitMillion, snapB.lifetimeNetProfitMillion)}`}>
+                ${round(snapB.lifetimeNetProfitMillion, 1)} M
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(metricsA.lifetimeNetProfitMillion, metricsB.lifetimeNetProfitMillion, ' M')}
+                {formatDelta(snapA.lifetimeNetProfitMillion, snapB.lifetimeNetProfitMillion, ' M')}
               </td>
             </tr>
             <tr>
               <td className="px-4 py-2.5 font-medium text-art-ink/60 font-mono">Return on Investment (ROI)</td>
-              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(metricsA.roi, metricsB.roi)}`}>
-                {round(metricsA.roi, 1)}%
+              <td className={`px-4 py-2.5 bg-art-cream/5 font-serif italic ${highlightDifference(snapA.roi, snapB.roi)}`}>
+                {round(snapA.roi, 1)}%
               </td>
-              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(metricsA.roi, metricsB.roi)}`}>
-                {round(metricsB.roi, 1)}%
+              <td className={`px-4 py-2.5 bg-art-cream/10 font-serif italic ${highlightDifference(snapA.roi, snapB.roi)}`}>
+                {round(snapB.roi, 1)}%
               </td>
               <td className="px-4 py-2.5 text-center">
-                {formatDelta(metricsA.roi, metricsB.roi, '%')}
+                {formatDelta(snapA.roi, snapB.roi, '%')}
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      {/* Business Impact Analysis */}
+      <div className="bg-white border-2 border-art-ink/10 rounded-xl p-5 shadow-sm space-y-4">
+        <div className="flex items-center space-x-2">
+          <TrendingUp className="w-4 h-4 text-art-rust" />
+          <h3 className="text-xs font-bold uppercase tracking-widest text-art-ink/80 font-mono">Business Impact Analysis</h3>
+        </div>
+        {impacts.length === 0 ? (
+          <p className="text-[11px] text-art-ink/50 italic">No material differences detected.</p>
+        ) : (
+          <div className="space-y-2">
+            {impacts.map((imp, i) => (
+              <div key={i} className="border border-art-ink/5 rounded-lg p-3 bg-art-cream/20 space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-[9px] font-bold font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                      imp.severity === 'positive' ? 'bg-green-50 text-green-700 border-green-200' :
+                      imp.severity === 'negative' ? 'bg-red-50 text-red-700 border-red-200' :
+                      'bg-gray-50 text-gray-600 border-gray-200'
+                    }`}>
+                      {imp.severity === 'positive' ? '✓ Positive' : imp.severity === 'negative' ? '⚠ Risk' : '○ Neutral'}
+                    </span>
+                    <span className="text-[10px] font-mono text-art-ink/40 uppercase">{imp.category}</span>
+                  </div>
+                  <span className="text-[9px] font-mono text-art-ink/40">{imp.delta}</span>
+                </div>
+                <p className="text-[11px] text-art-ink/70 leading-relaxed font-sans">{imp.narrative}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Executive Recommendation */}
+      <div className={`bg-white border-2 rounded-xl p-5 shadow-sm space-y-3 ${
+        recommendation.outcome === 'Proceed' ? 'border-green-300' :
+        recommendation.outcome === 'Proceed with Risk' ? 'border-yellow-300' :
+        recommendation.outcome === 'Requires Investigation' ? 'border-orange-300' :
+        recommendation.outcome === 'Hold' ? 'border-red-300' :
+        'border-red-500'
+      }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <FileCheck className="w-4 h-4 text-art-rust" />
+            <h3 className="text-xs font-bold uppercase tracking-widest text-art-ink/80 font-mono">Executive Recommendation</h3>
+          </div>
+          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+            recommendation.outcome === 'Proceed' ? 'bg-green-50 text-green-700 border-green-200' :
+            recommendation.outcome === 'Proceed with Risk' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+            recommendation.outcome === 'Requires Investigation' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+            'bg-red-50 text-red-700 border-red-200'
+          }`}>
+            {recommendation.outcome}
+          </span>
+        </div>
+        <p className="text-xs text-art-ink/70">{recommendation.summary}</p>
+        <div className="flex items-center space-x-4 text-[10px] text-art-ink/50 font-mono">
+          <span>Confidence: {recommendation.confidence}%</span>
+          {recommendation.riskFactors.length > 0 && (
+            <span className="flex items-center space-x-1 text-red-600">
+              <ShieldAlert className="w-3 h-3" />
+              <span>{recommendation.riskFactors.length} risk factor{recommendation.riskFactors.length > 1 ? 's' : ''}</span>
+            </span>
+          )}
+        </div>
       </div>
 
       {/* AI Scenario Analysis Action Card */}
@@ -608,6 +704,111 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
           </div>
         )}
       </div>
+
+      {/* Decision Recording Modal */}
+      {showDecisionModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-2xl border border-art-ink/10 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-art-ink/10 flex items-center justify-between">
+              <h3 className="text-sm font-serif font-black text-art-ink">Record Executive Decision</h3>
+              <button
+                onClick={() => setShowDecisionModal(false)}
+                className="text-art-ink/40 hover:text-art-ink cursor-pointer text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-art-ink/60 font-mono mb-1">Decision Outcome</label>
+                <select
+                  value={decisionOutcome}
+                  onChange={(e) => setDecisionOutcome(e.target.value as DecisionOutcome)}
+                  className="w-full px-3 py-2 border border-art-ink/15 rounded text-xs font-mono bg-white"
+                >
+                  <option value="Proceed">Proceed</option>
+                  <option value="Proceed with Risk">Proceed with Risk</option>
+                  <option value="Requires Investigation">Requires Investigation</option>
+                  <option value="Hold">Hold</option>
+                  <option value="Reject">Reject</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-art-ink/60 font-mono mb-1">Builds Under Review</label>
+                <div className="text-xs font-mono text-art-ink/80 bg-art-cream/30 px-3 py-2 rounded border border-art-ink/10">
+                  {buildA.name} vs {buildB.name}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-art-ink/60 font-mono mb-1">Approver</label>
+                <input
+                  type="text"
+                  value={decisionApprover}
+                  onChange={(e) => setDecisionApprover(e.target.value)}
+                  className="w-full px-3 py-2 border border-art-ink/15 rounded text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-art-ink/60 font-mono mb-1">Rationale</label>
+                <textarea
+                  value={decisionRationale}
+                  onChange={(e) => setDecisionRationale(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-art-ink/15 rounded text-xs font-sans"
+                  placeholder="Explain the reasoning behind this decision..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-art-ink/60 font-mono mb-1">Follow-Up Actions</label>
+                <input
+                  type="text"
+                  value={decisionFollowUp}
+                  onChange={(e) => setDecisionFollowUp(e.target.value)}
+                  className="w-full px-3 py-2 border border-art-ink/15 rounded text-xs font-mono"
+                  placeholder="e.g., Schedule yield review, Re-run with lower D0"
+                />
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-art-ink/10 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDecisionModal(false)}
+                className="px-4 py-2 text-xs font-bold text-art-ink/60 bg-art-cream hover:bg-art-cream/60 rounded border border-art-ink/10 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const decision: Decision = {
+                    id: `dec-${Date.now()}`,
+                    buildIds: [buildA.id, buildB.id],
+                    outcome: decisionOutcome,
+                    approver: decisionApprover,
+                    rationale: decisionRationale,
+                    followUpActions: decisionFollowUp ? [decisionFollowUp] : [],
+                    timestamp: new Date().toISOString(),
+                  };
+                  onRecordDecision?.(decision);
+                  setShowDecisionModal(false);
+                  setDecisionOutcome('Proceed');
+                  setDecisionRationale('');
+                  setDecisionApprover('eagleximpact');
+                  setDecisionFollowUp('');
+                }}
+                className="px-5 py-2 text-xs font-bold text-white bg-art-rust hover:bg-art-rust/90 rounded border-none cursor-pointer"
+              >
+                <FileCheck className="w-3.5 h-3.5 inline mr-1" />
+                Confirm Decision
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

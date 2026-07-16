@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Build, MetricCardData, CalculationTrace } from '../types';
+import { Build, DesignModel, MetricCardData, CalculationTrace, Snapshot } from '../types';
 
 /**
  * Rounds a number to a specified number of decimal places
@@ -38,31 +38,11 @@ export function calculateMurphyYield(area: number, d0cm2: number): number {
 
 export interface ComputedBuildMetrics {
   build: Build;
-  totalDieArea: number;
-  transistorDensity: number; // M Tr/mm2
-  tdpPowerDensity: number; // W/mm2
-  dieYield: number; // fraction 0..1
-  dpw: number;
-  waferUtilization: number; // %
-  rawDieCost: number; // $
-  packagingAndTestingCost: number; // $
-  grossCostPerGoodDie: number; // $
-  amortizedNreCost: number; // $
-  fullyLoadedCostPerDie: number; // $
-  grossMargin: number; // %
-  operatingMargin: number; // %
-  monthlyVolumeMillion: number;
-  annualVolumeMillion: number;
-  lifetimeRevenueMillion: number;
-  lifetimeCOGSMillion: number;
-  lifetimeGrossProfitMillion: number;
-  lifetimeNetProfitMillion: number;
-  breakEvenVolumeMillion: number;
-  roi: number; // %
-  metricsList: MetricCardData[];
+  snapshot: Snapshot;
 }
 
 export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
+  const dm = build.designModel;
   const {
     processNode,
     dieArea,
@@ -84,7 +64,65 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     nreCost,
     asp,
     targetVolume,
-  } = build;
+    mpw,
+  } = dm;
+
+  const mpwEnabled = mpw?.enabled ?? false;
+
+  // CoWoS / Advanced Packaging configuration
+  const packagingType = dm.packagingType ?? 'standard';
+  const isAdvancedPackaging = packagingType !== 'standard';
+  let interposerArea = dm.interposerArea ?? dieArea * 1.2;
+
+  const cowosConfig = isAdvancedPackaging
+    ? ({
+        'cowos-s': { costPerMm2: 3.50, yield: 0.96, label: 'CoWoS-S Silicon Interposer' },
+        'cowos-r': { costPerMm2: 1.20, yield: 0.98, label: 'CoWoS-R RDL Interposer' },
+        'cowos-l': { costPerMm2: 2.20, yield: 0.97, label: 'CoWoS-L Local SI + RDL' },
+        'emib': { costPerMm2: 0, yield: 0.99, label: 'Intel EMIB' },
+      } as const)[packagingType]
+    : null;
+
+  let interposerCostPerUnit = 0;
+  const interposerYieldFraction = cowosConfig ? cowosConfig.yield : 1;
+  const pkgAssemblyYieldFraction = packagingYield / 100;
+  if (cowosConfig) {
+    interposerCostPerUnit = packagingType === 'emib'
+      ? 12.00 * 2
+      : (interposerArea * cowosConfig.costPerMm2) / cowosConfig.yield;
+  }
+
+  // MPW-adjusted values override standard NRE/volume when shuttle pricing is active
+  const mpwNreCost = mpwEnabled && mpw ? (mpw.shuttleCostPerSlot * mpw.shuttlesPerYear) / 1_000_000 : nreCost;
+  const mpwTargetVolume = mpwEnabled && mpw ? (mpw.diesPerSlot * mpw.shuttlesPerYear) / 1_000_000 : targetVolume;
+  const effectiveNreCost = mpwEnabled ? mpwNreCost : nreCost;
+  const effectiveTargetVolume = mpwEnabled ? mpwTargetVolume : targetVolume;
+  const mpwWarning = mpwEnabled && mpw && dieArea > mpw.reticleSlotArea ? '⚠ Die exceeds reticle slot area' : '';
+
+  // Architecture BOM — block-level cost waterfall
+  const arch = build.architecture;
+  const archBlocks = arch?.blocks ?? [];
+  const totalIpNreM = archBlocks.reduce((s, b) => s + (b.nreImpactM ?? 0), 0);
+  const totalLicenseFeesM = archBlocks.reduce((s, b) => s + (b.licensingCostM ?? 0), 0);
+  const totalRoyaltyBurdenPerUnit = archBlocks.reduce((s, b) => s + (b.royaltyPerUnit ?? 0), 0);
+  const effectiveNreCostIp = effectiveNreCost + totalLicenseFeesM + totalIpNreM;
+
+  // Block-weighted effective defect density (from category → defect mapping)
+  const catDefect: Record<string, number> = {
+    cpu: 1.0, memory: 1.5, security: 1.0, interconnect: 1.0,
+    accelerator: 1.0, io: 1.0, power: 0.8, packaging: 0, other: 1.0,
+  };
+  let blockBreakdownAreaWarning = '';
+  if (archBlocks.length > 0) {
+    const totalBlockArea = archBlocks.reduce((s, b) => s + b.estimatedAreaMm2, 0);
+    if (totalBlockArea > 0) {
+      const weightedD0 = archBlocks.reduce((s, b) => s + b.estimatedAreaMm2 * (catDefect[b.category] ?? 1.0), 0) / totalBlockArea;
+      const areaDiff = Math.abs(totalBlockArea - dieArea);
+      if (areaDiff > dieArea * 0.05) {
+        blockBreakdownAreaWarning = `Block area sum (${round(totalBlockArea, 1)} mm²) differs from die area (${dieArea} mm²) by ${round(areaDiff, 1)} mm². Yield estimate uses weighted defect density.`;
+      }
+    }
+  }
 
   // 1. Engineering Area & Yield Math
   let totalDieArea = dieArea;
@@ -117,10 +155,9 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     // Yield for the package's silicon is the yield of getting all chiplets good
     // multiplied by advanced packaging assembly yield
     const siliconYield = Math.pow(coreYield, chipletCount) * ioYield;
-    const pkgAssemblyYieldFraction = packagingYield / 100;
     
     // Overall effective silicon-assembly yield
-    dieYield = siliconYield * pkgAssemblyYieldFraction;
+    dieYield = siliconYield * interposerYieldFraction * pkgAssemblyYieldFraction;
     totalDieArea = (coreArea * chipletCount) + ioDieArea;
     
     // Equivalent DPW is based on core and I/O die constraints.
@@ -131,8 +168,15 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     // Or we can define equivalent DPW as WaferArea / totalDieArea * utilization
     dpw = Math.floor(calculateDPW(totalDieArea) * 1.15); // Chiplet layout packing is 15% better due to smaller die modularity!
     
-    yieldExplanation = `Chiplet System: (CoreYield^${chipletCount} * IoYield) * AdvancedPkgYield (${packagingYield}%)`;
+    yieldExplanation = cowosConfig
+      ? `Chiplet System: (CoreYield^${chipletCount} * IoYield) * InterposerYield (${(cowosConfig.yield * 100).toFixed(1)}%) * PkgYield (${packagingYield}%)`
+      : `Chiplet System: (CoreYield^${chipletCount} * IoYield) * AdvancedPkgYield (${packagingYield}%)`;
     dpwExplanation = `Equivalent DPW representing chiplet packaging efficiency. Cores DPW: ${coreDPW}, I/O DPW: ${ioDPW}`;
+  }
+
+  // Update interposerArea default based on computed totalDieArea if user didn't set one explicitly
+  if (dm.interposerArea === undefined) {
+    interposerArea = totalDieArea * 1.2;
   }
 
   // Transistor density: Billion Transistors / Area (M Tr/mm2)
@@ -176,29 +220,34 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     rawDieCost = (coreCost * chipletCount) + ioCost;
   }
 
-  const packagingAndTestingCost = packagingCost + (testTimeSeconds * testCostPerSecond);
+  const packagingAndTestingCost = packagingCost + interposerCostPerUnit + (testTimeSeconds * testCostPerSecond);
   
   // Gross Cost per Good Die ($)
   const grossCostPerGoodDie = (rawDieCost + packagingAndTestingCost) / testYieldFraction;
 
+  // IP-extended NRE includes mask NRE + IP license fees + internal IP NRE
+  const totalExtendedNre = effectiveNreCostIp;
+  const totalRoyaltyBurden = totalRoyaltyBurdenPerUnit;
+
   // NRE Amortized Cost ($/unit)
-  const amortizedNreCost = targetVolume > 0 ? (nreCost * 1000000) / (targetVolume * 1000000) : 0;
-  const fullyLoadedCostPerDie = grossCostPerGoodDie + amortizedNreCost;
+  const amortizedNreCost = effectiveTargetVolume > 0 ? (effectiveNreCost * 1000000) / (effectiveTargetVolume * 1000000) : 0;
+  const amortizedTotalNreCost = effectiveTargetVolume > 0 ? (totalExtendedNre * 1000000) / (effectiveTargetVolume * 1000000) : 0;
+  const fullyLoadedCostPerDie = grossCostPerGoodDie + amortizedTotalNreCost + totalRoyaltyBurden;
 
   // Margins (%)
   const grossMargin = asp > 0 ? ((asp - grossCostPerGoodDie) / asp) * 100 : 0;
   const operatingMargin = asp > 0 ? ((asp - fullyLoadedCostPerDie) / asp) * 100 : 0;
 
   // Program lifetime financials
-  const lifetimeRevenueMillion = targetVolume * asp;
-  const lifetimeCOGSMillion = targetVolume * grossCostPerGoodDie;
+  const lifetimeRevenueMillion = effectiveTargetVolume * asp;
+  const lifetimeCOGSMillion = effectiveTargetVolume * (grossCostPerGoodDie + totalRoyaltyBurden);
   const lifetimeGrossProfitMillion = lifetimeRevenueMillion - lifetimeCOGSMillion;
-  const lifetimeNetProfitMillion = lifetimeGrossProfitMillion - nreCost;
+  const lifetimeNetProfitMillion = lifetimeGrossProfitMillion - totalExtendedNre;
 
   // Break-even Volume (Millions of Units)
-  const marginPerUnit = asp - grossCostPerGoodDie;
-  const breakEvenVolumeMillion = marginPerUnit > 0 ? nreCost / marginPerUnit : 0;
-  const roi = nreCost > 0 ? (lifetimeNetProfitMillion / nreCost) * 100 : 0;
+  const marginPerUnit = asp - (grossCostPerGoodDie + totalRoyaltyBurden);
+  const breakEvenVolumeMillion = marginPerUnit > 0 ? totalExtendedNre / marginPerUnit : 0;
+  const roi = totalExtendedNre > 0 ? (lifetimeNetProfitMillion / totalExtendedNre) * 100 : 0;
 
   // Create Metric Card Items with Calculation Trace
   const metricsList: MetricCardData[] = [];
@@ -469,18 +518,18 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     `${round(breakEvenVolumeMillion, 2)}`,
     'M units',
     90,
-    `NRE Investment: $${nreCost}M`,
+    `NRE Investment: $${round(effectiveNreCost, 1)}M`,
     'neutral',
     'flat',
     'program',
     'BreakEven = NRE / (ASP - GrossUnitCost)',
-    { nreCost, asp, grossCostPerGoodDie },
+    { effectiveNreCost, asp, grossCostPerGoodDie },
     'The production and sales volume required to recover all Non-Recurring Engineering (NRE) costs.',
     'Finance Program Audit Guidelines',
     [
-      `NRE Capex: $${nreCost}M`,
+      `NRE Capex: $${round(effectiveNreCost, 1)}M`,
       `Unit Margin Contribution: ASP ($${asp}) - Cost ($${round(grossCostPerGoodDie, 2)}) = $${round(asp - grossCostPerGoodDie, 2)}`,
-      `Break-even: $${nreCost}M / $${round(asp - grossCostPerGoodDie, 2)} = ${round(breakEvenVolumeMillion, 2)} Million Units`
+      `Break-even: $${round(effectiveNreCost, 1)}M / $${round(asp - grossCostPerGoodDie, 2)} = ${round(breakEvenVolumeMillion, 2)} Million Units`
     ]
   );
 
@@ -495,21 +544,254 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     lifetimeNetProfitMillion > 0 ? 'positive' : 'negative',
     lifetimeNetProfitMillion > 0 ? 'up' : 'down',
     'program',
-    'NetProfit = (Volume * (ASP - GrossUnitCost)) - NRE',
-    { targetVolume, asp, grossCostPerGoodDie, nreCost },
-    'Net financial profit generated by the program across its entire lifetime after amortization of NRE.',
+    'NetProfit = (Volume * (ASP - GrossUnitCost - Royalty)) - (MaskNRE + IP_NRE + LicenseFees)',
+    { effectiveTargetVolume, asp, grossCostPerGoodDie, totalRoyaltyBurden, totalExtendedNre },
+    'Net financial profit generated by the program across its entire lifetime after amortization of NRE and IP costs.',
     'Corporate Strategic Target',
     [
-      `Lifetime Target Volume: ${targetVolume}M units`,
-      `Gross Unit profit contribution: $${round(asp - grossCostPerGoodDie, 2)}`,
-      `Lifetime Gross Profit: ${targetVolume}M * $${round(asp - grossCostPerGoodDie, 2)} = $${round(lifetimeGrossProfitMillion, 1)}M`,
-      `NRE Deduction: -$${nreCost}M`,
-      `Net Program Profit: $${round(lifetimeGrossProfitMillion, 1)}M - $${nreCost}M = $${round(lifetimeNetProfitMillion, 1)}M`
+      `Lifetime Target Volume: ${round(effectiveTargetVolume, 3)}M units`,
+      `ASP: $${asp} | Unit COGS: $${round(grossCostPerGoodDie, 2)} | Royalty: $${round(totalRoyaltyBurden, 2)}`,
+      `Unit Contribution: $${round(asp - grossCostPerGoodDie - totalRoyaltyBurden, 2)}`,
+      `Lifetime Gross Profit: ${round(effectiveTargetVolume, 3)}M * $${round(asp - grossCostPerGoodDie - totalRoyaltyBurden, 2)} = $${round(lifetimeGrossProfitMillion, 1)}M`,
+      `Total NRE (Mask+IP): $${round(totalExtendedNre, 1)}M`,
+      `Net Program Profit: $${round(lifetimeGrossProfitMillion, 1)}M - $${round(totalExtendedNre, 1)}M = $${round(lifetimeNetProfitMillion, 1)}M`
     ]
   );
 
-  return {
-    build,
+  // --- MPW-SPECIFIC METRICS (when mpw.enabled) ---
+  if (mpwEnabled && mpw) {
+    const mpwGoodDiesPerRun = mpw.diesPerSlot * effectiveYield;
+    const mpwEffectiveNrePerUnit = mpwGoodDiesPerRun > 0 ? (mpw.shuttleCostPerSlot * mpw.shuttlesPerYear) / (mpwGoodDiesPerRun * mpw.shuttlesPerYear) : 0;
+    const mpwShuttleUtil = (mpw.diesPerSlot > 0 ? mpwGoodDiesPerRun / mpw.diesPerSlot : 0) * 100;
+    const mpwAnnualVol = (mpwGoodDiesPerRun * mpw.shuttlesPerYear) / 1_000_000;
+    const mpwCostVsDedicated = nreCost > 0 ? (1 - effectiveNreCost / nreCost) * 100 : 0;
+
+    addMetric(
+      'mpw_effective_nre',
+      'MPW NRE per Good Unit',
+      `$${round(mpwEffectiveNrePerUnit, 2)}`,
+      'per unit',
+      90,
+      `Shuttle cost: $${mpw.shuttleCostPerSlot.toLocaleString()}/slot`,
+      'positive',
+      'flat',
+      'financial',
+      'MPW_NRE_per_unit = (ShuttleCost * ShuttlesPerYear) / (GoodDiesPerRun * ShuttlesPerYear)',
+      { shuttleCostPerSlot: mpw.shuttleCostPerSlot, shuttlesPerYear: mpw.shuttlesPerYear, diesPerSlot: mpw.diesPerSlot, effectiveYield },
+      'Effective NRE cost contribution per good unit under MPW shuttle pricing.',
+      'MPW Shuttle Pricing Model v1.0',
+      [
+        `Shuttle cost per slot: $${mpw.shuttleCostPerSlot.toLocaleString()}`,
+        `Shuttle runs per year: ${mpw.shuttlesPerYear}`,
+        `Gross dies per slot: ${mpw.diesPerSlot}`,
+        `Effective yield: ${round(effectiveYield * 100, 1)}%`,
+        `Good dies per run: ${round(mpwGoodDiesPerRun, 1)}`,
+        `NRE per good unit = ($${mpw.shuttleCostPerSlot.toLocaleString()} * ${mpw.shuttlesPerYear}) / (${round(mpwGoodDiesPerRun, 1)} * ${mpw.shuttlesPerYear}) = $${round(mpwEffectiveNrePerUnit, 2)}`
+      ]
+    );
+
+    addMetric(
+      'mpw_shuttle_utilization',
+      'MPW Slot Utilization',
+      `${round(mpwShuttleUtil, 1)}`,
+      '%',
+      90,
+      `${round(mpwGoodDiesPerRun, 1)} good / ${mpw.diesPerSlot} allocated`,
+      mpwShuttleUtil > 80 ? 'positive' : 'negative',
+      mpwShuttleUtil > 80 ? 'up' : 'down',
+      'manufacturing',
+      'Utilization = (GoodDiesPerRun / DiesPerSlot) * 100',
+      { diesPerSlot: mpw.diesPerSlot, goodDiesPerRun: mpwGoodDiesPerRun },
+      'Percentage of allocated reticle slot dies that pass electrical test.',
+      'MPW Yield Tracking Standard v1.0',
+      [
+        `Gross dies allocated per run: ${mpw.diesPerSlot}`,
+        `Good dies after yield: ${round(mpwGoodDiesPerRun, 1)}`,
+        `Slot utilization: ${round(mpwGoodDiesPerRun, 1)} / ${mpw.diesPerSlot} = ${round(mpwShuttleUtil, 1)}%`
+      ]
+    );
+
+    addMetric(
+      'mpw_annual_volume',
+      'MPW Annual Volume',
+      `${round(mpwAnnualVol, 3)}`,
+      'M units',
+      85,
+      `${mpw.shuttlesPerYear} shuttles/yr`,
+      'neutral',
+      'flat',
+      'program',
+      'AnnualVol = (GoodDiesPerRun * ShuttlesPerYear) / 1,000,000',
+      { goodDiesPerRun: mpwGoodDiesPerRun, shuttlesPerYear: mpw.shuttlesPerYear },
+      'Maximum annual production volume constrained by shuttle run schedule and die allocation.',
+      'MPW Shuttle Calendar v1.0',
+      [
+        `Good dies per run: ${round(mpwGoodDiesPerRun, 1)}`,
+        `Shuttle runs per year: ${mpw.shuttlesPerYear}`,
+        `Annual volume: (${round(mpwGoodDiesPerRun, 1)} * ${mpw.shuttlesPerYear}) / 1M = ${round(mpwAnnualVol, 3)}M units`
+      ]
+    );
+
+    addMetric(
+      'mpw_cost_vs_dedicated',
+      'NRE Savings vs. Dedicated',
+      `${round(mpwCostVsDedicated, 1)}`,
+      '%',
+      85,
+      `Dedicated NRE: $${nreCost}M`,
+      mpwCostVsDedicated > 50 ? 'positive' : 'neutral',
+      'up',
+      'financial',
+      'Saving = (1 - MPW_NRE / Dedicated_NRE) * 100',
+      { mpwNreCost: effectiveNreCost, dedicatedNreCost: nreCost },
+      'Percentage NRE cost savings by using MPW shuttle instead of a dedicated mask set.',
+      'MPW vs. Dedicated Cost Comparison v1.0',
+      [
+        `Dedicated mask set NRE: $${nreCost}M`,
+        `MPW effective NRE: $${round(effectiveNreCost, 2)}M`,
+        `NRE savings: (1 - $${round(effectiveNreCost, 2)}M / $${nreCost}M) * 100 = ${round(mpwCostVsDedicated, 1)}%`
+      ]
+    );
+  }
+
+  // --- ARCHITECTURE BOM — IP PORTFOLIO METRICS ---
+  if (archBlocks.length > 0) {
+    const ipNreTotal = totalLicenseFeesM + totalIpNreM;
+    const ipCostPerUnit = effectiveTargetVolume > 0 ? (ipNreTotal * 1000000) / (effectiveTargetVolume * 1000000) : 0;
+    const ipCostPctCogs = fullyLoadedCostPerDie > 0 ? ((amortizedTotalNreCost + totalRoyaltyBurden) / fullyLoadedCostPerDie) * 100 : 0;
+    const externalCount = archBlocks.filter(b => b.implementation === 'licensed').length;
+
+    addMetric(
+      'ip_nre_waterfall',
+      'IP NRE Waterfall',
+      `$${round(ipNreTotal, 1)}M`,
+      'USD',
+      90,
+      `License: $${round(totalLicenseFeesM, 1)}M | Internal: $${round(totalIpNreM, 1)}M`,
+      'neutral',
+      'up',
+      'financial',
+      'IP_NRE_total = Σ(LicenseFees) + Σ(Internal_NRE)',
+      { totalLicenseFeesM, totalIpNreM },
+      'Total non-recurring investment in architecture blocks including license fees and internal design costs.',
+      'Architecture BOM Cost Model v1.0',
+      [
+        `Licensed blocks: ${externalCount} with $${round(totalLicenseFeesM, 1)}M total license fees`,
+        `Internal blocks: ${archBlocks.length - externalCount} with $${round(totalIpNreM, 1)}M total internal NRE`,
+        `Combined IP NRE: $${round(ipNreTotal, 1)}M`
+      ]
+    );
+
+    if (totalRoyaltyBurden > 0) {
+      addMetric(
+        'ip_royalty_burden',
+        'IP Royalty Burden',
+        `$${round(totalRoyaltyBurden, 2)}`,
+        'per unit',
+        88,
+        `Added to COGS chip cost`,
+        totalRoyaltyBurden < 1 ? 'neutral' : 'negative',
+        'up',
+        'financial',
+        'Royalty_total = Σ(Blocks.royaltyPerUnit)',
+        { totalRoyaltyBurden },
+        'Total per-unit royalty cost from architecture blocks with royalty-based pricing.',
+        'Architecture BOM Royalty Schedule v1.0',
+        [
+          `${archBlocks.filter(b => (b.royaltyPerUnit ?? 0) > 0).length} block(s) charge royalties`,
+          `Total royalty burden: $${round(totalRoyaltyBurden, 2)} per unit`
+        ]
+      );
+    }
+
+    addMetric(
+      'ip_cost_pct_cogs',
+      'IP Cost % of COGS',
+      `${round(ipCostPctCogs, 1)}`,
+      '%',
+      85,
+      `Am. NRE: $${round(amortizedTotalNreCost, 2)} + Royalty: $${round(totalRoyaltyBurden, 2)}`,
+      ipCostPctCogs > 30 ? 'negative' : 'neutral',
+      'up',
+      'commercial',
+      'IP_Cost_% = (AmortizedIP_NRE + Royalty) / FullyLoadedCost * 100',
+      { amortizedTotalNreCost, totalRoyaltyBurden, fullyLoadedCostPerDie },
+      'Percentage of fully loaded unit cost attributable to IP licensing, royalties, and internal IP development amortization.',
+      'IP Cost Attribution Model v1.0',
+      [
+        `Amortized NRE (Mask + IP): $${round(amortizedTotalNreCost, 2)}/unit`,
+        `Royalty burden: $${round(totalRoyaltyBurden, 2)}/unit`,
+        `Fully loaded cost: $${round(fullyLoadedCostPerDie, 2)}/unit`,
+        `IP cost contribution: ${round(ipCostPctCogs, 1)}%`
+      ]
+    );
+  }
+
+  // --- CoWoS / ADVANCED PACKAGING METRICS ---
+  if (isAdvancedPackaging && cowosConfig) {
+    const cowosThermalDensity = interposerArea > 0 ? tdp / interposerArea : 0;
+    const cowosSavingsVsStandard = packagingCost > 0 ? ((packagingCost - interposerCostPerUnit) / packagingCost) * 100 : 0;
+
+    addMetric(
+      'interposer_cost',
+      `${cowosConfig.label} Cost`,
+      `$${round(interposerCostPerUnit, 2)}`,
+      'per unit',
+      88,
+      `Area: ${round(interposerArea, 1)} mm²`,
+      interposerCostPerUnit < 50 ? 'neutral' : 'negative',
+      'up',
+      'manufacturing',
+      packagingType === 'emib'
+        ? 'BridgeCost = BridgesPerPkg × CostPerBridge / BridgeYield'
+        : 'InterposerCost = (InterposerArea × CostPerMm²) / InterposerYield',
+      { interposerArea, costPerMm2: cowosConfig.costPerMm2, interposerYield: cowosConfig.yield },
+      'Per-unit cost contribution of the interposer or bridge in the advanced packaging stack.',
+      `${cowosConfig.label} Pricing v1.0`,
+      packagingType === 'emib'
+        ? [`Bridge bridges per package: 2`, `Cost per bridge: $12.00`, `Bridge yield: ${(cowosConfig.yield * 100).toFixed(1)}%`, `Interposer cost: $${round(interposerCostPerUnit, 2)}`]
+        : [`Interposer area: ${round(interposerArea, 1)} mm²`, `Cost per mm²: $${cowosConfig.costPerMm2.toFixed(2)}`, `Interposer yield: ${(cowosConfig.yield * 100).toFixed(1)}%`, `Interposer cost: (${round(interposerArea, 1)} × $${cowosConfig.costPerMm2.toFixed(2)}) / ${(cowosConfig.yield * 100).toFixed(1)}% = $${round(interposerCostPerUnit, 2)}`]
+    );
+
+    addMetric(
+      'cowos_thermal_density',
+      'CoWoS Thermal Density',
+      `${round(cowosThermalDensity, 3)}`,
+      'W/mm²',
+      85,
+      `TDP: ${tdp}W across ${round(interposerArea, 1)} mm²`,
+      cowosThermalDensity > 0.5 ? 'negative' : 'neutral',
+      'flat',
+      'engineering',
+      'ThermalDensity = TDP_total / InterposerArea',
+      { tdp, interposerArea },
+      'Thermal power density across the interposer surface. Values > 0.5 W/mm² typically require advanced cooling.',
+      'TSMC CoWoS Thermal Guidelines v1.0',
+      [`Total system TDP: ${tdp}W`, `Interposer area: ${round(interposerArea, 1)} mm²`, `Thermal density: ${tdp}W / ${round(interposerArea, 1)} mm² = ${round(cowosThermalDensity, 3)} W/mm²`]
+    );
+
+    if (topology === 'chiplet') {
+      const cowosYieldMultiplier = interposerYieldFraction * pkgAssemblyYieldFraction;
+      addMetric(
+        'cowos_yield_multiplier',
+        'CoWoS Yield Multiplier',
+        `${round(cowosYieldMultiplier * 100, 1)}`,
+        '%',
+        92,
+        `Interposer × Assembly`,
+        cowosYieldMultiplier > 0.95 ? 'positive' : 'neutral',
+        'flat',
+        'manufacturing',
+        'Y_cowos = InterposerYield × AssemblyYield (stacked on chiplet yields)',
+        { interposerYield: cowosConfig.yield, assemblyYield: packagingYield },
+        'Combined yield multiplier applied by the interposer and assembly process in the CoWoS packaging stack.',
+        'TSMC CoWoS Yield Management v1.0',
+        [`Interposer/bridge yield: ${(cowosConfig.yield * 100).toFixed(1)}%`, `Package assembly yield: ${packagingYield}%`, `Combined yield multiplier: ${(cowosConfig.yield * 100).toFixed(1)}% × ${packagingYield}% = ${round(cowosYieldMultiplier * 100, 1)}%`]
+      );
+    }
+  }
+
+  const snapshot: Snapshot = {
     totalDieArea,
     transistorDensity,
     tdpPowerDensity,
@@ -531,8 +813,13 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     lifetimeNetProfitMillion,
     breakEvenVolumeMillion,
     roi,
+    totalIpNreM,
+    totalLicenseFeesM,
+    totalRoyaltyBurdenPerUnit,
     metricsList,
   };
+
+  return { build, snapshot };
 }
 
 /**
@@ -541,27 +828,19 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
  */
 export function runSensitivityAnalysis(
   build: Build,
-  parameter: 'dieArea' | 'defectDensity' | 'waferCost' | 'asp',
+  parameter: keyof DesignModel,
   range: number[]
 ): { x: number; yield: number; cost: number; margin: number }[] {
   return range.map((val) => {
-    const copy = { ...build };
-    if (parameter === 'dieArea') {
-      copy.dieArea = val;
-    } else if (parameter === 'defectDensity') {
-      copy.defectDensity = val;
-    } else if (parameter === 'waferCost') {
-      copy.waferCost = val;
-    } else if (parameter === 'asp') {
-      copy.asp = val;
-    }
+    const copy = { ...build, designModel: { ...build.designModel } };
+    (copy.designModel as any)[parameter] = val;
 
     const res = computeBuildMetrics(copy);
     return {
       x: val,
-      yield: round(res.dieYield * 100, 1),
-      cost: round(res.grossCostPerGoodDie, 2),
-      margin: round(res.grossMargin, 1),
+      yield: round(res.snapshot.dieYield * 100, 1),
+      cost: round(res.snapshot.grossCostPerGoodDie, 2),
+      margin: round(res.snapshot.grossMargin, 1),
     };
   });
 }

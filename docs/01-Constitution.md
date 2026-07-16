@@ -22,6 +22,8 @@ Siliconomics exists to unify those relationships.
 
 It transforms deterministic engineering inputs into deterministic engineering, manufacturing, financial, and program intelligence.
 
+Siliconomics is technology-agnostic. It does not design semiconductors. It models the deterministic engineering, manufacturing, financial, and commercial consequences of semiconductor design decisions regardless of where those decisions originate. The platform accepts design intent as input and returns auditable economic outcomes as output, with no opinion on the architectural choices themselves.
+
 Siliconomics is therefore not a calculator.
 
 It is an operating system for semiconductor decision-making.

@@ -4,35 +4,40 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Build, PersonaType, MetricCardData, CalculationTrace, ActivityLog } from './types';
+import { Build, PersonaType, MetricCardData, CalculationTrace, ActivityLog, Decision, Portfolio, ReferenceModel, FormulaEntry } from './types';
 import { DEFAULT_BUILDS } from './data/defaultBuilds';
-import { Archetype, PRECONFIG_ARCHETYPES } from './data/archetypes';
+import { DEFAULT_REFERENCE_MODELS } from './data/defaultReferenceModels';
+import { DEFAULT_FORMULA_LIBRARY } from './data/defaultFormulaLibrary';
+import { Archetype } from './data/archetypes';
 import { computeBuildMetrics } from './utils/mathEngine';
 import DashboardView from './components/DashboardView';
-import BuildView from './components/BuildView';
+import DesignBoard from './components/DesignBoard';
+import MetricsLab from './components/MetricsLab';
 import ComparisonView from './components/ComparisonView';
-import ChartsView from './components/ChartsView';
 import ExplainabilityPanel from './components/ExplainabilityPanel';
 import AiAdvisor from './components/AiAdvisor';
+import DecisionCenterView from './components/DecisionCenterView';
+import ReportsView from './components/ReportsView';
+import PortfolioView from './components/PortfolioView';
+import ArchitectureBomView from './components/ArchitectureBomView';
+import ReferenceModelsView from './components/ReferenceModelsView';
+import FormulaLibraryView from './components/FormulaLibraryView';
+import MeetingMode from './components/MeetingMode';
 import CommandPalette from './components/CommandPalette';
 
-import { 
-  Monitor, 
-  Cpu, 
-  ArrowRightLeft, 
-  Search, 
-  Sparkles, 
-  Database, 
-  HelpCircle, 
-  Command,
-  Layout,
-  BarChart3,
-  BookOpen,
-  ChevronRight,
-  Menu,
+import {
+  Monitor,
+  Cpu,
+  ArrowRightLeft,
+  Search,
+  Sparkles,
+  Database,
   CheckCircle,
   FileCheck,
-  RotateCcw
+  FileText,
+  FolderOpen,
+  BookOpen,
+  CircuitBoard,
 } from 'lucide-react';
 
 const INITIAL_ACTIVITIES: ActivityLog[] = [
@@ -80,63 +85,65 @@ const INITIAL_ACTIVITIES: ActivityLog[] = [
 
 const getBuildDeltaDescription = (prev: Build, next: Build): string => {
   const changes: string[] = [];
+  const p = prev.designModel;
+  const n = next.designModel;
   
-  if (prev.processNode !== next.processNode) {
-    changes.push(`Process Node changed from ${prev.processNode} to ${next.processNode}`);
+  if (p.processNode !== n.processNode) {
+    changes.push(`Process Node changed from ${p.processNode} to ${n.processNode}`);
   }
-  if (prev.dieArea !== next.dieArea) {
-    changes.push(`Die Area adjusted to ${next.dieArea} mm²`);
+  if (p.dieArea !== n.dieArea) {
+    changes.push(`Die Area adjusted to ${n.dieArea} mm²`);
   }
-  if (prev.dieWidth !== next.dieWidth || prev.dieHeight !== next.dieHeight) {
-    changes.push(`Dimensions adjusted to ${next.dieWidth}x${next.dieHeight} mm`);
+  if (p.dieWidth !== n.dieWidth || p.dieHeight !== n.dieHeight) {
+    changes.push(`Dimensions adjusted to ${n.dieWidth}x${n.dieHeight} mm`);
   }
-  if (prev.transistorCount !== next.transistorCount) {
-    changes.push(`Transistor Count updated to ${next.transistorCount}B`);
+  if (p.transistorCount !== n.transistorCount) {
+    changes.push(`Transistor Count updated to ${n.transistorCount}B`);
   }
-  if (prev.tdp !== next.tdp) {
-    changes.push(`TDP adjusted to ${next.tdp}W`);
+  if (p.tdp !== n.tdp) {
+    changes.push(`TDP adjusted to ${n.tdp}W`);
   }
-  if (prev.topology !== next.topology) {
-    changes.push(`Topology changed to ${next.topology}`);
+  if (p.topology !== n.topology) {
+    changes.push(`Topology changed to ${n.topology}`);
   }
-  if (prev.chipletCount !== next.chipletCount) {
-    changes.push(`Chiplet Count updated to ${next.chipletCount}`);
+  if (p.chipletCount !== n.chipletCount) {
+    changes.push(`Chiplet Count updated to ${n.chipletCount}`);
   }
-  if (prev.ioDieArea !== next.ioDieArea) {
-    changes.push(`I/O Die Area set to ${next.ioDieArea} mm²`);
+  if (p.ioDieArea !== n.ioDieArea) {
+    changes.push(`I/O Die Area set to ${n.ioDieArea} mm²`);
   }
-  if (prev.defectDensity !== next.defectDensity) {
-    changes.push(`Defect Density adjusted to ${next.defectDensity}`);
+  if (p.defectDensity !== n.defectDensity) {
+    changes.push(`Defect Density adjusted to ${n.defectDensity}`);
   }
-  if (prev.waferStartsPerMonth !== next.waferStartsPerMonth) {
-    changes.push(`Wafer Starts updated to ${next.waferStartsPerMonth}/mo`);
+  if (p.waferStartsPerMonth !== n.waferStartsPerMonth) {
+    changes.push(`Wafer Starts updated to ${n.waferStartsPerMonth}/mo`);
   }
-  if (prev.packagingCost !== next.packagingCost) {
-    changes.push(`Packaging Cost adjusted to $${next.packagingCost}`);
+  if (p.packagingCost !== n.packagingCost) {
+    changes.push(`Packaging Cost adjusted to $${n.packagingCost}`);
   }
-  if (prev.testTimeSeconds !== next.testTimeSeconds) {
-    changes.push(`Test Time updated to ${next.testTimeSeconds}s`);
+  if (p.testTimeSeconds !== n.testTimeSeconds) {
+    changes.push(`Test Time updated to ${n.testTimeSeconds}s`);
   }
-  if (prev.testCostPerSecond !== next.testCostPerSecond) {
-    changes.push(`Test Cost adjusted to $${next.testCostPerSecond}/s`);
+  if (p.testCostPerSecond !== n.testCostPerSecond) {
+    changes.push(`Test Cost adjusted to $${n.testCostPerSecond}/s`);
   }
-  if (prev.packagingYield !== next.packagingYield) {
-    changes.push(`Packaging Yield set to ${next.packagingYield}%`);
+  if (p.packagingYield !== n.packagingYield) {
+    changes.push(`Packaging Yield set to ${n.packagingYield}%`);
   }
-  if (prev.testYield !== next.testYield) {
-    changes.push(`Test Yield adjusted to ${next.testYield}%`);
+  if (p.testYield !== n.testYield) {
+    changes.push(`Test Yield adjusted to ${n.testYield}%`);
   }
-  if (prev.waferCost !== next.waferCost) {
-    changes.push(`Wafer Cost adjusted to $${next.waferCost}`);
+  if (p.waferCost !== n.waferCost) {
+    changes.push(`Wafer Cost adjusted to $${n.waferCost}`);
   }
-  if (prev.nreCost !== next.nreCost) {
-    changes.push(`NRE Cost set to $${next.nreCost}M`);
+  if (p.nreCost !== n.nreCost) {
+    changes.push(`NRE Cost set to $${n.nreCost}M`);
   }
-  if (prev.asp !== next.asp) {
-    changes.push(`ASP adjusted to $${next.asp}`);
+  if (p.asp !== n.asp) {
+    changes.push(`ASP adjusted to $${n.asp}`);
   }
-  if (prev.targetVolume !== next.targetVolume) {
-    changes.push(`Target Volume updated to ${next.targetVolume}M units`);
+  if (p.targetVolume !== n.targetVolume) {
+    changes.push(`Target Volume updated to ${n.targetVolume}M units`);
   }
   if (prev.status !== next.status) {
     changes.push(`Status changed from ${prev.status} to ${next.status}`);
@@ -189,6 +196,60 @@ export default function App() {
     }
   });
 
+  const [decisions, setDecisions] = useState<Decision[]>(() => {
+    try {
+      const saved = localStorage.getItem('siliconomics_decisions');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const defaultPortfolios = (): Portfolio[] => {
+    const names = [...new Set(DEFAULT_BUILDS.map(b => b.portfolio).filter(Boolean))];
+    return names.map((name, i) => ({
+      id: `portfolio-default-${i}`,
+      name: name!,
+      description: `Auto-created portfolio for ${name} builds.`,
+      buildIds: DEFAULT_BUILDS.filter(b => b.portfolio === name).map(b => b.id),
+      tags: [],
+      createdDate: '2026-07-01',
+    }));
+  };
+
+  const [portfolios, setPortfolios] = useState<Portfolio[]>(() => {
+    try {
+      const saved = localStorage.getItem('siliconomics_portfolios');
+      return saved ? JSON.parse(saved) : defaultPortfolios();
+    } catch (e) {
+      return defaultPortfolios();
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('siliconomics_portfolios', JSON.stringify(portfolios));
+    } catch (e) {}
+  }, [portfolios]);
+
+  const [referenceModels] = useState<ReferenceModel[]>(() => {
+    try {
+      const saved = localStorage.getItem('siliconomics_reference_models');
+      return saved ? JSON.parse(saved) : DEFAULT_REFERENCE_MODELS;
+    } catch (e) {
+      return DEFAULT_REFERENCE_MODELS;
+    }
+  });
+
+  const [formulaLibrary] = useState<FormulaEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem('siliconomics_formula_library');
+      return saved ? JSON.parse(saved) : DEFAULT_FORMULA_LIBRARY;
+    } catch (e) {
+      return DEFAULT_FORMULA_LIBRARY;
+    }
+  });
+
   const handleAddCustomArchetype = (newArch: Archetype) => {
     setCustomArchetypes((prev) => {
       const updated = [...prev, newArch];
@@ -217,6 +278,12 @@ export default function App() {
 
   useEffect(() => {
     try {
+      localStorage.setItem('siliconomics_decisions', JSON.stringify(decisions));
+    } catch (e) {}
+  }, [decisions]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem('siliconomics_builds', JSON.stringify(builds));
       // Only set lastSaved if the builds are actually different from DEFAULT_BUILDS
       if (JSON.stringify(builds) !== JSON.stringify(DEFAULT_BUILDS)) {
@@ -227,12 +294,9 @@ export default function App() {
     } catch (e) {}
   }, [builds]);
 
-  const [activeBuildId, setActiveBuildId] = useState<string>(DEFAULT_BUILDS[0].id);
-  const [activeTab, setActiveTab] = useState<string>('dashboard'); // 'dashboard' | 'build' | 'compare'
+  const [activeBuildId, setActiveBuildId] = useState<string>(DEFAULT_BUILDS[0]!.id);
+  const [activeTab, setActiveTab] = useState<string>('dashboard'); // 'dashboard' | 'build' | 'compare' | 'decisions' | 'reports'
   const [activePersona, setActivePersona] = useState<PersonaType>('executive');
-  
-  // Design View within BuildTab: 'metrics' | 'charts'
-  const [buildViewTab, setBuildViewTab] = useState<'metrics' | 'charts'>('metrics');
 
   // Detail tracing states for Explainability panel
   const [hoveredTrace, setHoveredTrace] = useState<CalculationTrace | null>(null);
@@ -241,65 +305,14 @@ export default function App() {
   // Command palette state
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
+  // Meeting mode state
+  const [meetingModeOpen, setMeetingModeOpen] = useState(false);
+
   // Context sidebar mode: 'explain' | 'consult'
   const [contextTab, setContextTab] = useState<'explain' | 'consult'>('explain');
 
-  // Reset to Baseline confirmation state
-  const [resetConfirm, setResetConfirm] = useState(false);
-
-  // Auto-reset confirmation timer
-  useEffect(() => {
-    if (resetConfirm) {
-      const timer = setTimeout(() => {
-        setResetConfirm(false);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [resetConfirm]);
-
-  const activeBuild = builds.find((b) => b.id === activeBuildId) || builds[0];
+  const activeBuild = builds.find((b) => b.id === activeBuildId) ?? builds[0]!;
   const computedMetrics = computeBuildMetrics(activeBuild);
-
-  const handleResetToBaseline = () => {
-    if (!resetConfirm) {
-      setResetConfirm(true);
-      return;
-    }
-    
-    setResetConfirm(false);
-
-    // Trace back the nearest baseline configuration
-    const baseline = DEFAULT_BUILDS.find(b => b.id === activeBuild.id) || 
-                     DEFAULT_BUILDS.find(b => b.id === activeBuild.parentId) ||
-                     DEFAULT_BUILDS.find(b => b.referenceModel === activeBuild.referenceModel) || 
-                     DEFAULT_BUILDS[0];
-
-    const resetBuild: Build = {
-      ...activeBuild,
-      processNode: baseline.processNode,
-      dieArea: baseline.dieArea,
-      dieWidth: baseline.dieWidth,
-      dieHeight: baseline.dieHeight,
-      transistorCount: baseline.transistorCount,
-      tdp: baseline.tdp,
-      topology: baseline.topology,
-      chipletCount: baseline.chipletCount,
-      ioDieArea: baseline.ioDieArea,
-      defectDensity: baseline.defectDensity,
-      waferStartsPerMonth: baseline.waferStartsPerMonth,
-      packagingCost: baseline.packagingCost,
-      testTimeSeconds: baseline.testTimeSeconds,
-      testCostPerSecond: baseline.testCostPerSecond,
-      packagingYield: baseline.packagingYield,
-      testYield: baseline.testYield,
-      waferCost: baseline.waferCost,
-      nreCost: baseline.nreCost,
-      asp: baseline.asp,
-      targetVolume: baseline.targetVolume,
-    };
-
-    handleUpdateBuild(resetBuild);
-  };
 
   const handleClearDraft = () => {
     try {
@@ -319,12 +332,28 @@ export default function App() {
     setActivities((act) => [newLog, ...act]);
   };
 
+  const handleCreatePortfolio = (p: Portfolio) => {
+    setPortfolios((prev) => [...prev, p]);
+  };
+
+  const handleDeletePortfolio = (id: string) => {
+    setPortfolios((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const handleUpdatePortfolio = (p: Portfolio) => {
+    setPortfolios((prev) => prev.map((x) => (x.id === p.id ? p : x)));
+  };
+
   // Keyboard shortcut listener (Ctrl+K or Cmd+K) for Command Palette
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         setCommandPaletteOpen((prev) => !prev);
+      }
+      if (e.key === 'F11') {
+        e.preventDefault();
+        setMeetingModeOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -378,6 +407,10 @@ export default function App() {
     setActiveTab('compare');
   };
 
+  const handleRecordDecision = (decision: Decision) => {
+    setDecisions((prev) => [decision, ...prev]);
+  };
+
   return (
     <div className="min-h-screen bg-art-cream flex flex-col font-sans text-art-ink antialiased overflow-x-hidden">
       
@@ -408,6 +441,14 @@ export default function App() {
         </button>
 
         <div className="flex items-center space-x-3 text-[11px] font-mono text-art-ink/70">
+          <button
+            onClick={() => setMeetingModeOpen(true)}
+            className="flex items-center space-x-1.5 px-2.5 py-1 rounded border border-art-ink/10 hover:bg-art-cream text-art-ink/60 hover:text-art-ink transition-all cursor-pointer text-[10px]"
+            title="Enter Meeting Mode (F11)"
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            <span>Present</span>
+          </button>
           <span className="flex items-center text-art-rust space-x-1 font-bold">
             <CheckCircle className="w-3.5 h-3.5 text-art-rust" />
             <span>F100 Audits Active</span>
@@ -451,6 +492,18 @@ export default function App() {
                 </button>
 
                 <button
+                  onClick={() => setActiveTab('archbom')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                    activeTab === 'archbom'
+                      ? 'bg-art-cream text-art-rust border-l-2 border-art-rust pl-2'
+                      : 'text-art-ink/70 hover:text-art-ink hover:bg-art-cream/30'
+                  }`}
+                >
+                  <CircuitBoard className="w-4 h-4" />
+                  <span>Architecture BOM</span>
+                </button>
+
+                <button
                   onClick={() => setActiveTab('compare')}
                   className={`w-full flex items-center space-x-3 px-3 py-2 rounded text-xs font-semibold transition-all duration-150 cursor-pointer ${
                     activeTab === 'compare'
@@ -460,6 +513,66 @@ export default function App() {
                 >
                   <ArrowRightLeft className="w-4 h-4" />
                   <span>Comparisons Desk</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('decisions')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                    activeTab === 'decisions'
+                      ? 'bg-art-cream text-art-rust border-l-2 border-art-rust pl-2'
+                      : 'text-art-ink/70 hover:text-art-ink hover:bg-art-cream/30'
+                  }`}
+                >
+                  <FileCheck className="w-4 h-4" />
+                  <span>Decision Center</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('reports')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                    activeTab === 'reports'
+                      ? 'bg-art-cream text-art-rust border-l-2 border-art-rust pl-2'
+                      : 'text-art-ink/70 hover:text-art-ink hover:bg-art-cream/30'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Reports</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('portfolios')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                    activeTab === 'portfolios'
+                      ? 'bg-art-cream text-art-rust border-l-2 border-art-rust pl-2'
+                      : 'text-art-ink/70 hover:text-art-ink hover:bg-art-cream/30'
+                  }`}
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>Portfolios</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('refmodels')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                    activeTab === 'refmodels'
+                      ? 'bg-art-cream text-art-rust border-l-2 border-art-rust pl-2'
+                      : 'text-art-ink/70 hover:text-art-ink hover:bg-art-cream/30'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>Reference Models</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('formulas')}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                    activeTab === 'formulas'
+                      ? 'bg-art-cream text-art-rust border-l-2 border-art-rust pl-2'
+                      : 'text-art-ink/70 hover:text-art-ink hover:bg-art-cream/30'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>Formula Library</span>
                 </button>
               </div>
             </div>
@@ -487,7 +600,7 @@ export default function App() {
                   >
                     <div className="font-bold truncate">{b.name}</div>
                     <div className={`text-[10px] mt-0.5 font-mono ${b.id === activeBuildId ? 'text-art-cream/70' : 'text-art-ink/40'}`}>
-                      {b.processNode} • {b.version}
+                      {b.designModel.processNode} • {b.version}
                     </div>
                   </button>
                 ))}
@@ -530,73 +643,68 @@ export default function App() {
             />
           )}
 
-          {/* Build Tab */}
+          {/* Build Tab — Design Board + Metrics Lab split */}
           {activeTab === 'build' && (
-            <div className="space-y-4">
-              {/* Internal toggle for Build Tab (Metrics vs. Charts) */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-2 border-b border-art-ink/10 gap-4">
-                <div>
-                  <h1 className="text-xl font-serif font-black tracking-tight text-art-ink">Build Design Board</h1>
-                  <p className="text-xs text-art-ink/60 mt-1 italic">Adjust design knobs and analyze live silicon performance metrics.</p>
-                </div>
-
-                <div className="flex items-center space-x-3 self-end sm:self-center">
-                  <button
-                    onClick={handleResetToBaseline}
-                    className={`flex items-center space-x-1.5 px-3 py-1.5 border rounded text-xs font-semibold transition-all duration-150 cursor-pointer shadow-sm select-none ${
-                      resetConfirm
-                        ? 'bg-art-rust/20 text-art-rust border-art-rust/40 animate-pulse'
-                        : 'bg-white hover:bg-art-rust/10 text-art-ink hover:text-art-rust border-art-ink/15 hover:border-art-rust/30'
-                    }`}
-                    title="Revert current design knobs to their factory baseline configuration"
-                  >
-                    <RotateCcw className={`w-3.5 h-3.5 ${resetConfirm ? 'animate-spin' : ''}`} />
-                    <span>{resetConfirm ? 'Confirm Reset?' : 'Reset to Baseline'}</span>
-                  </button>
-
-                  <div className="flex bg-white rounded border border-art-ink/15 p-0.5 text-xs font-semibold">
-                    <button
-                      onClick={() => setBuildViewTab('metrics')}
-                      className={`flex items-center space-x-1.5 px-3 py-1 rounded cursor-pointer transition-all ${
-                        buildViewTab === 'metrics' ? 'bg-art-cream text-art-rust font-bold' : 'text-art-ink/60 hover:text-art-ink'
-                      }`}
-                    >
-                      <Layout className="w-3.5 h-3.5" />
-                      <span>Metric Cards</span>
-                    </button>
-                    <button
-                      onClick={() => setBuildViewTab('charts')}
-                      className={`flex items-center space-x-1.5 px-3 py-1 rounded cursor-pointer transition-all ${
-                        buildViewTab === 'charts' ? 'bg-art-cream text-art-rust font-bold' : 'text-art-ink/60 hover:text-art-ink'
-                      }`}
-                    >
-                      <BarChart3 className="w-3.5 h-3.5" />
-                      <span>Curves & Charts</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {buildViewTab === 'metrics' ? (
-                <BuildView
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="lg:w-1/2 xl:w-2/5 space-y-4 overflow-y-auto max-h-[calc(100vh-8rem)]">
+                <DesignBoard
                   activeBuild={activeBuild}
-                  computedMetrics={computedMetrics}
                   onUpdateBuild={handleUpdateBuild}
                   onCommitBuild={handleCommitBuild}
                   activePersona={activePersona}
-                  onHoverMetric={setHoveredTrace}
-                  onClickMetric={handleSelectMetric}
                   onAddCustomArchetype={handleAddCustomArchetype}
                   lastSaved={lastSaved}
                   onClearDraft={handleClearDraft}
                 />
-              ) : (
-                <ChartsView
+              </div>
+              <div className="lg:w-1/2 xl:w-3/5 space-y-4 overflow-y-auto max-h-[calc(100vh-8rem)]">
+                <MetricsLab
                   activeBuild={activeBuild}
                   computedMetrics={computedMetrics}
+                  onHoverMetric={(m) => setHoveredTrace(m?.trace ?? null)}
+                  onClickMetric={handleSelectMetric}
                 />
-              )}
+              </div>
             </div>
+          )}
+
+          {/* Decision Center Tab */}
+          {activeTab === 'decisions' && (
+            <DecisionCenterView decisions={decisions} builds={builds} />
+          )}
+
+          {/* Reports Tab */}
+          {activeTab === 'reports' && (
+            <ReportsView builds={builds} decisions={decisions} />
+          )}
+
+          {/* Portfolios Tab */}
+          {activeTab === 'portfolios' && (
+            <PortfolioView
+              portfolios={portfolios}
+              builds={builds}
+              onCreatePortfolio={handleCreatePortfolio}
+              onDeletePortfolio={handleDeletePortfolio}
+              onUpdatePortfolio={handleUpdatePortfolio}
+            />
+          )}
+
+          {/* Reference Models Tab */}
+          {activeTab === 'refmodels' && (
+            <ReferenceModelsView models={referenceModels} />
+          )}
+
+          {/* Formula Library Tab */}
+          {activeTab === 'formulas' && (
+            <FormulaLibraryView formulas={formulaLibrary} />
+          )}
+
+          {/* Architecture BOM Tab */}
+          {activeTab === 'archbom' && (
+            <ArchitectureBomView
+              activeBuild={activeBuild}
+              onUpdateBuild={handleUpdateBuild}
+            />
           )}
 
           {/* Compare Tab */}
@@ -605,6 +713,7 @@ export default function App() {
               builds={builds}
               initialBuildAId="manhattan-x1"
               initialBuildBId="manhattan-x2"
+              onRecordDecision={handleRecordDecision}
             />
           )}
         </main>
@@ -623,7 +732,7 @@ export default function App() {
               }`}
             >
               <Database className="w-4 h-4" />
-              <span>Calculations Audit</span>
+              <span>Audit</span>
             </button>
             <button
               onClick={() => setContextTab('consult')}
@@ -634,7 +743,7 @@ export default function App() {
               }`}
             >
               <Sparkles className="w-4 h-4 animate-pulse text-art-rust" />
-              <span>AI Board Advisor</span>
+              <span>AI Advisor</span>
             </button>
           </div>
 
@@ -643,7 +752,7 @@ export default function App() {
             {contextTab === 'explain' ? (
               <ExplainabilityPanel 
                 trace={activeTrace} 
-                metricsList={computedMetrics?.metricsList}
+                metricsList={computedMetrics?.snapshot.metricsList}
                 onSelectTrace={(trace) => setClickedTrace(trace)}
               />
             ) : (
@@ -661,6 +770,15 @@ export default function App() {
           </div>
         </aside>
       </div>
+
+      {/* MEETING MODE OVERLAY */}
+      {meetingModeOpen && (
+        <MeetingMode
+          builds={builds}
+          decisions={decisions}
+          onClose={() => setMeetingModeOpen(false)}
+        />
+      )}
 
       {/* COMMAND PALETTE MODAL LAYER */}
       <CommandPalette

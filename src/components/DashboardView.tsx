@@ -119,6 +119,8 @@ export default function DashboardView({
       nreCost: Number(newArchNreCost),
       asp: Number(newArchAsp),
       targetVolume: Number(newArchVolume),
+      foundry: 'tsmc',
+      packagingType: 'standard',
       isCustom: true,
       creator: 'eagleximpact'
     };
@@ -140,10 +142,10 @@ export default function DashboardView({
   // Compute global summary metrics
   const analyzedBuilds = builds.map((b) => computeBuildMetrics(b));
   
-  const totalVolumeMillion = analyzedBuilds.reduce((acc, curr) => acc + curr.build.targetVolume, 0);
-  const averageMargin = analyzedBuilds.reduce((acc, curr) => acc + curr.grossMargin, 0) / builds.length;
-  const totalNetProfitMillion = analyzedBuilds.reduce((acc, curr) => acc + curr.lifetimeNetProfitMillion, 0);
-  const averageROI = analyzedBuilds.reduce((acc, curr) => acc + curr.roi, 0) / builds.length;
+  const totalVolumeMillion = analyzedBuilds.reduce((acc, curr) => acc + curr.build.designModel.targetVolume, 0);
+  const averageMargin = analyzedBuilds.reduce((acc, curr) => acc + curr.snapshot.grossMargin, 0) / builds.length;
+  const totalNetProfitMillion = analyzedBuilds.reduce((acc, curr) => acc + curr.snapshot.lifetimeNetProfitMillion, 0);
+  const averageROI = analyzedBuilds.reduce((acc, curr) => acc + curr.snapshot.roi, 0) / builds.length;
 
   const getStatusColor = (status: Build['status']) => {
     switch (status) {
@@ -320,7 +322,7 @@ export default function DashboardView({
             {listMode === 'list' ? (
               <div className="divide-y divide-art-ink/5">
                 {analyzedBuilds.map((metrics) => {
-                  const { build, dieYield, grossMargin, totalDieArea } = metrics;
+                  const { build, snapshot: snap } = metrics;
                   return (
                     <div
                       key={build.id}
@@ -339,9 +341,9 @@ export default function DashboardView({
                         </div>
                         <p className="text-[10px] text-art-ink/75 italic line-clamp-1 max-w-[420px] font-sans">{build.description}</p>
                         <div className="flex items-center space-x-3 text-[10px] text-art-ink/60 font-mono">
-                          <span>Node: {build.processNode}</span>
+                          <span>Node: {build.designModel.processNode}</span>
                           <span>•</span>
-                          <span>Area: {round(totalDieArea, 1)} mm²</span>
+                          <span>Area: {round(snap.totalDieArea, 1)} mm²</span>
                           <span>•</span>
                           <span>Creator: {build.creator}</span>
                         </div>
@@ -350,15 +352,15 @@ export default function DashboardView({
                       <div className="flex items-center space-x-6">
                         <div className="text-right">
                           <span className="text-[9px] text-art-ink/40 block uppercase font-mono">Die Yield</span>
-                          <span className="text-xs font-bold text-art-rust font-mono">{round(dieYield * 100, 1)}%</span>
+                          <span className="text-xs font-bold text-art-rust font-mono">{round(snap.dieYield * 100, 1)}%</span>
                         </div>
                         <div className="text-right">
                           <span className="text-[9px] text-art-ink/40 block uppercase font-mono">Margin</span>
-                          <span className="text-xs font-bold text-green-700 font-mono">{round(grossMargin, 1)}%</span>
+                          <span className="text-xs font-bold text-green-700 font-mono">{round(snap.grossMargin, 1)}%</span>
                         </div>
                         <div className="text-right">
                           <span className="text-[9px] text-art-ink/40 block uppercase font-mono">NRE</span>
-                          <span className="text-xs font-bold text-art-ink/80 font-mono">${build.nreCost}M</span>
+                          <span className="text-xs font-bold text-art-ink/80 font-mono">${build.designModel.nreCost}M</span>
                         </div>
                         <ChevronRight className="w-4 h-4 text-art-ink/30" />
                       </div>
@@ -380,9 +382,10 @@ export default function DashboardView({
                       <div className={`space-y-3 ${depth > 0 ? 'ml-6 border-l-2 border-dashed border-art-rust/20 pl-4 mt-2' : ''}`}>
                         {children.map(build => {
                           const metrics = computeBuildMetrics(build);
-                          const totalDieArea = metrics.totalDieArea;
-                          const dieYield = metrics.dieYield;
-                          const grossMargin = metrics.grossMargin;
+                          const snap = metrics.snapshot;
+                          const totalDieArea = snap.totalDieArea;
+                          const dieYield = snap.dieYield;
+                          const grossMargin = snap.grossMargin;
                           
                           return (
                             <div key={build.id} className="space-y-1">
@@ -404,7 +407,7 @@ export default function DashboardView({
                                     </div>
                                     <p className="text-[10px] text-art-ink/75 line-clamp-1 max-w-[320px] italic font-sans">{build.description}</p>
                                     <div className="text-[9px] text-art-ink/50 font-mono">
-                                      v{build.version} • {build.processNode} • Creator: {build.creator}
+                                      v{build.version} • {build.designModel.processNode} • Creator: {build.creator}
                                     </div>
                                   </div>
                                 </div>
@@ -412,11 +415,11 @@ export default function DashboardView({
                                 <div className="flex items-center space-x-4 text-right">
                                   <div className="hidden sm:block">
                                     <span className="text-[8px] text-art-ink/40 uppercase block font-mono">Die Yield</span>
-                                    <span className="text-[10px] font-bold text-art-rust font-mono">{round(dieYield * 100, 1)}%</span>
+                                    <span className="text-[10px] font-bold text-art-rust font-mono">{round(snap.dieYield * 100, 1)}%</span>
                                   </div>
                                   <div className="hidden sm:block">
                                     <span className="text-[8px] text-art-ink/40 uppercase block font-mono">Margin</span>
-                                    <span className="text-[10px] font-bold text-green-700 font-mono">{round(grossMargin, 1)}%</span>
+                                    <span className="text-[10px] font-bold text-green-700 font-mono">{round(snap.grossMargin, 1)}%</span>
                                   </div>
                                   <ChevronRight className="w-3.5 h-3.5 text-art-ink/30 group-hover:text-art-rust group-hover:translate-x-0.5 transition-all" />
                                 </div>
@@ -432,9 +435,10 @@ export default function DashboardView({
 
                   return rootBuilds.map(root => {
                     const metrics = computeBuildMetrics(root);
-                    const totalDieArea = metrics.totalDieArea;
-                    const dieYield = metrics.dieYield;
-                    const grossMargin = metrics.grossMargin;
+                    const snap = metrics.snapshot;
+                    const totalDieArea = snap.totalDieArea;
+                    const dieYield = snap.dieYield;
+                    const grossMargin = snap.grossMargin;
                     
                     return (
                       <div key={root.id} className="space-y-2 border-b border-art-ink/5 pb-4 last:border-0 last:pb-0">
@@ -455,7 +459,7 @@ export default function DashboardView({
                             </div>
                             <p className="text-[10px] text-art-ink/75 line-clamp-1 max-w-[320px] italic font-sans">{root.description}</p>
                             <div className="text-[9px] text-art-ink/50 font-mono">
-                              v{root.version} • {root.processNode} • Creator: {root.creator}
+                              v{root.version} • {root.designModel.processNode} • Creator: {root.creator}
                             </div>
                           </div>
                           

@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Build, MetricCardData, PersonaType } from '../types';
+import { Build, DesignModel, MetricCardData, PersonaType } from '../types';
 import { Archetype } from '../data/archetypes';
 import { ComputedBuildMetrics, round, computeBuildMetrics } from '../utils/mathEngine';
 import { DEFAULT_BUILDS } from '../data/defaultBuilds';
@@ -74,11 +74,14 @@ export default function BuildView({
 }: BuildViewProps) {
   // Find baseline build and compute its metrics for comparison
   const baselineBuild = React.useMemo(() => {
-    return DEFAULT_BUILDS.find(b => b.id === activeBuild.id) || 
-           DEFAULT_BUILDS.find(b => b.id === activeBuild.parentId) ||
-           DEFAULT_BUILDS.find(b => b.referenceModel === activeBuild.referenceModel) || 
-           DEFAULT_BUILDS[0];
+    return DEFAULT_BUILDS.find(b => b.id === activeBuild.id) ?? 
+           DEFAULT_BUILDS.find(b => b.id === activeBuild.parentId) ??
+           DEFAULT_BUILDS.find(b => b.referenceModel === activeBuild.referenceModel) ?? 
+           DEFAULT_BUILDS[0]!;
   }, [activeBuild]);
+
+  const dm = activeBuild.designModel;
+  const snap = computedMetrics.snapshot;
 
   const baselineMetrics = React.useMemo(() => {
     return computeBuildMetrics(baselineBuild);
@@ -86,6 +89,7 @@ export default function BuildView({
 
   // Compute Silicon Risk Analysis Metrics (ISO 26262 and industry aligned)
   const riskMetrics = React.useMemo(() => {
+  const dm = activeBuild.designModel;
     const {
       processNode,
       dieArea,
@@ -100,7 +104,7 @@ export default function BuildView({
       testCostPerSecond,
       testYield,
       packagingYield
-    } = activeBuild;
+    } = dm;
 
     // A. Yield Stability Risk (0-100)
     // Influenced by defect density, total silicon area, and topology.
@@ -299,26 +303,29 @@ export default function BuildView({
       name: archName,
       category: archCategory,
       description: archDesc,
-      processNode: activeBuild.processNode,
-      dieArea: activeBuild.dieArea,
-      dieWidth: activeBuild.dieWidth,
-      dieHeight: activeBuild.dieHeight,
-      transistorCount: activeBuild.transistorCount,
-      tdp: activeBuild.tdp,
-      topology: activeBuild.topology,
-      chipletCount: activeBuild.chipletCount,
-      ioDieArea: activeBuild.ioDieArea,
-      defectDensity: activeBuild.defectDensity,
-      waferStartsPerMonth: activeBuild.waferStartsPerMonth,
-      packagingCost: activeBuild.packagingCost,
-      testTimeSeconds: activeBuild.testTimeSeconds,
-      testCostPerSecond: activeBuild.testCostPerSecond,
-      packagingYield: activeBuild.packagingYield,
-      testYield: activeBuild.testYield,
-      waferCost: activeBuild.waferCost,
-      nreCost: activeBuild.nreCost,
-      asp: activeBuild.asp,
-      targetVolume: activeBuild.targetVolume,
+      processNode: dm.processNode,
+      dieArea: dm.dieArea,
+      dieWidth: dm.dieWidth,
+      dieHeight: dm.dieHeight,
+      transistorCount: dm.transistorCount,
+      tdp: dm.tdp,
+      topology: dm.topology,
+      chipletCount: dm.chipletCount,
+      ioDieArea: dm.ioDieArea,
+      defectDensity: dm.defectDensity,
+      waferStartsPerMonth: dm.waferStartsPerMonth,
+      packagingCost: dm.packagingCost,
+      testTimeSeconds: dm.testTimeSeconds,
+      testCostPerSecond: dm.testCostPerSecond,
+      packagingYield: dm.packagingYield,
+      testYield: dm.testYield,
+      waferCost: dm.waferCost,
+      nreCost: dm.nreCost,
+      asp: dm.asp,
+      targetVolume: dm.targetVolume,
+      foundry: dm.foundry,
+      packagingType: dm.packagingType,
+      interposerArea: dm.interposerArea,
       isCustom: true,
       creator: 'eagleximpact'
     };
@@ -342,8 +349,8 @@ export default function BuildView({
     // Attempt to increment version
     const parts = activeBuild.version.match(/v(\d+)\.(\d+)/);
     if (parts) {
-      const major = parseInt(parts[1], 10);
-      const minor = parseInt(parts[2], 10) + 1;
+      const major = parseInt(parts[1] ?? '0', 10);
+      const minor = parseInt(parts[2] ?? '0', 10) + 1;
       setBranchVersion(`v${major}.${minor}`);
     } else {
       setBranchVersion(`${activeBuild.version}-rev1`);
@@ -371,7 +378,7 @@ export default function BuildView({
       organization: branchOrg,
       owner: `${branchCreator} (Lead Designer)`,
       parentId: activeBuild.id, // Set the lineage parent link!
-      createdDate: new Date().toISOString().split('T')[0],
+      createdDate: new Date().toISOString().split('T')[0] ?? '',
       status: 'Draft' // Branches always start in Draft status for modeling
     };
 
@@ -383,27 +390,30 @@ export default function BuildView({
     setExpanded((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const handleInputChange = (field: keyof Build, value: any) => {
-    const updated = { ...activeBuild, [field]: value };
+  const handleInputChange = (field: keyof DesignModel, value: any) => {
+    const updated = {
+      ...activeBuild,
+      designModel: { ...activeBuild.designModel, [field]: value }
+    };
     
     // Node-aware defaults: suggest realistic wafer cost and NRE to help users construct high-quality scenarios
     if (field === 'processNode') {
       if (value === '3nm') {
-        updated.waferCost = 18000;
-        updated.nreCost = 260;
-        updated.defectDensity = 0.12;
+        updated.designModel.waferCost = 18000;
+        updated.designModel.nreCost = 260;
+        updated.designModel.defectDensity = 0.12;
       } else if (value === '5nm') {
-        updated.waferCost = 9500;
-        updated.nreCost = 110;
-        updated.defectDensity = 0.08;
+        updated.designModel.waferCost = 9500;
+        updated.designModel.nreCost = 110;
+        updated.designModel.defectDensity = 0.08;
       } else if (value === '7nm') {
-        updated.waferCost = 5500;
-        updated.nreCost = 35;
-        updated.defectDensity = 0.04;
+        updated.designModel.waferCost = 5500;
+        updated.designModel.nreCost = 35;
+        updated.designModel.defectDensity = 0.04;
       } else if (value === '10nm') {
-        updated.waferCost = 3800;
-        updated.nreCost = 20;
-        updated.defectDensity = 0.02;
+        updated.designModel.waferCost = 3800;
+        updated.designModel.nreCost = 20;
+        updated.designModel.defectDensity = 0.02;
       }
     }
 
@@ -418,7 +428,7 @@ export default function BuildView({
     };
 
     // Compare with baseline
-    const baselineM = baselineMetrics.metricsList.find(b => b.id === m.id);
+    const baselineM = baselineMetrics.snapshot.metricsList.find(b => b.id === m.id);
     const currentVal = parseNumericValue(m.value);
     const baselineVal = baselineM ? parseNumericValue(baselineM.value) : currentVal;
     const diff = currentVal - baselineVal;
@@ -485,10 +495,10 @@ export default function BuildView({
   };
 
   // Filter metrics by category
-  const engineeringMetrics = computedMetrics.metricsList.filter((m) => m.category === 'engineering');
-  const manufacturingMetrics = computedMetrics.metricsList.filter((m) => m.category === 'manufacturing');
-  const financialMetrics = computedMetrics.metricsList.filter((m) => m.category === 'financial');
-  const programMetrics = computedMetrics.metricsList.filter((m) => m.category === 'program');
+  const engineeringMetrics = snap.metricsList.filter((m) => m.category === 'engineering');
+  const manufacturingMetrics = snap.metricsList.filter((m) => m.category === 'manufacturing');
+  const financialMetrics = snap.metricsList.filter((m) => m.category === 'financial');
+  const programMetrics = snap.metricsList.filter((m) => m.category === 'program');
 
   return (
     <div className="space-y-6 font-sans">
@@ -587,7 +597,7 @@ export default function BuildView({
               <Database className="w-5 h-5 text-art-rust animate-pulse" />
               <div>
                 <h3 className="text-sm font-serif font-black text-art-ink">Register Current Design as baseline Industry Archetype</h3>
-                <p className="text-[10px] text-art-ink/50 font-mono uppercase tracking-wider">Propagating current node ({activeBuild.processNode}) and {activeBuild.topology} parameters</p>
+                <p className="text-[10px] text-art-ink/50 font-mono uppercase tracking-wider">Propagating current node ({dm.processNode}) and {dm.topology} parameters</p>
               </div>
             </div>
             <button
@@ -655,19 +665,19 @@ export default function BuildView({
               <div className="bg-art-cream/25 p-3 rounded-lg border border-art-ink/5 grid grid-cols-2 md:grid-cols-4 gap-3 text-[10px] font-mono text-art-ink/70">
                 <div>
                   <span className="text-art-ink/40 uppercase block">Node Class</span>
-                  <span className="font-bold text-art-ink">{activeBuild.processNode}</span>
+                  <span className="font-bold text-art-ink">{dm.processNode}</span>
                 </div>
                 <div>
                   <span className="text-art-ink/40 uppercase block">Total Die Area</span>
-                  <span className="font-bold text-art-ink">{activeBuild.dieArea * activeBuild.chipletCount + activeBuild.ioDieArea} mm²</span>
+                  <span className="font-bold text-art-ink">{dm.dieArea * dm.chipletCount + dm.ioDieArea} mm²</span>
                 </div>
                 <div>
                   <span className="text-art-ink/40 uppercase block">Transistors</span>
-                  <span className="font-bold text-art-ink">{activeBuild.transistorCount} Billion</span>
+                  <span className="font-bold text-art-ink">{dm.transistorCount} Billion</span>
                 </div>
                 <div>
                   <span className="text-art-ink/40 uppercase block">Topology</span>
-                  <span className="font-bold text-art-ink capitalize">{activeBuild.topology}</span>
+                  <span className="font-bold text-art-ink capitalize">{dm.topology}</span>
                 </div>
               </div>
 
@@ -807,7 +817,7 @@ export default function BuildView({
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-art-ink/50 uppercase font-mono tracking-wide">Process Node</label>
                   <select
-                    value={activeBuild.processNode}
+                    value={dm.processNode}
                     onChange={(e) => handleInputChange('processNode', e.target.value)}
                     className="w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-semibold cursor-pointer"
                   >
@@ -825,7 +835,7 @@ export default function BuildView({
                     <button
                       onClick={() => handleInputChange('topology', 'monolithic')}
                       className={`flex-1 text-[10px] py-1 rounded font-serif italic font-bold uppercase ${
-                        activeBuild.topology === 'monolithic' ? 'bg-art-ink text-art-cream' : 'text-art-ink/50 hover:bg-art-cream/30'
+                        dm.topology === 'monolithic' ? 'bg-art-ink text-art-cream' : 'text-art-ink/50 hover:bg-art-cream/30'
                       }`}
                     >
                       Monolithic
@@ -833,7 +843,7 @@ export default function BuildView({
                     <button
                       onClick={() => handleInputChange('topology', 'chiplet')}
                       className={`flex-1 text-[10px] py-1 rounded font-serif italic font-bold uppercase ${
-                        activeBuild.topology === 'chiplet' ? 'bg-art-ink text-art-cream' : 'text-art-ink/50 hover:bg-art-cream/30'
+                        dm.topology === 'chiplet' ? 'bg-art-ink text-art-cream' : 'text-art-ink/50 hover:bg-art-cream/30'
                       }`}
                     >
                       Chiplet
@@ -842,19 +852,19 @@ export default function BuildView({
                 </div>
 
                 {/* Conditional Chiplet params */}
-                {activeBuild.topology === 'chiplet' ? (
+                {dm.topology === 'chiplet' ? (
                   <>
                     <div className="space-y-1">
                       <div className="flex justify-between text-[10px]">
                         <label className="font-bold text-art-ink/50 uppercase font-mono">Core Chiplet Area</label>
-                        <span className="font-mono text-art-ink font-bold">{activeBuild.dieArea} mm²</span>
+                        <span className="font-mono text-art-ink font-bold">{dm.dieArea} mm²</span>
                       </div>
                       <input
                         type="range"
                         min="50"
                         max="350"
                         step="5"
-                        value={activeBuild.dieArea}
+                        value={dm.dieArea}
                         onChange={(e) => handleInputChange('dieArea', Number(e.target.value))}
                         className="w-full accent-art-rust"
                       />
@@ -862,7 +872,7 @@ export default function BuildView({
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-art-ink/50 uppercase font-mono">Core Chiplet Count</label>
                       <select
-                        value={activeBuild.chipletCount}
+                        value={dm.chipletCount}
                         onChange={(e) => handleInputChange('chipletCount', Number(e.target.value))}
                         className="w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-medium cursor-pointer"
                       >
@@ -874,14 +884,14 @@ export default function BuildView({
                     <div className="space-y-1">
                       <div className="flex justify-between text-[10px]">
                         <label className="font-bold text-art-ink/50 uppercase font-mono">I/O Die Area</label>
-                        <span className="font-mono text-art-ink font-bold">{activeBuild.ioDieArea} mm²</span>
+                        <span className="font-mono text-art-ink font-bold">{dm.ioDieArea} mm²</span>
                       </div>
                       <input
                         type="range"
                         min="50"
                         max="300"
                         step="5"
-                        value={activeBuild.ioDieArea}
+                        value={dm.ioDieArea}
                         onChange={(e) => handleInputChange('ioDieArea', Number(e.target.value))}
                         className="w-full accent-art-rust"
                       />
@@ -891,14 +901,14 @@ export default function BuildView({
                   <div className="space-y-1">
                     <div className="flex justify-between text-[10px]">
                       <label className="font-bold text-art-ink/50 uppercase font-mono">Die Footprint (Area)</label>
-                      <span className="font-mono text-art-ink font-bold">{activeBuild.dieArea} mm²</span>
+                      <span className="font-mono text-art-ink font-bold">{dm.dieArea} mm²</span>
                     </div>
                     <input
                       type="range"
                       min="50"
                       max="800"
                       step="10"
-                      value={activeBuild.dieArea}
+                      value={dm.dieArea}
                       onChange={(e) => handleInputChange('dieArea', Number(e.target.value))}
                       className="w-full accent-art-rust"
                     />
@@ -909,14 +919,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">Transistor Count</label>
-                    <span className="font-mono text-art-ink font-bold">{activeBuild.transistorCount} B</span>
+                    <span className="font-mono text-art-ink font-bold">{dm.transistorCount} B</span>
                   </div>
                   <input
                     type="range"
                     min="1"
                     max="150"
                     step="0.5"
-                    value={activeBuild.transistorCount}
+                    value={dm.transistorCount}
                     onChange={(e) => handleInputChange('transistorCount', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -926,14 +936,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">Thermal Limit (TDP)</label>
-                    <span className="font-mono text-art-ink font-bold">{activeBuild.tdp} Watts</span>
+                    <span className="font-mono text-art-ink font-bold">{dm.tdp} Watts</span>
                   </div>
                   <input
                     type="range"
                     min="1"
                     max="450"
                     step="5"
-                    value={activeBuild.tdp}
+                    value={dm.tdp}
                     onChange={(e) => handleInputChange('tdp', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -974,19 +984,19 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">Defect Density (D0)</label>
-                    <span className="font-mono text-art-ink font-bold">{activeBuild.defectDensity} /cm²</span>
+                    <span className="font-mono text-art-ink font-bold">{dm.defectDensity} /cm²</span>
                   </div>
                   <input
                     type="range"
                     min="0.02"
                     max="0.30"
                     step="0.01"
-                    value={activeBuild.defectDensity}
+                    value={dm.defectDensity}
                     onChange={(e) => handleInputChange('defectDensity', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
                   <span className="text-[9px] text-art-ink/50 leading-relaxed block italic mt-1">
-                    {activeBuild.defectDensity <= 0.05 ? 'Mature High-yield line' : activeBuild.defectDensity <= 0.1 ? 'Normal ramping line' : 'Early developmental risk line'}
+                    {dm.defectDensity <= 0.05 ? 'Mature High-yield line' : dm.defectDensity <= 0.1 ? 'Normal ramping line' : 'Early developmental risk line'}
                   </span>
                 </div>
 
@@ -994,14 +1004,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">Wafer Starts/Month</label>
-                    <span className="font-mono text-art-ink font-bold">{activeBuild.waferStartsPerMonth.toLocaleString()}</span>
+                    <span className="font-mono text-art-ink font-bold">{dm.waferStartsPerMonth.toLocaleString()}</span>
                   </div>
                   <input
                     type="range"
                     min="1000"
                     max="50000"
                     step="1000"
-                    value={activeBuild.waferStartsPerMonth}
+                    value={dm.waferStartsPerMonth}
                     onChange={(e) => handleInputChange('waferStartsPerMonth', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -1011,14 +1021,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">OSAT Packaging Yield</label>
-                    <span className="font-mono text-art-ink font-bold">{activeBuild.packagingYield}%</span>
+                    <span className="font-mono text-art-ink font-bold">{dm.packagingYield}%</span>
                   </div>
                   <input
                     type="range"
                     min="90"
                     max="100"
                     step="0.1"
-                    value={activeBuild.packagingYield}
+                    value={dm.packagingYield}
                     onChange={(e) => handleInputChange('packagingYield', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -1028,14 +1038,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">Electrical Test Yield</label>
-                    <span className="font-mono text-art-ink font-bold">{activeBuild.testYield}%</span>
+                    <span className="font-mono text-art-ink font-bold">{dm.testYield}%</span>
                   </div>
                   <input
                     type="range"
                     min="90"
                     max="100"
                     step="0.1"
-                    value={activeBuild.testYield}
+                    value={dm.testYield}
                     onChange={(e) => handleInputChange('testYield', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -1076,14 +1086,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">Silicon Wafer Cost</label>
-                    <span className="font-mono text-art-ink font-bold">${activeBuild.waferCost.toLocaleString()}</span>
+                    <span className="font-mono text-art-ink font-bold">${dm.waferCost.toLocaleString()}</span>
                   </div>
                   <input
                     type="range"
                     min="1000"
                     max="25000"
                     step="500"
-                    value={activeBuild.waferCost}
+                    value={dm.waferCost}
                     onChange={(e) => handleInputChange('waferCost', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -1093,14 +1103,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">NRE Capital Investment</label>
-                    <span className="font-mono text-art-ink font-bold">${activeBuild.nreCost}M</span>
+                    <span className="font-mono text-art-ink font-bold">${dm.nreCost}M</span>
                   </div>
                   <input
                     type="range"
                     min="5"
                     max="500"
                     step="5"
-                    value={activeBuild.nreCost}
+                    value={dm.nreCost}
                     onChange={(e) => handleInputChange('nreCost', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -1110,14 +1120,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">Average Selling Price</label>
-                    <span className="font-mono text-art-ink font-bold">${activeBuild.asp.toLocaleString()}</span>
+                    <span className="font-mono text-art-ink font-bold">${dm.asp.toLocaleString()}</span>
                   </div>
                   <input
                     type="range"
                     min="5"
                     max="2000"
                     step="5"
-                    value={activeBuild.asp}
+                    value={dm.asp}
                     onChange={(e) => handleInputChange('asp', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -1127,14 +1137,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">Target Lifetime Volume</label>
-                    <span className="font-mono text-art-ink font-bold">{activeBuild.targetVolume} M</span>
+                    <span className="font-mono text-art-ink font-bold">{dm.targetVolume} M</span>
                   </div>
                   <input
                     type="range"
                     min="0.5"
                     max="100"
                     step="0.5"
-                    value={activeBuild.targetVolume}
+                    value={dm.targetVolume}
                     onChange={(e) => handleInputChange('targetVolume', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -1175,14 +1185,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">Packaging Unit Cost</label>
-                    <span className="font-mono text-art-ink font-bold">${activeBuild.packagingCost.toFixed(2)}</span>
+                    <span className="font-mono text-art-ink font-bold">${dm.packagingCost.toFixed(2)}</span>
                   </div>
                   <input
                     type="range"
                     min="0.5"
                     max="100"
                     step="0.5"
-                    value={activeBuild.packagingCost}
+                    value={dm.packagingCost}
                     onChange={(e) => handleInputChange('packagingCost', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -1192,14 +1202,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">Test Insertion Time</label>
-                    <span className="font-mono text-art-ink font-bold">{activeBuild.testTimeSeconds}s</span>
+                    <span className="font-mono text-art-ink font-bold">{dm.testTimeSeconds}s</span>
                   </div>
                   <input
                     type="range"
                     min="5"
                     max="150"
                     step="1"
-                    value={activeBuild.testTimeSeconds}
+                    value={dm.testTimeSeconds}
                     onChange={(e) => handleInputChange('testTimeSeconds', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -1209,14 +1219,14 @@ export default function BuildView({
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px]">
                     <label className="font-bold text-art-ink/50 uppercase font-mono">Test Cost / Second</label>
-                    <span className="font-mono text-art-ink font-bold">${activeBuild.testCostPerSecond.toFixed(2)}</span>
+                    <span className="font-mono text-art-ink font-bold">${dm.testCostPerSecond.toFixed(2)}</span>
                   </div>
                   <input
                     type="range"
                     min="0.05"
                     max="1.00"
                     step="0.01"
-                    value={activeBuild.testCostPerSecond}
+                    value={dm.testCostPerSecond}
                     onChange={(e) => handleInputChange('testCostPerSecond', Number(e.target.value))}
                     className="w-full accent-art-rust"
                   />
@@ -1348,7 +1358,7 @@ export default function BuildView({
                   <div className="space-y-2.5 pt-2 text-[10px] font-mono">
                     <div className="flex justify-between items-center">
                       <span className="text-art-ink/40">Defect Density Impact:</span>
-                      <span className="font-semibold">{activeBuild.defectDensity <= 0.05 ? 'Low' : activeBuild.defectDensity <= 0.15 ? 'Moderate' : 'Severe'}</span>
+                      <span className="font-semibold">{dm.defectDensity <= 0.05 ? 'Low' : dm.defectDensity <= 0.15 ? 'Moderate' : 'Severe'}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-art-ink/40">Total Silicon Area:</span>
@@ -1357,13 +1367,13 @@ export default function BuildView({
                     <div className="flex justify-between items-center">
                       <span className="text-art-ink/40">Topology Defense:</span>
                       <span className="font-semibold text-art-rust">
-                        {activeBuild.topology === 'chiplet' ? 'Chiplet Defect Redundancy' : 'None (Monolithic Die)'}
+                        {dm.topology === 'chiplet' ? 'Chiplet Defect Redundancy' : 'None (Monolithic Die)'}
                       </span>
                     </div>
                   </div>
                   
                   <div className="pt-2 border-t border-art-ink/5 text-[9px] text-art-ink/50 italic leading-relaxed">
-                    {activeBuild.topology === 'chiplet' 
+                    {dm.topology === 'chiplet' 
                       ? '✓ Chiplets isolate defects to smaller dies, keeping overall package yields highly predictable even during early fab node ramp.'
                       : '⚠ Monolithic die footprint makes entire system vulnerable to single point-of-defect failures on wafer line.'}
                   </div>
@@ -1390,22 +1400,22 @@ export default function BuildView({
                   <div className="space-y-2.5 pt-2 text-[10px] font-mono">
                     <div className="flex justify-between items-center">
                       <span className="text-art-ink/40">Process Lithography:</span>
-                      <span className="font-semibold">{activeBuild.processNode} Node Class</span>
+                      <span className="font-semibold">{dm.processNode} Node Class</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-art-ink/40">Transistor Density:</span>
-                      <span className="font-semibold">{Math.round((activeBuild.transistorCount * 1000) / riskMetrics.totalArea)} M/mm²</span>
+                      <span className="font-semibold">{Math.round((dm.transistorCount * 1000) / riskMetrics.totalArea)} M/mm²</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-art-ink/40">Thermal Stress Density:</span>
-                      <span className="font-semibold">{round(activeBuild.tdp / riskMetrics.totalArea, 3)} W/mm²</span>
+                      <span className="font-semibold">{round(dm.tdp / riskMetrics.totalArea, 3)} W/mm²</span>
                     </div>
                   </div>
 
                   <div className="pt-2 border-t border-art-ink/5 text-[9px] text-art-ink/50 italic leading-relaxed">
-                    {activeBuild.processNode === '3nm' 
+                    {dm.processNode === '3nm' 
                       ? '⚠ 3nm process demands Gate-All-Around GAA architecture, driving high electromigration risk and thermal-stress-induced aging.'
-                      : activeBuild.processNode === '5nm'
+                      : dm.processNode === '5nm'
                       ? '⚠ 5nm utilizes extreme EUV double-patterning, imposing high mask complexity and design-for-manufacturability requirements.'
                       : '✓ Mature lithography node limits lithography stress and exhibits highly characterized infant-mortality profiles.'}
                   </div>
@@ -1432,20 +1442,20 @@ export default function BuildView({
                   <div className="space-y-2.5 pt-2 text-[10px] font-mono">
                     <div className="flex justify-between items-center">
                       <span className="text-art-ink/40">Test Program Duration:</span>
-                      <span className="font-semibold">{activeBuild.testTimeSeconds} seconds / unit</span>
+                      <span className="font-semibold">{dm.testTimeSeconds} seconds / unit</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-art-ink/40">OSAT Scrap Risk Exposure:</span>
-                      <span className="font-semibold">${activeBuild.packagingCost.toFixed(2)} package scrap cost</span>
+                      <span className="font-semibold">${dm.packagingCost.toFixed(2)} package scrap cost</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-art-ink/40">Diagnostic Test Yield:</span>
-                      <span className="font-semibold">{activeBuild.testYield}% pass rate</span>
+                      <span className="font-semibold">{dm.testYield}% pass rate</span>
                     </div>
                   </div>
 
                   <div className="pt-2 border-t border-art-ink/5 text-[9px] text-art-ink/50 italic leading-relaxed">
-                    {activeBuild.testTimeSeconds > 90 
+                    {dm.testTimeSeconds > 90 
                       ? '⚠ Extended test insertion times amplify testing bottle-necks, and escalate financial risk if tester lease rates spike.'
                       : '✓ Lean test program limits cycle time exposure. High diagnostic capability minimizes latent defect escapes.'}
                   </div>
@@ -1554,51 +1564,51 @@ export default function BuildView({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-[11px] font-mono bg-art-cream/40 p-4 rounded-xl border border-art-ink/10">
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">Process Node Class</span>
-                  <span className="text-art-ink font-bold text-xs">{activeBuild.processNode}</span>
+                  <span className="text-art-ink font-bold text-xs">{dm.processNode}</span>
                 </div>
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">Silicon Topology</span>
-                  <span className="text-art-ink font-bold text-xs capitalize">{activeBuild.topology}</span>
+                  <span className="text-art-ink font-bold text-xs capitalize">{dm.topology}</span>
                 </div>
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">Design Area</span>
-                  <span className="text-art-ink font-bold text-xs">{activeBuild.dieArea} mm²</span>
+                  <span className="text-art-ink font-bold text-xs">{dm.dieArea} mm²</span>
                 </div>
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">Transistors (Billion)</span>
-                  <span className="text-art-ink font-bold text-xs">{activeBuild.transistorCount} B</span>
+                  <span className="text-art-ink font-bold text-xs">{dm.transistorCount} B</span>
                 </div>
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">Thermal limit (TDP)</span>
-                  <span className="text-art-ink font-bold text-xs">{activeBuild.tdp} W</span>
+                  <span className="text-art-ink font-bold text-xs">{dm.tdp} W</span>
                 </div>
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">Defect Density (D0)</span>
-                  <span className="text-art-ink font-bold text-xs">{activeBuild.defectDensity} /cm²</span>
+                  <span className="text-art-ink font-bold text-xs">{dm.defectDensity} /cm²</span>
                 </div>
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">Wafer Starts Monthly</span>
-                  <span className="text-art-ink font-bold text-xs">{activeBuild.waferStartsPerMonth.toLocaleString()} starts</span>
+                  <span className="text-art-ink font-bold text-xs">{dm.waferStartsPerMonth.toLocaleString()} starts</span>
                 </div>
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">Packaging Unit Cost</span>
-                  <span className="text-art-ink font-bold text-xs">${activeBuild.packagingCost.toFixed(2)}</span>
+                  <span className="text-art-ink font-bold text-xs">${dm.packagingCost.toFixed(2)}</span>
                 </div>
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">Test Time & Rate</span>
-                  <span className="text-art-ink font-bold text-xs">{activeBuild.testTimeSeconds}s @ ${activeBuild.testCostPerSecond.toFixed(2)}/s</span>
+                  <span className="text-art-ink font-bold text-xs">{dm.testTimeSeconds}s @ ${dm.testCostPerSecond.toFixed(2)}/s</span>
                 </div>
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">OSAT Packaging Yield</span>
-                  <span className="text-art-ink font-bold text-xs">{activeBuild.packagingYield}%</span>
+                  <span className="text-art-ink font-bold text-xs">{dm.packagingYield}%</span>
                 </div>
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">Wafer Procurement Cost</span>
-                  <span className="text-art-ink font-bold text-xs">${activeBuild.waferCost.toLocaleString()}</span>
+                  <span className="text-art-ink font-bold text-xs">${dm.waferCost.toLocaleString()}</span>
                 </div>
                 <div className="p-2 border-b border-art-ink/5">
                   <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">Target Program Volume</span>
-                  <span className="text-art-ink font-bold text-xs">{activeBuild.targetVolume} Million units</span>
+                  <span className="text-art-ink font-bold text-xs">{dm.targetVolume} Million units</span>
                 </div>
               </div>
             </div>
@@ -1645,35 +1655,35 @@ export default function BuildView({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[11px] font-mono">
                 <div className="p-3 bg-art-cream/20 border border-art-ink/5 rounded-lg">
                   <span className="text-art-ink/40 text-[9px] block uppercase font-semibold">Dies Per Wafer (DPW)</span>
-                  <span className="text-art-ink font-serif italic font-black text-sm">{computedMetrics.dpw} dies</span>
+                  <span className="text-art-ink font-serif italic font-black text-sm">{snap.dpw} dies</span>
                 </div>
                 <div className="p-3 bg-art-cream/20 border border-art-ink/5 rounded-lg">
                   <span className="text-art-ink/40 text-[9px] block uppercase font-semibold">Effective Silicon Yield</span>
-                  <span className="text-art-rust font-serif italic font-black text-sm">{round(computedMetrics.dieYield * 100, 2)}%</span>
+                  <span className="text-art-rust font-serif italic font-black text-sm">{round(snap.dieYield * 100, 2)}%</span>
                 </div>
                 <div className="p-3 bg-art-cream/20 border border-art-ink/5 rounded-lg">
                   <span className="text-art-ink/40 text-[9px] block uppercase font-semibold">Packaged Unit Cost</span>
-                  <span className="text-art-ink font-serif italic font-black text-sm">${round(computedMetrics.grossCostPerGoodDie, 2)}</span>
+                  <span className="text-art-ink font-serif italic font-black text-sm">${round(snap.grossCostPerGoodDie, 2)}</span>
                 </div>
                 <div className="p-3 bg-art-cream/20 border border-art-ink/5 rounded-lg">
                   <span className="text-art-ink/40 text-[9px] block uppercase font-semibold">Gross Project Margin</span>
-                  <span className="text-green-700 font-serif italic font-black text-sm">{round(computedMetrics.grossMargin, 2)}%</span>
+                  <span className="text-green-700 font-serif italic font-black text-sm">{round(snap.grossMargin, 2)}%</span>
                 </div>
                 <div className="p-3 bg-art-cream/20 border border-art-ink/5 rounded-lg">
                   <span className="text-art-ink/40 text-[9px] block uppercase font-semibold">Program Break-Even</span>
-                  <span className="text-art-ink font-serif italic font-black text-sm">{round(computedMetrics.breakEvenVolumeMillion, 2)}M units</span>
+                  <span className="text-art-ink font-serif italic font-black text-sm">{round(snap.breakEvenVolumeMillion, 2)}M units</span>
                 </div>
                 <div className="p-3 bg-art-cream/20 border border-art-ink/5 rounded-lg">
                   <span className="text-art-ink/40 text-[9px] block uppercase font-semibold">Net Lifetime Profit</span>
-                  <span className="text-art-ink font-serif italic font-black text-sm">${round(computedMetrics.lifetimeNetProfitMillion, 1)}M</span>
+                  <span className="text-art-ink font-serif italic font-black text-sm">${round(snap.lifetimeNetProfitMillion, 1)}M</span>
                 </div>
                 <div className="p-3 bg-art-cream/20 border border-art-ink/5 rounded-lg">
                   <span className="text-art-ink/40 text-[9px] block uppercase font-semibold">Program Return (ROI)</span>
-                  <span className="text-art-rust font-serif italic font-black text-sm">{round(computedMetrics.roi, 1)}%</span>
+                  <span className="text-art-rust font-serif italic font-black text-sm">{round(snap.roi, 1)}%</span>
                 </div>
                 <div className="p-3 bg-art-cream/20 border border-art-ink/5 rounded-lg">
                   <span className="text-art-ink/40 text-[9px] block uppercase font-semibold">Annual Production Run</span>
-                  <span className="text-art-ink font-serif italic font-black text-sm">{round(computedMetrics.annualVolumeMillion, 3)}M units</span>
+                  <span className="text-art-ink font-serif italic font-black text-sm">{round(snap.annualVolumeMillion, 3)}M units</span>
                 </div>
               </div>
             </div>
@@ -1757,21 +1767,21 @@ FORMULA LIBRARY: ${activeBuild.formulaVersion}
 BASE DATA MODEL: ${activeBuild.referenceModel}
 
 DESIGN INTENT PARAMETERS:
-- Process Node Class: ${activeBuild.processNode}
-- Topology Layout:    ${activeBuild.topology}
-- Die Footprint Area: ${activeBuild.dieArea} mm²
-- Core Transistors:   ${activeBuild.transistorCount} Billion
-- Thermal TDP:        ${activeBuild.tdp} Watts
+- Process Node Class: ${dm.processNode}
+- Topology Layout:    ${dm.topology}
+- Die Footprint Area: ${dm.dieArea} mm²
+- Core Transistors:   ${dm.transistorCount} Billion
+- Thermal TDP:        ${dm.tdp} Watts
 
 DETERMINISTIC COMPUTATION METRICS:
-- Dies Per Wafer (DPW):     ${computedMetrics.dpw} dies
-- Murphy Die Silicon Yield: ${round(computedMetrics.dieYield * 100, 2)}%
-- Silicon-OSAT Cost/Die:    $${round(computedMetrics.rawDieCost, 2)}
-- Amortized Unit NRE cost:  $${round(computedMetrics.amortizedNreCost, 2)}
-- Final Packaged Unit Cost: $${round(computedMetrics.grossCostPerGoodDie, 2)}
-- Target Lifetime Volume:   ${activeBuild.targetVolume} Million Units
-- Break-Even Program Unit:  ${round(computedMetrics.breakEvenVolumeMillion, 2)} Million Units
-- Projected Program ROI:    ${round(computedMetrics.roi, 1)}%
+- Dies Per Wafer (DPW):     ${snap.dpw} dies
+- Murphy Die Silicon Yield: ${round(snap.dieYield * 100, 2)}%
+- Silicon-OSAT Cost/Die:    $${round(snap.rawDieCost, 2)}
+- Amortized Unit NRE cost:  $${round(snap.amortizedNreCost, 2)}
+- Final Packaged Unit Cost: $${round(snap.grossCostPerGoodDie, 2)}
+- Target Lifetime Volume:   ${dm.targetVolume} Million Units
+- Break-Even Program Unit:  ${round(snap.breakEvenVolumeMillion, 2)} Million Units
+- Projected Program ROI:    ${round(snap.roi, 1)}%
 
 AUDIT SIGN-OFF STATUS: COMPLIANT WITH ISO 26262 AND SIA PLATFORM SPECIFICATIONS.
 ========================================================================`);
@@ -1795,16 +1805,16 @@ SUMMARY FEASIBILITY ASSESSMENT:
 The engineering scenario "${activeBuild.name}" has been calculated using deterministic math library ${activeBuild.formulaVersion}. 
 
 Key Business Feasibility Indicators:
-- Target Volume:       ${activeBuild.targetVolume} Million units
-- Average Selling Prc: $${activeBuild.asp} USD per unit
-- Cost of Goods/Unit:  $${round(computedMetrics.grossCostPerGoodDie, 2)} USD per unit
-- Initial NRE Capex:   $${activeBuild.nreCost} Million USD
-- Project Gross Margin: ${round(computedMetrics.grossMargin, 2)}%
-- Net Program Profit:  $${round(computedMetrics.lifetimeNetProfitMillion, 1)} Million USD
-- Program ROI:         ${round(computedMetrics.roi, 1)}%
+- Target Volume:       ${dm.targetVolume} Million units
+- Average Selling Prc: $${dm.asp} USD per unit
+- Cost of Goods/Unit:  $${round(snap.grossCostPerGoodDie, 2)} USD per unit
+- Initial NRE Capex:   $${dm.nreCost} Million USD
+- Project Gross Margin: ${round(snap.grossMargin, 2)}%
+- Net Program Profit:  $${round(snap.lifetimeNetProfitMillion, 1)} Million USD
+- Program ROI:         ${round(snap.roi, 1)}%
 
 Amortization Schedule:
-To recover the initial masking, licensing, and IP capital of $${activeBuild.nreCost}M, the program requires a break-even threshold volume of ${round(computedMetrics.breakEvenVolumeMillion, 2)} Million units. The current target program volume of ${activeBuild.targetVolume}M units delivers comfortable capital return overheads.
+To recover the initial masking, licensing, and IP capital of $${dm.nreCost}M, the program requires a break-even threshold volume of ${round(snap.breakEvenVolumeMillion, 2)} Million units. The current target program volume of ${dm.targetVolume}M units delivers comfortable capital return overheads.
 
 SIGNED OFF BY: ${activeBuild.creator}
 AUTHORIZED VIA DETERMINISTIC COMPUTATION ENGINE LICENSE KEY: ISO-26262-SEMI-MANHATTAN-V1
@@ -1823,16 +1833,16 @@ AUTHORIZED VIA DETERMINISTIC COMPUTATION ENGINE LICENSE KEY: ISO-26262-SEMI-MANH
 "Version","${activeBuild.version}","String","N/A"
 "Creator","${activeBuild.creator}","String","N/A"
 "Date","${activeBuild.createdDate}","YYYY-MM-DD","N/A"
-"Node Class","${activeBuild.processNode}","nm","N/A"
-"Die Area","${activeBuild.dieArea}","mm2","N/A"
-"Transistors","${activeBuild.transistorCount}","Billion","N/A"
-"DPW","${computedMetrics.dpw}","dies","Geometric Packing Standard v2.0"
-"Silicon Yield","${round(computedMetrics.dieYield * 100, 2)}","%","Murphy Model v1.0"
-"Silicon Cost","${round(computedMetrics.rawDieCost, 2)}","USD","Foundry Price Schedule v3.0"
-"Packaged Unit Cost","${round(computedMetrics.grossCostPerGoodDie, 2)}","USD","OSAT Assembly Rates Q3-26"
-"NRE Capex","${activeBuild.nreCost}","Million USD","Corporate Finance Standard"
-"Gross Margin","${round(computedMetrics.grossMargin, 2)}","%","Corporate Margin Target"
-"ROI","${round(computedMetrics.roi, 1)}","%","Strategic Profit Target"`);
+"Node Class","${dm.processNode}","nm","N/A"
+"Die Area","${dm.dieArea}","mm2","N/A"
+"Transistors","${dm.transistorCount}","Billion","N/A"
+"DPW","${snap.dpw}","dies","Geometric Packing Standard v2.0"
+"Silicon Yield","${round(snap.dieYield * 100, 2)}","%","Murphy Model v1.0"
+"Silicon Cost","${round(snap.rawDieCost, 2)}","USD","Foundry Price Schedule v3.0"
+"Packaged Unit Cost","${round(snap.grossCostPerGoodDie, 2)}","USD","OSAT Assembly Rates Q3-26"
+"NRE Capex","${dm.nreCost}","Million USD","Corporate Finance Standard"
+"Gross Margin","${round(snap.grossMargin, 2)}","%","Corporate Margin Target"
+"ROI","${round(snap.roi, 1)}","%","Strategic Profit Target"`);
                     }}
                     className={`px-2 py-1 rounded cursor-pointer ${deliverableType === 'csv' ? 'bg-art-ink text-white font-bold' : 'bg-art-cream border border-art-ink/15 text-art-ink/60'}`}
                   >

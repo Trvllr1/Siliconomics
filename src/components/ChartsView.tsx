@@ -28,10 +28,13 @@ interface ChartsViewProps {
 }
 
 export default function ChartsView({ activeBuild, computedMetrics }: ChartsViewProps) {
+  const dm = activeBuild.designModel;
+  const snap = computedMetrics.snapshot;
+
   // 1. Generate Yield Curve Data: Plot Murphy Yield and Dies Per Wafer over varying Die Areas (50mm2 to 600mm2)
   const yieldCurveData = [];
   for (let area = 50; area <= 600; area += 25) {
-    const rawYield = calculateMurphyYield(area, activeBuild.defectDensity);
+    const rawYield = calculateMurphyYield(area, dm.defectDensity);
     const dpw = calculateDPW(area);
     const goodDies = dpw * rawYield;
     
@@ -47,9 +50,9 @@ export default function ChartsView({ activeBuild, computedMetrics }: ChartsViewP
   const costBreakdownData = [
     {
       name: 'Packaged Unit Cost',
-      'Raw Die Cost': round(computedMetrics.rawDieCost, 2),
-      'Assembly/Pkg Cost': round(activeBuild.packagingCost, 2),
-      'Electrical Test Cost': round(activeBuild.testTimeSeconds * activeBuild.testCostPerSecond, 2),
+      'Raw Die Cost': round(snap.rawDieCost, 2),
+      'Assembly/Pkg Cost': round(dm.packagingCost, 2),
+      'Electrical Test Cost': round(dm.testTimeSeconds * dm.testCostPerSecond, 2),
     },
   ];
 
@@ -59,25 +62,25 @@ export default function ChartsView({ activeBuild, computedMetrics }: ChartsViewP
     let computedYield = 0;
     let dieCost = 0;
 
-    if (activeBuild.topology === 'monolithic') {
-      computedYield = calculateMurphyYield(activeBuild.dieArea, d0);
-      const dpwVal = calculateDPW(activeBuild.dieArea);
-      const rawCost = activeBuild.waferCost / Math.max(1, dpwVal * computedYield);
-      dieCost = (rawCost + activeBuild.packagingCost + (activeBuild.testTimeSeconds * activeBuild.testCostPerSecond)) / (activeBuild.testYield / 100);
+    if (dm.topology === 'monolithic') {
+      computedYield = calculateMurphyYield(dm.dieArea, d0);
+      const dpwVal = calculateDPW(dm.dieArea);
+      const rawCost = dm.waferCost / Math.max(1, dpwVal * computedYield);
+      dieCost = (rawCost + dm.packagingCost + (dm.testTimeSeconds * dm.testCostPerSecond)) / (dm.testYield / 100);
     } else {
       // Chiplet
-      const coreYield = calculateMurphyYield(activeBuild.dieArea, d0);
-      const coreDPW = calculateDPW(activeBuild.dieArea);
-      const coreCost = activeBuild.waferCost / Math.max(1, coreDPW * coreYield);
+      const coreYield = calculateMurphyYield(dm.dieArea, d0);
+      const coreDPW = calculateDPW(dm.dieArea);
+      const coreCost = dm.waferCost / Math.max(1, coreDPW * coreYield);
 
-      const ioYield = calculateMurphyYield(activeBuild.ioDieArea, d0);
-      const ioDPW = calculateDPW(activeBuild.ioDieArea);
-      const ioCost = activeBuild.waferCost / Math.max(1, ioDPW * ioYield);
+      const ioYield = calculateMurphyYield(dm.ioDieArea, d0);
+      const ioDPW = calculateDPW(dm.ioDieArea);
+      const ioCost = dm.waferCost / Math.max(1, ioDPW * ioYield);
 
-      const rawCost = (coreCost * activeBuild.chipletCount) + ioCost;
-      const sysYield = Math.pow(coreYield, activeBuild.chipletCount) * ioYield * (activeBuild.packagingYield / 100);
+      const rawCost = (coreCost * dm.chipletCount) + ioCost;
+      const sysYield = Math.pow(coreYield, dm.chipletCount) * ioYield * (dm.packagingYield / 100);
       computedYield = sysYield;
-      dieCost = (rawCost + activeBuild.packagingCost + (activeBuild.testTimeSeconds * activeBuild.testCostPerSecond)) / (activeBuild.testYield / 100);
+      dieCost = (rawCost + dm.packagingCost + (dm.testTimeSeconds * dm.testCostPerSecond)) / (dm.testYield / 100);
     }
 
     sensitivityData.push({
@@ -88,8 +91,8 @@ export default function ChartsView({ activeBuild, computedMetrics }: ChartsViewP
   }
 
   // Active build's operating coordinates for markers
-  const activeArea = round(computedMetrics.totalDieArea, 1);
-  const activeYield = round(computedMetrics.dieYield * 100, 1);
+  const activeArea = round(snap.totalDieArea, 1);
+  const activeYield = round(snap.dieYield * 100, 1);
 
   return (
     <div className="space-y-6 font-sans">
@@ -103,7 +106,7 @@ export default function ChartsView({ activeBuild, computedMetrics }: ChartsViewP
             </h3>
           </div>
           <span className="text-[10px] text-art-ink/70 bg-art-cream/60 border border-art-ink/10 rounded-lg px-2.5 py-1 font-mono">
-            D0 = {activeBuild.defectDensity} defects/cm²
+            D0 = {dm.defectDensity} defects/cm²
           </span>
         </div>
         
@@ -188,7 +191,7 @@ export default function ChartsView({ activeBuild, computedMetrics }: ChartsViewP
               </h3>
             </div>
             <span className="text-[10px] font-mono text-art-ink/80 bg-art-cream/80 px-2.5 py-1 rounded-lg border border-art-ink/10">
-              Total: ${computedMetrics.grossCostPerGoodDie.toFixed(2)}
+              Total: ${snap.grossCostPerGoodDie.toFixed(2)}
             </span>
           </div>
           
@@ -261,7 +264,7 @@ export default function ChartsView({ activeBuild, computedMetrics }: ChartsViewP
                 
                 {/* Active Build's Current D0 representation */}
                 <ReferenceLine 
-                  x={activeBuild.defectDensity} 
+                  x={dm.defectDensity} 
                   stroke="#BFA173" 
                   strokeDasharray="4 4"
                   label={{ value: 'Current D0', position: 'insideTopLeft', fill: '#F4F2EE', fontSize: 9, fontFamily: 'Fraunces', fontStyle: 'italic', fontWeight: 'bold' }} 

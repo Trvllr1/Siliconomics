@@ -4,7 +4,7 @@
  */
 
 import { jsPDF } from 'jspdf';
-import { Build } from '../types';
+import { Build, Snapshot } from '../types';
 import { round } from './mathEngine';
 
 interface TableRow {
@@ -20,11 +20,14 @@ interface TableRow {
 
 export function generateComparisonPdf(
   buildA: Build,
-  metricsA: any,
+  snapA: Snapshot,
   buildB: Build,
-  metricsB: any,
+  snapB: Snapshot,
   aiComparison: string | null
 ) {
+  const dmA = buildA.designModel;
+  const dmB = buildB.designModel;
+
   // Create PDF document (portrait, mm, a4: 210 x 297 mm)
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -132,30 +135,30 @@ export function generateComparisonPdf(
   const tableData: TableRow[] = [
     // ENGINEERING SECTION
     { label: 'ENGINEERING METRICS', valA: '', valB: '', isHeader: true },
-    { label: 'Process Node Class', valA: buildA.processNode, valB: buildB.processNode },
-    { label: 'Silicon Die Area', valA: `${round(metricsA.totalDieArea, 1)} mm²`, valB: `${round(metricsB.totalDieArea, 1)} mm²`, rawA: metricsA.totalDieArea, rawB: metricsB.totalDieArea, unit: ' mm²', isBetterLower: true },
-    { label: 'Transistor Count', valA: `${buildA.transistorCount} B`, valB: `${buildB.transistorCount} B`, rawA: buildA.transistorCount, rawB: buildB.transistorCount, unit: ' B' },
-    { label: 'Silicon Topology Design', valA: buildA.topology, valB: buildB.topology },
-    { label: 'Dies per Wafer (DPW)', valA: `${metricsA.dpw} dies`, valB: `${metricsB.dpw} dies`, rawA: metricsA.dpw, rawB: metricsB.dpw, unit: ' dies' },
-    { label: 'Murphy Die Yield', valA: `${round(metricsA.dieYield * 100, 1)}%`, valB: `${round(metricsB.dieYield * 100, 1)}%`, rawA: metricsA.dieYield * 100, rawB: metricsB.dieYield * 100, unit: '%' },
+    { label: 'Process Node Class', valA: dmA.processNode, valB: dmB.processNode },
+    { label: 'Silicon Die Area', valA: `${round(snapA.totalDieArea, 1)} mm²`, valB: `${round(snapB.totalDieArea, 1)} mm²`, rawA: snapA.totalDieArea, rawB: snapB.totalDieArea, unit: ' mm²', isBetterLower: true },
+    { label: 'Transistor Count', valA: `${dmA.transistorCount} B`, valB: `${dmB.transistorCount} B`, rawA: dmA.transistorCount, rawB: dmB.transistorCount, unit: ' B' },
+    { label: 'Silicon Topology Design', valA: dmA.topology, valB: dmB.topology },
+    { label: 'Dies per Wafer (DPW)', valA: `${snapA.dpw} dies`, valB: `${snapB.dpw} dies`, rawA: snapA.dpw, rawB: snapB.dpw, unit: ' dies' },
+    { label: 'Murphy Die Yield', valA: `${round(snapA.dieYield * 100, 1)}%`, valB: `${round(snapB.dieYield * 100, 1)}%`, rawA: snapA.dieYield * 100, rawB: snapB.dieYield * 100, unit: '%' },
 
     // MANUFACTURING SECTION
     { label: 'MANUFACTURING & ASSEMBLY YIELDS', valA: '', valB: '', isHeader: true },
-    { label: 'Defect Density (D0)', valA: `${buildA.defectDensity} /cm²`, valB: `${buildB.defectDensity} /cm²`, rawA: buildA.defectDensity, rawB: buildB.defectDensity, unit: '/cm²', isBetterLower: true },
-    { label: 'Packaging Yield', valA: `${buildA.packagingYield}%`, valB: `${buildB.packagingYield}%`, rawA: buildA.packagingYield, rawB: buildB.packagingYield, unit: '%' },
-    { label: 'Electrical Test Yield', valA: `${buildA.testYield}%`, valB: `${buildB.testYield}%`, rawA: buildA.testYield, rawB: buildB.testYield, unit: '%' },
+    { label: 'Defect Density (D0)', valA: `${dmA.defectDensity} /cm²`, valB: `${dmB.defectDensity} /cm²`, rawA: dmA.defectDensity, rawB: dmB.defectDensity, unit: '/cm²', isBetterLower: true },
+    { label: 'Packaging Yield', valA: `${dmA.packagingYield}%`, valB: `${dmB.packagingYield}%`, rawA: dmA.packagingYield, rawB: dmB.packagingYield, unit: '%' },
+    { label: 'Electrical Test Yield', valA: `${dmA.testYield}%`, valB: `${dmB.testYield}%`, rawA: dmA.testYield, rawB: dmB.testYield, unit: '%' },
 
     // FINANCIAL ARCHITECTURE
     { label: 'FINANCIAL ARCHITECTURE', valA: '', valB: '', isHeader: true },
-    { label: 'Foundry Wafer Cost', valA: `$${buildA.waferCost.toLocaleString()}`, valB: `$${buildB.waferCost.toLocaleString()}`, rawA: buildA.waferCost, rawB: buildB.waferCost, unit: '', isBetterLower: true },
-    { label: 'Calculated Silicon Die Cost', valA: `$${round(metricsA.rawDieCost, 2)}`, valB: `$${round(metricsB.rawDieCost, 2)}`, rawA: metricsA.rawDieCost, rawB: metricsB.rawDieCost, unit: '', isBetterLower: true },
-    { label: 'Packaged Unit COGS', valA: `$${round(metricsA.grossCostPerGoodDie, 2)}`, valB: `$${round(metricsB.grossCostPerGoodDie, 2)}`, rawA: metricsA.grossCostPerGoodDie, rawB: metricsB.grossCostPerGoodDie, unit: '', isBetterLower: true },
-    { label: 'Average Selling Price (ASP)', valA: `$${buildA.asp.toLocaleString()}`, valB: `$${buildB.asp.toLocaleString()}`, rawA: buildA.asp, rawB: buildB.asp, unit: '' },
-    { label: 'Gross Program Margin', valA: `${round(metricsA.grossMargin, 1)}%`, valB: `${round(metricsB.grossMargin, 1)}%`, rawA: metricsA.grossMargin, rawB: metricsB.grossMargin, unit: '%' },
-    { label: 'Non-Recurring Engineering (NRE)', valA: `$${buildA.nreCost} M`, valB: `$${buildB.nreCost} M`, rawA: buildA.nreCost, rawB: buildB.nreCost, unit: ' M', isBetterLower: true },
-    { label: 'Amortized Program Break-Even', valA: `${round(metricsA.breakEvenVolumeMillion, 2)} M`, valB: `${round(metricsB.breakEvenVolumeMillion, 2)} M`, rawA: metricsA.breakEvenVolumeMillion, rawB: metricsB.breakEvenVolumeMillion, unit: ' M', isBetterLower: true },
-    { label: 'Projected Net Lifetime Profit', valA: `$${round(metricsA.lifetimeNetProfitMillion, 1)} M`, valB: `$${round(metricsB.lifetimeNetProfitMillion, 1)} M`, rawA: metricsA.lifetimeNetProfitMillion, rawB: metricsB.lifetimeNetProfitMillion, unit: ' M' },
-    { label: 'Program Return (ROI)', valA: `${round(metricsA.roi, 1)}%`, valB: `${round(metricsB.roi, 1)}%`, rawA: metricsA.roi, rawB: metricsB.roi, unit: '%' }
+    { label: 'Foundry Wafer Cost', valA: `$${dmA.waferCost.toLocaleString()}`, valB: `$${dmB.waferCost.toLocaleString()}`, rawA: dmA.waferCost, rawB: dmB.waferCost, unit: '', isBetterLower: true },
+    { label: 'Calculated Silicon Die Cost', valA: `$${round(snapA.rawDieCost, 2)}`, valB: `$${round(snapB.rawDieCost, 2)}`, rawA: snapA.rawDieCost, rawB: snapB.rawDieCost, unit: '', isBetterLower: true },
+    { label: 'Packaged Unit COGS', valA: `$${round(snapA.grossCostPerGoodDie, 2)}`, valB: `$${round(snapB.grossCostPerGoodDie, 2)}`, rawA: snapA.grossCostPerGoodDie, rawB: snapB.grossCostPerGoodDie, unit: '', isBetterLower: true },
+    { label: 'Average Selling Price (ASP)', valA: `$${dmA.asp.toLocaleString()}`, valB: `$${dmB.asp.toLocaleString()}`, rawA: dmA.asp, rawB: dmB.asp, unit: '' },
+    { label: 'Gross Program Margin', valA: `${round(snapA.grossMargin, 1)}%`, valB: `${round(snapB.grossMargin, 1)}%`, rawA: snapA.grossMargin, rawB: snapB.grossMargin, unit: '%' },
+    { label: 'Non-Recurring Engineering (NRE)', valA: `$${dmA.nreCost} M`, valB: `$${dmB.nreCost} M`, rawA: dmA.nreCost, rawB: dmB.nreCost, unit: ' M', isBetterLower: true },
+    { label: 'Amortized Program Break-Even', valA: `${round(snapA.breakEvenVolumeMillion, 2)} M`, valB: `${round(snapB.breakEvenVolumeMillion, 2)} M`, rawA: snapA.breakEvenVolumeMillion, rawB: snapB.breakEvenVolumeMillion, unit: ' M', isBetterLower: true },
+    { label: 'Projected Net Lifetime Profit', valA: `$${round(snapA.lifetimeNetProfitMillion, 1)} M`, valB: `$${round(snapB.lifetimeNetProfitMillion, 1)} M`, rawA: snapA.lifetimeNetProfitMillion, rawB: snapB.lifetimeNetProfitMillion, unit: ' M' },
+    { label: 'Program Return (ROI)', valA: `${round(snapA.roi, 1)}%`, valB: `${round(snapB.roi, 1)}%`, rawA: snapA.roi, rawB: snapB.roi, unit: '%' }
   ];
 
   // Draw Table Columns Headers
@@ -357,10 +360,10 @@ export function generateComparisonPdf(
         doc.setTextColor(60, 60, 60);
         
         // Handle nested bold formatting in list
-        const boldMatch = listContent.match(/^\*\*(.*?)\*\*:(.*)$/);
+          const boldMatch = listContent.match(/^\*\*(.*?)\*\*:(.*)$/);
         if (boldMatch) {
-          const boldPart = `• ${boldMatch[1]}:`;
-          const normalPart = boldMatch[2];
+          const boldPart = `• ${boldMatch[1] ?? ''}:`;
+          const normalPart = boldMatch[2] ?? '';
           
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(26, 28, 30);
