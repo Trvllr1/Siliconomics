@@ -1,10 +1,10 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import { Build, Snapshot, Decision, PersonaType, DecisionOutcome } from '../types';
 import { computeBuildMetrics } from '../utils/mathEngine';
 import { computeBusinessImpact, BusinessImpact } from '../utils/BusinessImpact';
 import { evaluateBuild, RecommendationDetail } from '../utils/ExecutiveRecommendation';
 import { round } from '../utils/mathEngine';
-import { TrendingUp, ShieldAlert, XCircle, FileCheck, ArrowRight, X, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { TrendingUp, ShieldAlert, AlertTriangle, XCircle, CheckCircle, FileCheck, ArrowRight, X, ChevronLeft, ChevronRight, Plus, BarChart3, Scale, Cpu, DollarSign, Wrench, Activity, Clock, User, Eye } from 'lucide-react';
 
 interface MeetingModeProps {
   builds: Build[];
@@ -14,7 +14,7 @@ interface MeetingModeProps {
   onRecordDecision?: (decision: Decision) => void;
 }
 
-type Slide = 'overview' | 'comparison' | 'impact' | 'recommendation' | 'decisions';
+type Slide = 'overview' | 'comparison' | 'impact' | 'recommendation' | 'scorecard' | 'risk' | 'decisions';
 
 const outcomeColor: Record<string, string> = {
   'Proceed': 'text-green-400',
@@ -49,7 +49,7 @@ export default function MeetingMode({ builds, decisions, onClose, activeBuildId,
   const recA = evaluateBuild(snapA, buildA.designModel);
   const recB = evaluateBuild(snapB, buildB.designModel);
 
-  const slides: Slide[] = ['overview', 'comparison', 'impact', 'recommendation', 'decisions'];
+  const slides: Slide[] = ['overview', 'comparison', 'impact', 'scorecard', 'risk', 'recommendation', 'decisions'];
   const slideIndex = slides.indexOf(slide);
 
   const goNext = useCallback(() => {
@@ -132,6 +132,12 @@ export default function MeetingMode({ builds, decisions, onClose, activeBuildId,
           <ComparisonSlide buildA={buildA} snapA={snapA} buildB={buildB} snapB={snapB} />
         )}
         {slide === 'impact' && <ImpactSlide impacts={impacts} />}
+        {slide === 'scorecard' && (
+          <ScorecardSlide buildA={buildA} snapA={snapA} buildB={buildB} snapB={snapB} buildAId={buildA.id} buildBId={buildB.id} />
+        )}
+        {slide === 'risk' && (
+          <RiskSlide buildA={buildA} snapA={snapA} recA={recA} />
+        )}
         {slide === 'recommendation' && (
           <RecommendationSlide recA={recA} recB={recB} buildA={buildA} buildB={buildB} />
         )}
@@ -141,6 +147,108 @@ export default function MeetingMode({ builds, decisions, onClose, activeBuildId,
       </div>
 
       <SlideNav />
+    </div>
+  );
+}
+
+function ScorecardSlide({ buildA, snapA, buildB, snapB, buildAId, buildBId }: { buildA: Build; snapA: Snapshot; buildB: Build; snapB: Snapshot; buildAId: string; buildBId: string }) {
+  const dims = [
+    { key: 'technical', label: 'Technical Feasibility', a: Math.round(Math.min(10, (snapA.dieYield / 0.95) * 3 + (snapA.transistorDensity > 50 ? 4 : 2) + (snapA.dpw > 200 ? 3 : 1))), b: Math.round(Math.min(10, (snapB.dieYield / 0.95) * 3 + (snapB.transistorDensity > 50 ? 4 : 2) + (snapB.dpw > 200 ? 3 : 1))) },
+    { key: 'manufacturing', label: 'Manufacturing Readiness', a: Math.round(Math.min(10, (buildA.designModel.packagingYield / 99) * 4 + (buildA.designModel.testYield / 99) * 3 + (snapA.dieYield > 0.6 ? 3 : 0))), b: Math.round(Math.min(10, (buildB.designModel.packagingYield / 99) * 4 + (buildB.designModel.testYield / 99) * 3 + (snapB.dieYield > 0.6 ? 3 : 0))) },
+    { key: 'capital', label: 'Capital Efficiency', a: Math.round(Math.min(10, (snapA.roi > 50 ? 5 : snapA.roi > 20 ? 3 : 1) + (snapA.breakEvenVolumeMillion < 2 ? 3 : snapA.breakEvenVolumeMillion < 5 ? 2 : 0) + (buildA.designModel.nreCost < 50 ? 2 : 0))), b: Math.round(Math.min(10, (snapB.roi > 50 ? 5 : snapB.roi > 20 ? 3 : 1) + (snapB.breakEvenVolumeMillion < 2 ? 3 : snapB.breakEvenVolumeMillion < 5 ? 2 : 0) + (buildB.designModel.nreCost < 50 ? 2 : 0))) },
+    { key: 'commercial', label: 'Commercial Attractiveness', a: Math.round(Math.min(10, (snapA.grossMargin > 60 ? 5 : snapA.grossMargin > 35 ? 3 : 1) + (snapA.lifetimeNetProfitMillion > 200 ? 3 : snapA.lifetimeNetProfitMillion > 0 ? 1 : 0) + (buildA.designModel.asp > 500 ? 2 : 0))), b: Math.round(Math.min(10, (snapB.grossMargin > 60 ? 5 : snapB.grossMargin > 35 ? 3 : 1) + (snapB.lifetimeNetProfitMillion > 200 ? 3 : snapB.lifetimeNetProfitMillion > 0 ? 1 : 0) + (buildB.designModel.asp > 500 ? 2 : 0))) },
+    { key: 'program', label: 'Program Confidence', a: Math.round(Math.min(10, (snapA.grossMargin > 40 ? 3 : 1) + (snapA.roi > 30 ? 3 : 1) + (snapA.breakEvenVolumeMillion < 3 ? 4 : 2))), b: Math.round(Math.min(10, (snapB.grossMargin > 40 ? 3 : 1) + (snapB.roi > 30 ? 3 : 1) + (snapB.breakEvenVolumeMillion < 3 ? 4 : 2))) },
+    { key: 'supplyChain', label: 'Supply Chain Resilience', a: Math.round(Math.min(10, 10 - Math.round(snapA.supplyChain.compositeRiskScore / 10))), b: Math.round(Math.min(10, 10 - Math.round(snapB.supplyChain.compositeRiskScore / 10))) },
+    { key: 'schedule', label: 'Schedule Confidence', a: Math.round(Math.min(10, (buildA.designModel.packagingYield > 97 ? 3 : 1) + (buildA.designModel.testYield > 97 ? 3 : 1) + (snapA.breakEvenVolumeMillion < 4 ? 4 : 2))), b: Math.round(Math.min(10, (buildB.designModel.packagingYield > 97 ? 3 : 1) + (buildB.designModel.testYield > 97 ? 3 : 1) + (snapB.breakEvenVolumeMillion < 4 ? 4 : 2))) },
+  ];
+  const max = 10;
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="text-center space-y-2">
+        <h1 className="text-3xl font-serif font-black text-white tracking-tight">Executive Decision Scorecard</h1>
+        <p className="text-sm text-white/50 italic">Side-by-side dimensional comparison</p>
+      </div>
+      <div className="flex items-center justify-center space-x-6 text-sm font-mono text-white/50 mb-4">
+        <span className="flex items-center space-x-2"><div className="w-3 h-3 rounded bg-art-rust/60" /><span>{buildA.name}</span></span>
+        <span className="text-white/20">vs</span>
+        <span className="flex items-center space-x-2"><div className="w-3 h-3 rounded bg-blue-400/60" /><span>{buildB.name}</span></span>
+      </div>
+      <div className="space-y-4">
+        {dims.map(dim => {
+          const winner = dim.a > dim.b ? 'a' : dim.b > dim.a ? 'b' : 'none';
+          return (
+            <div key={dim.key}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold font-mono uppercase text-white/60">{dim.label}</span>
+                <span className="text-[9px] font-mono text-white/30">/ {max}</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="flex-1 h-5 bg-white/5 rounded-full overflow-hidden relative">
+                  <div className={`h-full rounded-full transition-all ${dim.a >= 7 ? 'bg-green-500/60' : dim.a >= 4 ? 'bg-yellow-500/60' : 'bg-red-500/60'}`} style={{ width: `${(dim.a / max) * 100}%` }} />
+                  {winner === 'a' && <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white">WIN</span>}
+                </div>
+                <span className={`text-sm font-mono font-bold w-8 text-center ${winner === 'a' ? 'text-green-400' : 'text-white/50'}`}>{dim.a}</span>
+                <ChevronRight className="w-4 h-4 text-white/20" />
+                <span className={`text-sm font-mono font-bold w-8 text-center ${winner === 'b' ? 'text-green-400' : 'text-white/50'}`}>{dim.b}</span>
+                <div className="flex-1 h-5 bg-white/5 rounded-full overflow-hidden relative">
+                  <div className={`h-full rounded-full transition-all ${dim.b >= 7 ? 'bg-green-500/60' : dim.b >= 4 ? 'bg-yellow-500/60' : 'bg-red-500/60'}`} style={{ width: `${(dim.b / max) * 100}%` }} />
+                  {winner === 'b' && <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white">WIN</span>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RiskSlide({ buildA, snapA, recA }: { buildA: Build; snapA: Snapshot; recA: RecommendationDetail }) {
+  const risks = [
+    { label: 'Manufacturing Risk', score: Math.round((100 - snapA.dieYield * 100) / 10), max: 10, detail: `Die yield ${(snapA.dieYield * 100).toFixed(1)}%` },
+    { label: 'Financial Risk', score: Math.round(Math.max(0, 10 - (snapA.grossMargin > 40 ? 5 : snapA.grossMargin > 20 ? 3 : 0) - (snapA.roi > 30 ? 3 : 0) - (snapA.breakEvenVolumeMillion < 3 ? 2 : 0))), max: 10, detail: `${snapA.grossMargin.toFixed(1)}% margin` },
+    { label: 'Supply Chain Risk', score: Math.round(snapA.supplyChain.compositeRiskScore / 10), max: 10, detail: snapA.supplyChain.riskLevel },
+    { label: 'Technology Risk', score: buildA.designModel.topology === 'chiplet' ? 5 : buildA.designModel.defectDensity > 0.3 ? 7 : 3, max: 10, detail: `${buildA.designModel.processNode}` },
+    { label: 'Packaging Risk', score: buildA.designModel.packagingType !== 'standard' ? Math.round((100 - buildA.designModel.packagingYield) / 5) : Math.round((100 - buildA.designModel.packagingYield) / 10), max: 10, detail: `${buildA.designModel.packagingType}` },
+  ];
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="text-center space-y-2">
+        <h1 className="text-3xl font-serif font-black text-white tracking-tight">Risk Dashboard</h1>
+        <p className="text-sm text-white/50 italic">{buildA.name} — Risk assessment across all categories</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {risks.map(r => {
+          const pct = r.max > 0 ? (r.score / r.max) * 100 : 0;
+          const color = pct >= 70 ? 'border-red-500/40 bg-red-900/20' : pct >= 40 ? 'border-yellow-500/40 bg-yellow-900/20' : 'border-green-500/40 bg-green-900/20';
+          const textColor = pct >= 70 ? 'text-red-400' : pct >= 40 ? 'text-yellow-400' : 'text-green-400';
+          return (
+            <div key={r.label} className={`border rounded-xl p-5 ${color}`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold text-white">{r.label}</span>
+                <span className={`text-lg font-mono font-bold ${textColor}`}>{r.score}<span className="text-xs text-white/40">/{r.max}</span></span>
+              </div>
+              <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-2">
+                <div className={`h-full rounded-full ${pct >= 70 ? 'bg-red-500' : pct >= 40 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${pct}%` }} />
+              </div>
+              <p className="text-xs text-white/50 font-mono">{r.detail}</p>
+            </div>
+          );
+        })}
+      </div>
+      {recA.riskFactors.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-bold font-mono uppercase text-white/40 tracking-wider">Key Risk Factors</h3>
+          {recA.riskFactors.map((rf, i) => (
+            <div key={i} className="flex items-start space-x-2 text-sm text-yellow-300/80 bg-yellow-900/20 border border-yellow-700/30 rounded-lg px-4 py-3">
+              <AlertTriangle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <span>{rf}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

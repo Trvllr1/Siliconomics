@@ -175,7 +175,11 @@ export default function App() {
   const [builds, setBuilds] = useState<Build[]>(() => {
     try {
       const saved = localStorage.getItem('siliconomics_builds');
-      return saved ? JSON.parse(saved) : DEFAULT_BUILDS;
+      if (!saved) return DEFAULT_BUILDS;
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return DEFAULT_BUILDS;
+      const valid = parsed.filter((b: any) => b && b.designModel);
+      return valid.length > 0 ? valid : DEFAULT_BUILDS;
     } catch (e) {
       return DEFAULT_BUILDS;
     }
@@ -327,7 +331,12 @@ export default function App() {
   const [contextTab, setContextTab] = useState<'explain' | 'consult'>('explain');
 
   const activeBuild = builds.find((b) => b.id === activeBuildId) ?? builds[0]!;
-  const computedMetrics = computeBuildMetrics(activeBuild);
+  let computedMetrics: ReturnType<typeof computeBuildMetrics>;
+  try {
+    computedMetrics = computeBuildMetrics(activeBuild);
+  } catch {
+    computedMetrics = computeBuildMetrics(DEFAULT_BUILDS[0]!);
+  }
 
   const [alerts, setAlerts] = useState<Alert[]>(() => {
     try {
@@ -911,6 +920,9 @@ export default function App() {
               builds={builds}
               alerts={alerts}
               onAcknowledgeAlert={handleAcknowledgeAlert}
+              onHoverMetric={setHoveredTrace}
+              onClickMetric={handleSelectMetric}
+              onNavigate={setActiveTab}
             />
           )}
 

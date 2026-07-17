@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Build, Decision, MetricCardData, ArchitectureBlock } from '../types';
 import { computeBuildMetrics } from '../utils/mathEngine';
 import { metricsToCsv, consolidatedToCsv, downloadCsv } from '../utils/csvGenerator';
-import { generateExecutiveReport, generateConsolidatedAudit, downloadPdf } from '../utils/pdfGenerator';
+import { generateConsolidatedAudit, downloadPdf } from '../utils/pdfGenerator';
 import { FileText, Download, Clock, ArrowRight, FileCheck, Loader, CheckCircle, FileSpreadsheet } from 'lucide-react';
 
 interface ReportsViewProps {
@@ -28,7 +28,7 @@ export default function ReportsView({ builds, decisions }: ReportsViewProps) {
       const blocks: ArchitectureBlock[] = build.architecture?.blocks ?? [];
 
       if (type === 'pdf') {
-        const doc = generateExecutiveReport(build, snapshot.metricsList, snapshot.costContributors, blocks, snapshot.supplyChain);
+        const doc = generateConsolidatedAudit([build], []);
         downloadPdf(doc, `siliconomics-${build.id}-${new Date().toISOString().slice(0, 10)}.pdf`);
       } else {
         const csv = metricsToCsv(build, snapshot.metricsList, snapshot.costContributors, blocks);

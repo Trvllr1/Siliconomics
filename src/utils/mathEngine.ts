@@ -42,6 +42,9 @@ export interface ComputedBuildMetrics {
 }
 
 export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
+  if (!build?.designModel) {
+    throw new Error(`computeBuildMetrics: Build "${build?.id ?? 'unknown'}" is missing designModel`);
+  }
   const dm = build.designModel;
   const {
     processNode,

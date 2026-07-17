@@ -950,32 +950,51 @@ export default function DashboardView({
           {/* Upcoming Decisions */}
           <div className="bg-white border-2 border-art-ink/10 rounded-xl shadow-sm p-4 space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-art-ink/80 font-mono">Upcoming Decisions</h3>
-            
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs p-2.5 rounded hover:bg-art-cream/30 transition-all border border-art-ink/10 bg-white">
-                <div className="flex items-center space-x-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-green-700" />
-                  <span className="font-semibold text-art-ink">Manhattan-X1 ADAS Sign-off</span>
+            {(() => {
+              const reviewBuilds = builds.filter(b => b.status === 'TechnicalReview' || b.status === 'FinancialReview' || b.status === 'ProgramReview');
+              const display = reviewBuilds.length > 0 ? reviewBuilds : builds.slice(0, 3);
+              const statusColor: Record<string, string> = {
+                TechnicalReview: 'text-blue-700 bg-blue-50 border-blue-200',
+                FinancialReview: 'text-green-700 bg-green-50 border-green-200',
+                ProgramReview: 'text-purple-700 bg-purple-50 border-purple-200',
+                Approved: 'text-green-800 bg-green-100 border-green-300',
+                Draft: 'text-gray-600 bg-gray-100 border-gray-200',
+                Alert: 'text-red-700 bg-red-50 border-red-200',
+              };
+              const statusIcon: Record<string, React.ReactNode> = {
+                TechnicalReview: <Clock className="w-4 h-4 text-blue-700" />,
+                FinancialReview: <TrendingUp className="w-4 h-4 text-green-700" />,
+                ProgramReview: <Users className="w-4 h-4 text-purple-700" />,
+                Approved: <CheckCircle2 className="w-4 h-4 text-green-700" />,
+                Draft: <Clock className="w-4 h-4 text-gray-500" />,
+                Alert: <AlertTriangle className="w-4 h-4 text-red-700" />,
+              };
+              return (
+                <div className="space-y-2">
+                  {display.map(b => {
+                    const snap = computeBuildMetrics(b).snapshot;
+                    return (
+                      <button
+                        key={b.id}
+                        onClick={() => { onSelectBuild(b.id); onNavigate('build'); }}
+                        className="w-full flex items-center justify-between text-xs p-2.5 rounded hover:bg-art-cream/30 transition-all border border-art-ink/10 bg-white text-left cursor-pointer"
+                      >
+                        <div className="flex items-center space-x-2.5 min-w-0">
+                          {statusIcon[b.status] ?? <Clock className="w-4 h-4 text-art-ink/40" />}
+                          <div className="min-w-0">
+                            <span className="font-semibold text-art-ink block truncate">{b.name}</span>
+                            <span className="text-[9px] font-mono text-art-ink/40 block truncate">{b.designModel.processNode} · v{b.version} · {(snap.grossMargin).toFixed(0)}% margin</span>
+                          </div>
+                        </div>
+                        <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border whitespace-nowrap shrink-0 ml-2 ${statusColor[b.status] ?? 'text-art-ink/40 bg-art-cream border-art-ink/10'}`}>
+                          {b.status}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <span className="text-[9px] bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded font-bold font-mono">Approved</span>
-              </div>
-
-              <div className="flex items-center justify-between text-xs p-2.5 rounded hover:bg-art-cream/30 transition-all border border-art-ink/10 bg-white">
-                <div className="flex items-center space-x-2.5">
-                  <AlertTriangle className="w-4 h-4 text-yellow-700" />
-                  <span className="font-semibold text-art-ink">Tapeout N3E Silicon Budget</span>
-                </div>
-                <span className="text-[9px] bg-yellow-50 text-yellow-700 border border-yellow-200 px-1.5 py-0.5 rounded font-bold font-mono">Needs Audit</span>
-              </div>
-
-              <div className="flex items-center justify-between text-xs p-2.5 rounded hover:bg-art-cream/30 transition-all border border-art-ink/10 bg-white">
-                <div className="flex items-center space-x-2.5">
-                  <Users className="w-4 h-4 text-art-rust" />
-                  <span className="font-semibold text-art-ink">Foundry Pricing Retendering</span>
-                </div>
-                <span className="text-[9px] bg-art-cream text-art-rust border border-art-rust/20 px-1.5 py-0.5 rounded font-bold font-mono">Q3 Review</span>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         </div>
       </div>
