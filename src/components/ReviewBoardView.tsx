@@ -52,7 +52,7 @@ export default function ReviewBoardView({ activeBuild, comments, activePersona, 
       <div>
         <div className="flex items-center space-x-3">
           <h1 className="text-xl font-serif font-black text-art-ink">Review Board</h1>
-          <span className={`text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded-full border ${STATUS_COLORS[activeBuild.status]?.text} ${STATUS_COLORS[activeBuild.status]?.border}`}>
+          <span className={`text-[10px] font-bold font-mono uppercase px-2 py-0.5 rounded-full border shadow-sm ${STATUS_COLORS[activeBuild.status]?.text} ${STATUS_COLORS[activeBuild.status]?.border}`}>
             {STATUS_LABELS[activeBuild.status]}
           </span>
         </div>
@@ -74,8 +74,8 @@ export default function ReviewBoardView({ activeBuild, comments, activePersona, 
                   <div className={`h-0.5 w-6 flex-shrink-0 ${isPast || isCurrent ? 'bg-art-rust' : 'bg-art-ink/10'}`} />
                 )}
                 <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-[10px] font-mono font-bold whitespace-nowrap border transition-all ${
-                  isPast ? `${sc.text} ${sc.border} opacity-60` :
-                  isCurrent ? `${sc.chip} text-white ${sc.border} shadow-md` :
+                  isPast ? `${sc.text} ${sc.border} bg-white shadow-sm` :
+                  isCurrent ? `${sc.chip} text-white ${sc.border} shadow-md border-transparent` :
                   'bg-art-cream/30 text-art-ink/30 border-art-ink/10'
                 }`}>
                   {STATUS_ICONS[s]}
@@ -90,7 +90,7 @@ export default function ReviewBoardView({ activeBuild, comments, activePersona, 
         <div className="mt-4 p-4 bg-art-cream/20 rounded-xl border border-art-ink/10 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center space-x-3 flex-wrap">
             <span className="text-[10px] font-bold font-mono uppercase text-art-ink/50">Status</span>
-            <span className={`text-xs font-bold font-mono uppercase px-2.5 py-1 rounded-full border ${STATUS_COLORS[activeBuild.status]?.text} ${STATUS_COLORS[activeBuild.status]?.border}`}>
+            <span className={`text-xs font-bold font-mono uppercase px-2.5 py-1 rounded-full border shadow-sm ${STATUS_COLORS[activeBuild.status]?.text} ${STATUS_COLORS[activeBuild.status]?.border}`}>
               {STATUS_LABELS[activeBuild.status]}
             </span>
             {currentOwner && (
