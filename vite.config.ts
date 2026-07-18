@@ -7,9 +7,12 @@ export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
     build: {
+      chunkSizeWarningLimit: 700,
       rollupOptions: {
         output: {
           manualChunks: {
+            'vendor-clerk': ['@clerk/clerk-react'],
+            'vendor-query': ['@tanstack/react-query'],
             'vendor-charts': ['recharts'],
             'vendor-icons': ['lucide-react'],
           },
