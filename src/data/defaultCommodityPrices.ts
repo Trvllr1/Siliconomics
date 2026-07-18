@@ -11,6 +11,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Taiwan',
     updatedDate: '2026-01-15',
     notes: 'Leading-edge N5/N4, ~800-900 good dies per wafer for typical compute die',
+    confidence: 'high',
   },
   {
     id: 'wafer-300mm-7nm',
@@ -22,6 +23,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Taiwan',
     updatedDate: '2026-01-15',
     notes: 'Mature 7nm/6nm, widely available across multiple foundries',
+    confidence: 'high',
   },
   {
     id: 'wafer-300mm-12nm',
@@ -33,6 +35,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Taiwan / Korea',
     updatedDate: '2026-01-15',
     notes: 'Cost-optimized for IoT, radio, and mature-node designs',
+    confidence: 'medium',
   },
   {
     id: 'wafer-200mm-mature',
@@ -44,6 +47,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Global',
     updatedDate: '2026-01-15',
     notes: 'Analog, power, MEMS; increasing supply constraints',
+    confidence: 'medium',
   },
   {
     id: 'substrate-fcbga',
@@ -55,6 +59,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Japan / Taiwan / Europe',
     updatedDate: '2026-01-15',
     notes: 'High-layer-count flip-chip BGA substrate for server-class ASICs',
+    confidence: 'high',
   },
   {
     id: 'substrate-fccsp',
@@ -66,6 +71,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Taiwan / SE Asia',
     updatedDate: '2026-01-15',
     notes: 'Standard flip-chip CSP substrate for mobile and networking',
+    confidence: 'high',
   },
   {
     id: 'interposer-silicon',
@@ -77,6 +83,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Taiwan',
     updatedDate: '2026-01-15',
     notes: 'Through-silicon-via interposer for HBM + logic integration',
+    confidence: 'high',
   },
   {
     id: 'interposer-fanout',
@@ -88,6 +95,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Taiwan / Korea',
     updatedDate: '2026-01-15',
     notes: 'Organic RDL-based interposer without TSVs',
+    confidence: 'high',
   },
   {
     id: 'mold-compound-emc',
@@ -99,6 +107,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Japan',
     updatedDate: '2026-01-15',
     notes: 'Standard EMC for transfer-molded packages',
+    confidence: 'high',
   },
   {
     id: 'underfill-capillary',
@@ -110,6 +119,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Germany / Japan',
     updatedDate: '2026-01-15',
     notes: 'Standard capillary underfill for flip-chip assemblies',
+    confidence: 'high',
   },
   {
     id: 'solder-ball-sac305',
@@ -121,6 +131,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Japan / US',
     updatedDate: '2026-01-15',
     notes: 'Standard lead-free solder balls for BGA/CSP',
+    confidence: 'high',
   },
   {
     id: 'test-socket-hpc',
@@ -132,6 +143,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Japan / US',
     updatedDate: '2026-01-15',
     notes: 'High-performance test socket amortized over ~100k insertions',
+    confidence: 'high',
   },
   {
     id: 'probe-card-mems',
@@ -143,6 +155,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'US / Japan',
     updatedDate: '2026-01-15',
     notes: 'Advanced MEMS probe card cost amortized per wafer contact',
+    confidence: 'high',
   },
   {
     id: 'memory-hbm3e-stack',
@@ -154,6 +167,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Korea / Japan / US',
     updatedDate: '2026-01-15',
     notes: 'High-bandwidth memory stack for AI/GPU accelerators',
+    confidence: 'high',
   },
   {
     id: 'memory-ddr5-dimm',
@@ -165,6 +179,7 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Korea / US / Japan',
     updatedDate: '2026-01-15',
     notes: 'Server DDR5, volatile pricing, spot market fluctuations apply',
+    confidence: 'high',
   },
   {
     id: 'memory-lpddr5x',
@@ -176,5 +191,6 @@ export const DEFAULT_COMMODITY_PRICES: CommodityPrice[] = [
     region: 'Korea / US / Japan',
     updatedDate: '2026-01-15',
     notes: 'Mobile DRAM die for compact packaging',
+    confidence: 'high',
   },
 ];

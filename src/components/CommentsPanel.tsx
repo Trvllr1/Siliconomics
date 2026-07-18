@@ -18,7 +18,6 @@ export default function CommentsPanel({
   buildId,
   elementId,
   elementLabel,
-  activePersona,
   onAddComment,
   onClose,
 }: CommentsPanelProps) {
@@ -34,8 +33,6 @@ export default function CommentsPanel({
     onAddComment(buildId, elementId, trimmed);
     setInput('');
   };
-
-  const pc = PERSONA_CONFIG[activePersona];
 
   return (
     <div className="bg-white border-2 border-art-ink/10 rounded-xl shadow-lg overflow-hidden">

@@ -2,7 +2,7 @@
 
 ## Defining the User Experience of the Siliconomics Platform
 
-### Version 1.0
+### Version 1.1 — Amended 2026-07-17
 
 ---
 
@@ -189,6 +189,42 @@ Formula Library
 Administration
 
 Help
+
+---
+
+# Workspace Components
+
+The platform provides several specialized workspaces in addition to the primary Build workspace.
+
+## Design Board
+
+**Component:** `DesignBoard.tsx`
+
+The DesignBoard is the primary design-editing surface. It renders the full DesignModel as a structured form with persona-based field-level edit gating. Fields are owned by specific personas (architect, manufacturing, finance, program) via the `FIELD_OWNER` map. When a Build is frozen (status past Draft), all fields become read-only.
+
+## Build View
+
+**Component:** `BuildView.tsx`
+
+Five collapsible sections (Engineering, Manufacturing, Financial, Program, Program Timeline & Time Modeling) each with input knobs on the left and metric cards on the right. The Timeline section exposes the `TimeModel` parameters: D0 yield-learning, ASP erosion, volume ramp, supply constraint, volume allocation, projection horizon, and respin risk.
+
+## Meeting Mode
+
+**Component:** `MeetingMode.tsx`
+
+Full-screen presentation mode for executive reviews. Supports slide navigation, side-by-side comparisons, metric drill-down, and decision capture. Activated from the top bar.
+
+## Command Palette
+
+**Component:** `CommandPalette.tsx`
+
+Global ⌘K command palette for navigating between builds, workspaces, and actions.
+
+## Charts View
+
+**Component:** `ChartsView.tsx`
+
+Six chart types: Murphy yield curve, cost stack breakdown, D0 sensitivity analysis, quarterly revenue & gross margin, cumulative cash flow with break-even, and D0 yield-learning & volume ramp.
 
 ---
 
@@ -488,9 +524,7 @@ Collaboration never alters immutable Builds.
 
 # Product Evolution
 
-Future versions may introduce:
-
-AI Advisors
+AI Advisor (shipped in v1.0)
 
 Optimization Engines
 
@@ -501,6 +535,8 @@ Market Intelligence
 Forecasting
 
 Supply Chain Analysis
+
+The AI Advisor (`AiAdvisor.tsx`) is shipped and operational. It follows the constitutional architecture: it consumes completed Builds, generates narrative from snapshot metrics, and never performs arithmetic or replaces the deterministic engine. Backed by a Gemini API proxy (`api/gemini-analyze.ts`) with a fallback local analysis mode when the API key is absent.
 
 These systems consume Builds.
 

@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { Build } from '../types';
 import { computeBuildMetrics, round } from '../utils/mathEngine';
 import { computeSensitivity, getTopSensitivities, SensitivityResult } from '../utils/SensitivityAnalysis';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, ReferenceLine } from 'recharts';
 import { TrendingUp, DollarSign, Percent, Package } from 'lucide-react';
 
 interface SensitivityViewProps {
@@ -18,39 +17,6 @@ const METRICS: { key: 'grossMargin' | 'roi' | 'grossCostPerGoodDie' | 'breakEven
 
 interface TornadoResult extends SensitivityResult {
   baselineMetric: number;
-}
-
-function TornadoChart({ result, metric, higherIsBetter }: { result: TornadoResult; metric: string; higherIsBetter: boolean }) {
-  const data = result.points
-    .filter((p) => Math.abs(p.variation) >= 10)
-    .map((p) => {
-      const val = (p as any)[metric] as number;
-      return {
-        name: p.label,
-        value: val,
-        fill: (higherIsBetter && val > result.baselineMetric) || (!higherIsBetter && val < result.baselineMetric) ? '#16a34a' : '#dc2626',
-      };
-    });
-
-  const baselineVal = result.baselineMetric;
-
-  return (
-    <div className="h-[200px] w-full text-[10px]">
-      <ResponsiveContainer>
-        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis type="number" tick={{ fontSize: 10 }} domain={['dataMin - 5', 'dataMax + 5']} />
-          <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={30} />
-          <Tooltip
-            formatter={(val: any) => [`${round(Number(val), 2)}`, metric]}
-            contentStyle={{ fontSize: 11, borderRadius: 6 }}
-          />
-          <ReferenceLine x={baselineVal} stroke="#6b7280" strokeDasharray="4 4" />
-          <Bar dataKey="value" fill="#8884d8" radius={[0, 3, 3, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
 }
 
 export default function SensitivityView({ activeBuild }: SensitivityViewProps) {

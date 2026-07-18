@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Build, PersonaType, MetricCardData, CalculationTrace, ActivityLog, Decision, Portfolio, ReferenceModel, FormulaEntry, Alert, Comment, BuildStatus, STATUS_TRANSITIONS } from './types';
+import React, { useState, useEffect } from 'react';
+import { Build, PersonaType, MetricCardData, CalculationTrace, ActivityLog, Decision, Portfolio, ReferenceModel, FormulaEntry, Alert, Comment, STATUS_TRANSITIONS } from './types';
 import { DEFAULT_BUILDS } from './data/defaultBuilds';
 import { DEFAULT_REFERENCE_MODELS } from './data/defaultReferenceModels';
 import { DEFAULT_FORMULA_LIBRARY } from './data/defaultFormulaLibrary';
@@ -12,6 +12,11 @@ import { DEFAULT_ALERT_RULES } from './data/defaultAlertRules';
 import { Archetype } from './data/archetypes';
 import { PERSONA_CONFIG } from './data/personaConfig';
 import { computeBuildMetrics, checkAlerts } from './utils/mathEngine';
+import { summarizeDatasetFreshness } from './utils/dataFreshness';
+import { decodeBuildFromHash, clearShareHash } from './utils/buildShare';
+import { PACKAGING_MODEL_PROVENANCE } from './data/packagingCostModel';
+import { useStorageAdapter } from './data/adapters/useAdapter';
+import { useAuthUser } from './utils/auth';
 import DashboardView from './components/DashboardView';
 import DesignBoard from './components/DesignBoard';
 import MetricsLab from './components/MetricsLab';
@@ -27,7 +32,7 @@ import ReferenceModelsView from './components/ReferenceModelsView';
 import FormulaLibraryView from './components/FormulaLibraryView';
 import MeetingMode from './components/MeetingMode';
 import CommandPalette from './components/CommandPalette';
-import CommentsPanel from './components/CommentsPanel';
+import TrustModal from './components/TrustModal';
 
 import {
   Monitor,
@@ -170,53 +175,71 @@ const getBuildDeltaDescription = (prev: Build, next: Build): string => {
   return changes.join(', ');
 };
 
+/** Persist to localStorage, warning instead of silently swallowing quota/permission errors. */
+function persistToStorage(key: string, serialize: () => string): boolean {
+  try {
+    localStorage.setItem(key, serialize());
+    return true;
+  } catch (err) {
+    console.warn(`Siliconomics: failed to persist "${key}" — changes may be lost on reload.`, err);
+    return false;
+  }
+}
+
 export default function App() {
+  const adapter = useStorageAdapter();
+  const authUser = useAuthUser();
+  const isDemoMode = authUser.id === 'demo-user';
+
   // Master states
   const [builds, setBuilds] = useState<Build[]>(() => {
     try {
-      const saved = localStorage.getItem('siliconomics_builds');
+      const saved = localStorage.getItem('siliconomics_builds_v2');
       if (!saved) return DEFAULT_BUILDS;
       const parsed = JSON.parse(saved);
       if (!Array.isArray(parsed)) return DEFAULT_BUILDS;
       const valid = parsed.filter((b: any) => b && b.designModel);
       return valid.length > 0 ? valid : DEFAULT_BUILDS;
-    } catch (e) {
+    } catch {
       return DEFAULT_BUILDS;
     }
   });
 
   const [lastSaved, setLastSaved] = useState<Date | null>(() => {
     try {
-      const saved = localStorage.getItem('siliconomics_builds');
+      const saved = localStorage.getItem('siliconomics_builds_v2');
       return saved ? new Date() : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   });
 
+  // Non-blocking banner shown when localStorage writes fail (quota exceeded, private mode, etc.)
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
+
   const [activities, setActivities] = useState<ActivityLog[]>(() => {
     try {
-      const saved = localStorage.getItem('siliconomics_activities');
+      const saved = localStorage.getItem('siliconomics_activities_v2');
       return saved ? JSON.parse(saved) : INITIAL_ACTIVITIES;
-    } catch (e) {
+    } catch {
       return INITIAL_ACTIVITIES;
     }
   });
 
   const [customArchetypes, setCustomArchetypes] = useState<Archetype[]>(() => {
     try {
-      const saved = localStorage.getItem('siliconomics_custom_archetypes');
+      const saved = localStorage.getItem('siliconomics_custom_archetypes_v2');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
 
   const [decisions, setDecisions] = useState<Decision[]>(() => {
     try {
-      const saved = localStorage.getItem('siliconomics_decisions');
+      const saved = localStorage.getItem('siliconomics_decisions_v2');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -235,33 +258,113 @@ export default function App() {
 
   const [portfolios, setPortfolios] = useState<Portfolio[]>(() => {
     try {
-      const saved = localStorage.getItem('siliconomics_portfolios');
+      const saved = localStorage.getItem('siliconomics_portfolios_v2');
       return saved ? JSON.parse(saved) : defaultPortfolios();
-    } catch (e) {
+    } catch {
       return defaultPortfolios();
     }
   });
 
   useEffect(() => {
-    try {
-      localStorage.setItem('siliconomics_portfolios', JSON.stringify(portfolios));
-    } catch (e) {}
+    if (!persistToStorage('siliconomics_portfolios_v2', () => JSON.stringify(portfolios))) {
+      setStorageWarning('Your browser blocked saving portfolios — recent changes may be lost on reload.');
+    }
   }, [portfolios]);
 
   const [referenceModels] = useState<ReferenceModel[]>(() => {
     try {
-      const saved = localStorage.getItem('siliconomics_reference_models');
+      const saved = localStorage.getItem('siliconomics_reference_models_v2');
       return saved ? JSON.parse(saved) : DEFAULT_REFERENCE_MODELS;
-    } catch (e) {
+    } catch {
       return DEFAULT_REFERENCE_MODELS;
     }
   });
 
+  const [customReferenceModels, setCustomReferenceModels] = useState<ReferenceModel[]>(() => {
+    try {
+      const saved = localStorage.getItem('siliconomics_custom_reference_models_v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleDuplicateReferenceModel = (source: ReferenceModel) => {
+    const clone: ReferenceModel = {
+      ...source,
+      id: `custom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: `${source.name} (Custom)`,
+      version: `v1.0-custom`,
+      createdDate: new Date().toISOString().split('T')[0]!,
+      updatedDate: new Date().toISOString().split('T')[0]!,
+      isCustom: true,
+      sourceModelId: source.id,
+    };
+    setCustomReferenceModels((prev) => {
+      const updated = [...prev, clone];
+      persistToStorage('siliconomics_custom_reference_models_v2', () => JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleUpdateCustomReferenceModel = (updated: ReferenceModel) => {
+    setCustomReferenceModels((prev) => {
+      const idx = prev.findIndex((m) => m.id === updated.id);
+      if (idx === -1) return prev;
+      const result = [...prev];
+      result[idx] = { ...updated, updatedDate: new Date().toISOString().split('T')[0]! };
+      persistToStorage('siliconomics_custom_reference_models_v2', () => JSON.stringify(result));
+      return result;
+    });
+  };
+
+  const handleDeleteCustomReferenceModel = (id: string) => {
+    setCustomReferenceModels((prev) => {
+      const updated = prev.filter((m) => m.id !== id);
+      persistToStorage('siliconomics_custom_reference_models_v2', () => JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleApplyCustomModel = (model: ReferenceModel, build: Build) => {
+    const designModel = { ...build.designModel };
+
+    // Map reference model parameters to designModel fields by category
+    switch (model.category) {
+      case 'foundry':
+        if (typeof model.parameters.waferCost === 'number') designModel.waferCost = model.parameters.waferCost;
+        if (typeof model.parameters.defectDensityPerCm2 === 'number') designModel.defectDensity = model.parameters.defectDensityPerCm2;
+        break;
+      case 'packaging':
+        if (typeof model.parameters.baseCostPerUnit === 'number') designModel.packagingCost = model.parameters.baseCostPerUnit;
+        break;
+      case 'labor':
+        if (typeof model.parameters.hourlyRateDesign === 'number') designModel.resolvedLaborRateDesign = model.parameters.hourlyRateDesign;
+        if (typeof model.parameters.hourlyRateVerification === 'number') designModel.resolvedLaborRateVerification = model.parameters.hourlyRateVerification;
+        designModel.laborReferenceModelId = model.id;
+        break;
+    }
+
+    const dv = build.dataVintage;
+    const updated: Build = {
+      ...build,
+      designModel,
+      referenceModel: model.name,
+      dataVintage: {
+        referenceModelVersion: model.version,
+        referenceModelVerified: model.updatedDate || model.createdDate,
+        packagingModelVersion: (dv && dv.packagingModelVersion) || 'v1.1',
+        commodityPriceDate: (dv && dv.commodityPriceDate) || '2026-01-15',
+      },
+    };
+    handleUpdateBuild(updated);
+  };
+
   const [formulaLibrary] = useState<FormulaEntry[]>(() => {
     try {
-      const saved = localStorage.getItem('siliconomics_formula_library');
+      const saved = localStorage.getItem('siliconomics_formula_library_v2');
       return saved ? JSON.parse(saved) : DEFAULT_FORMULA_LIBRARY;
-    } catch (e) {
+    } catch {
       return DEFAULT_FORMULA_LIBRARY;
     }
   });
@@ -269,9 +372,9 @@ export default function App() {
   const handleAddCustomArchetype = (newArch: Archetype) => {
     setCustomArchetypes((prev) => {
       const updated = [...prev, newArch];
-      try {
-        localStorage.setItem('siliconomics_custom_archetypes', JSON.stringify(updated));
-      } catch (e) {}
+      if (!persistToStorage('siliconomics_custom_archetypes_v2', () => JSON.stringify(updated))) {
+        setStorageWarning('Your browser blocked saving archetypes — recent changes may be lost on reload.');
+      }
       return updated;
     });
 
@@ -287,32 +390,65 @@ export default function App() {
   };
 
   useEffect(() => {
-    try {
-      localStorage.setItem('siliconomics_activities', JSON.stringify(activities));
-    } catch (e) {}
+    if (!persistToStorage('siliconomics_activities_v2', () => JSON.stringify(activities))) {
+      setStorageWarning('Your browser blocked saving activity history — recent changes may be lost on reload.');
+    }
   }, [activities]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('siliconomics_decisions', JSON.stringify(decisions));
-    } catch (e) {}
+    if (!persistToStorage('siliconomics_decisions_v2', () => JSON.stringify(decisions))) {
+      setStorageWarning('Your browser blocked saving decisions — recent changes may be lost on reload.');
+    }
   }, [decisions]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('siliconomics_builds', JSON.stringify(builds));
-      // Only set lastSaved if the builds are actually different from DEFAULT_BUILDS
+    if (isDemoMode) {
+      if (!persistToStorage('siliconomics_builds_v2', () => JSON.stringify(builds))) {
+        setStorageWarning('Your browser blocked saving builds — recent changes may be lost on reload.');
+        return;
+      }
       if (JSON.stringify(builds) !== JSON.stringify(DEFAULT_BUILDS)) {
         setLastSaved(new Date());
       } else {
         setLastSaved(null);
       }
-    } catch (e) {}
-  }, [builds]);
+    } else {
+      setLastSaved(new Date());
+    }
+  }, [builds, isDemoMode]);
 
   const [activeBuildId, setActiveBuildId] = useState<string>(DEFAULT_BUILDS[0]!.id);
   const [activeTab, setActiveTab] = useState<string>('dashboard'); // 'dashboard' | 'build' | 'compare' | 'decisions' | 'reports'
   const [activePersona, setActivePersona] = useState<PersonaType>('executive');
+
+  // Load shared build from URL hash on mount (demo mode only)
+  const [sharedBuildLoaded, setSharedBuildLoaded] = useState(false);
+  useEffect(() => {
+    if (sharedBuildLoaded) return;
+    if (!isDemoMode) { clearShareHash(); setSharedBuildLoaded(true); return; }
+
+    const { build, error } = decodeBuildFromHash();
+    if (build) {
+      const shared: Build = {
+        ...build,
+        id: `shared-${Date.now()}`,
+        status: 'Draft',
+        name: `[Shared] ${build.name}`,
+        creator: 'Shared via link',
+        createdDate: new Date().toISOString(),
+      };
+      setBuilds((prev) => {
+        if (prev.some((b) => b.id === shared.id)) return prev;
+        return [shared, ...prev];
+      });
+      setActiveBuildId(shared.id);
+    }
+    if (error) {
+      console.warn('Siliconomics: shared build error:', error);
+    }
+    clearShareHash();
+    setSharedBuildLoaded(true);
+  }, [isDemoMode, sharedBuildLoaded]);
 
   // Detail tracing states for Explainability panel
   const [hoveredTrace, setHoveredTrace] = useState<CalculationTrace | null>(null);
@@ -320,6 +456,7 @@ export default function App() {
 
   // Command palette state
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [showTrustDialog, setShowTrustDialog] = useState(false);
 
   // Meeting mode state
   const [meetingModeOpen, setMeetingModeOpen] = useState(false);
@@ -340,9 +477,9 @@ export default function App() {
 
   const [alerts, setAlerts] = useState<Alert[]>(() => {
     try {
-      const saved = localStorage.getItem('siliconomics_alerts');
+      const saved = localStorage.getItem('siliconomics_alerts_v2');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -361,7 +498,7 @@ export default function App() {
   }, [activeBuild.id, computedMetrics.snapshot.fullyLoadedCostPerDie]);
 
   useEffect(() => {
-    localStorage.setItem('siliconomics_alerts', JSON.stringify(alerts));
+    localStorage.setItem('siliconomics_alerts_v2', JSON.stringify(alerts));
   }, [alerts]);
 
   const handleAcknowledgeAlert = (alertId: string) => {
@@ -370,7 +507,7 @@ export default function App() {
 
   const [comments, setComments] = useState<Comment[]>(() => {
     try {
-      const saved = localStorage.getItem('siliconomics_comments');
+      const saved = localStorage.getItem('siliconomics_comments_v2');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -378,7 +515,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem('siliconomics_comments', JSON.stringify(comments));
+    localStorage.setItem('siliconomics_comments_v2', JSON.stringify(comments));
   }, [comments]);
 
   const [commentTarget, setCommentTarget] = useState<{ elementId: string; label: string } | null>(null);
@@ -397,13 +534,23 @@ export default function App() {
     setComments((prev) => [...prev, newComment]);
   };
 
-  const handleStatusTransition = () => {
+  const handleStatusTransition = async () => {
     const transition = STATUS_TRANSITIONS[activeBuild.status];
     if (!transition) return;
     if (transition.requiredPersona !== activePersona) return;
 
-    const updated: Build = { ...activeBuild, status: transition.next };
-    handleUpdateBuild(updated);
+    if (!isDemoMode) {
+      try {
+        const updated = await adapter.transitionStatus(activeBuild.id);
+        setBuilds((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+      } catch (err: any) {
+        setStorageWarning(`Status transition failed: ${err.message}`);
+        return;
+      }
+    } else {
+      const updated: Build = { ...activeBuild, status: transition.next };
+      handleUpdateBuild(updated);
+    }
 
     const newLog: ActivityLog = {
       id: `act-${Date.now()}`,
@@ -418,8 +565,10 @@ export default function App() {
 
   const handleClearDraft = () => {
     try {
-      localStorage.removeItem('siliconomics_builds');
-    } catch (e) {}
+      localStorage.removeItem('siliconomics_builds_v2');
+    } catch (err) {
+      console.warn('Siliconomics: failed to clear saved builds from localStorage.', err);
+    }
     setBuilds(DEFAULT_BUILDS);
     setLastSaved(null);
 
@@ -492,21 +641,63 @@ export default function App() {
     });
   };
 
-  const handleCommitBuild = (newBuild: Build) => {
+  const handleCommitBuild = async (newBuild: Build) => {
+    const buildWithVintage = newBuild.dataVintage ? newBuild : {
+      ...newBuild,
+      creator: newBuild.creator || authUser.name,
+      dataVintage: {
+        referenceModelVersion: referenceModels.reduce((latest, m) => m.updatedDate > latest.updatedDate ? m : latest).version,
+        referenceModelVerified: referenceModels.reduce((latest, m) => m.updatedDate > latest.updatedDate ? m : latest).provenance.lastVerified,
+        packagingModelVersion: 'v1.1',
+        commodityPriceDate: '2026-01-15',
+      },
+    };
+
+    if (!isDemoMode) {
+      try {
+        const created = await adapter.createBuild(buildWithVintage);
+        setBuilds((prev) => [...prev, created]);
+        setActiveBuildId(created.id);
+        return;
+      } catch (err: any) {
+        setStorageWarning(`Failed to save build: ${err.message}`);
+        return;
+      }
+    }
+
     const newLog: ActivityLog = {
       id: `act-${Date.now()}`,
-      buildId: newBuild.id,
-      buildName: newBuild.name,
+      buildId: buildWithVintage.id,
+      buildName: buildWithVintage.name,
       timestamp: new Date().toISOString(),
       type: 'commit',
-      delta: `Committed new build version v${newBuild.version}`,
+      delta: `Committed new build version v${buildWithVintage.version}`,
     };
     setActivities((act) => [newLog, ...act]);
-    setBuilds((prev) => [...prev, newBuild]);
-    setActiveBuildId(newBuild.id);
+    setBuilds((prev) => [...prev, buildWithVintage]);
+    setActiveBuildId(buildWithVintage.id);
   };
 
-  const handleDuplicateScenario = (sourceBuild: Build) => {
+  const handleDuplicateScenario = async (sourceBuild: Build) => {
+    if (!isDemoMode) {
+      try {
+        const newBuild = await adapter.newVersion(sourceBuild.id, `Copy of ${sourceBuild.name}`, {
+          dataVintage: sourceBuild.dataVintage ?? {
+            referenceModelVersion: referenceModels.reduce((latest, m) => m.updatedDate > latest.updatedDate ? m : latest).version,
+            referenceModelVerified: referenceModels.reduce((latest, m) => m.updatedDate > latest.updatedDate ? m : latest).provenance.lastVerified,
+            packagingModelVersion: 'v1.1',
+            commodityPriceDate: '2026-01-15',
+          },
+        });
+        setBuilds((prev) => [...prev, newBuild]);
+        setActiveBuildId(newBuild.id);
+        return;
+      } catch (err: any) {
+        setStorageWarning(`Failed to create new version: ${err.message}`);
+        return;
+      }
+    }
+
     const dupId = `build-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const verParts = sourceBuild.version.match(/^v?(\d+)\.(\d+)$/);
     const newVersion = verParts && verParts[1] && verParts[2]
@@ -520,6 +711,12 @@ export default function App() {
       description: `Derived from ${sourceBuild.name} v${sourceBuild.version}`,
       parentId: sourceBuild.id,
       status: 'Draft',
+      dataVintage: sourceBuild.dataVintage ?? {
+        referenceModelVersion: referenceModels.reduce((latest, m) => m.updatedDate > latest.updatedDate ? m : latest).version,
+        referenceModelVerified: referenceModels.reduce((latest, m) => m.updatedDate > latest.updatedDate ? m : latest).provenance.lastVerified,
+        packagingModelVersion: 'v1.1',
+        commodityPriceDate: '2026-01-15',
+      },
     };
     const newLog: ActivityLog = {
       id: `act-${Date.now()}`,
@@ -541,7 +738,16 @@ export default function App() {
 
   const activeTrace = hoveredTrace || clickedTrace;
 
-  const handleQuickCompare = (idA: string, idB: string) => {
+  const freshnessSummary = summarizeDatasetFreshness(
+    referenceModels,
+    formulaLibrary,
+    [], // commodity prices — loaded but not wired into engine; provenance tracked for audit
+    PACKAGING_MODEL_PROVENANCE.lastVerified,
+  );
+  const [freshnessBannerDismissed, setFreshnessBannerDismissed] = useState(false);
+  const showFreshnessBanner = freshnessSummary.overallLevel !== 'fresh' && !freshnessBannerDismissed;
+
+  const handleQuickCompare = (_idA: string, _idB: string) => {
     setActiveTab('compare');
   };
 
@@ -553,13 +759,57 @@ export default function App() {
     }, 0);
   };
 
-  const handleRecordDecision = (decision: Decision) => {
+  const handleRecordDecision = async (decision: Decision) => {
+    if (!isDemoMode) {
+      try {
+        const created = await adapter.recordDecision({
+          buildIds: decision.buildIds,
+          outcome: decision.outcome,
+          approver: decision.approver,
+          rationale: decision.rationale,
+          followUpActions: decision.followUpActions,
+        });
+        setDecisions((prev) => [created, ...prev]);
+        return;
+      } catch (err: any) {
+        setStorageWarning(`Failed to record decision: ${err.message}`);
+        return;
+      }
+    }
     setDecisions((prev) => [decision, ...prev]);
   };
 
   return (
     <div className="min-h-screen bg-art-cream flex flex-col font-sans text-art-ink antialiased overflow-x-hidden">
-      
+
+      {storageWarning && (
+        <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-[11px] px-4 py-1.5 flex items-center justify-between flex-shrink-0">
+          <span>{storageWarning}</span>
+          <button
+            onClick={() => setStorageWarning(null)}
+            className="font-bold ml-4 cursor-pointer hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {showFreshnessBanner && (
+        <div className={`border-b text-[11px] px-4 py-1.5 flex items-center justify-between flex-shrink-0 ${
+          freshnessSummary.overallLevel === 'stale' ? 'bg-red-100 border-red-300 text-red-900' : 'bg-amber-100 border-amber-300 text-amber-900'
+        }`}>
+          <span>
+            {freshnessSummary.overallLevel === 'stale' ? '⚠' : '⚡'} Reference data freshness: {freshnessSummary.referenceModels.stale + freshnessSummary.referenceModels.aging} of {freshnessSummary.referenceModels.total} reference models, {freshnessSummary.formulas.stale + freshnessSummary.formulas.aging} of {freshnessSummary.formulas.total} formulas require review.
+          </span>
+          <button
+            onClick={() => setFreshnessBannerDismissed(true)}
+            className="font-bold ml-4 cursor-pointer hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Top micro navbar */}
       <header className="h-11 bg-white border-b border-art-ink/10 flex items-center justify-between px-4 select-none z-10 flex-shrink-0">
         <div className="flex items-center space-x-2">
@@ -859,6 +1109,10 @@ export default function App() {
             <div className="text-[9px] text-art-ink/40 font-mono text-center block">
               Time: 2026-07-15 UTC
             </div>
+            <button onClick={() => setShowTrustDialog(true)}
+              className="w-full text-[9px] font-mono text-art-ink/30 hover:text-art-rust transition-all cursor-pointer text-center py-1">
+              Trust & Data Handling
+            </button>
           </div>
         </nav>
 
@@ -884,17 +1138,18 @@ export default function App() {
           {activeTab === 'build' && (
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="lg:w-1/2 xl:w-2/5 space-y-4 overflow-y-auto max-h-[calc(100vh-8rem)]">
-                <DesignBoard
-                  activeBuild={activeBuild}
-                  onUpdateBuild={handleUpdateBuild}
-                  onCommitBuild={handleCommitBuild}
-                  activePersona={activePersona}
-                  onAddCustomArchetype={handleAddCustomArchetype}
-                  lastSaved={lastSaved}
-                  onClearDraft={handleClearDraft}
-                  models={referenceModels}
-                  onStatusTransition={handleStatusTransition}
-                />
+                  <DesignBoard
+                    activeBuild={activeBuild}
+                    onUpdateBuild={handleUpdateBuild}
+                    onCommitBuild={handleCommitBuild}
+                    activePersona={activePersona}
+                    onAddCustomArchetype={handleAddCustomArchetype}
+                    lastSaved={lastSaved}
+                    onClearDraft={handleClearDraft}
+                    models={referenceModels}
+                    onStatusTransition={handleStatusTransition}
+                    isDemoMode={isDemoMode}
+                  />
               </div>
               <div className="lg:w-1/2 xl:w-3/5 space-y-4 overflow-y-auto max-h-[calc(100vh-8rem)]">
                 <MetricsLab
@@ -944,7 +1199,15 @@ export default function App() {
 
           {/* Reference Models Tab */}
           {activeTab === 'refmodels' && (
-            <ReferenceModelsView models={referenceModels} />
+            <ReferenceModelsView
+              models={referenceModels}
+              customModels={customReferenceModels}
+              onDuplicateModel={handleDuplicateReferenceModel}
+              onUpdateCustomModel={handleUpdateCustomReferenceModel}
+              onDeleteCustomModel={handleDeleteCustomReferenceModel}
+              onApplyModel={handleApplyCustomModel}
+              activeBuild={activeBuild}
+            />
           )}
 
           {/* Formula Library Tab */}
@@ -1019,6 +1282,8 @@ export default function App() {
                 trace={activeTrace} 
                 metricsList={computedMetrics?.snapshot.metricsList}
                 onSelectTrace={(trace) => setClickedTrace(trace)}
+                provenance={activeTrace ? referenceModels.find(m => m.name === activeTrace.referenceModel || m.id === activeTrace.referenceModel)?.provenance : undefined}
+                dataVintage={activeBuild.dataVintage}
               />
             ) : (
               <AiAdvisor 
@@ -1058,7 +1323,9 @@ export default function App() {
         onChangePersona={setActivePersona}
         onNavigate={setActiveTab}
         onQuickCompare={handleQuickCompare}
+        onOpenTrust={() => { setCommandPaletteOpen(false); setShowTrustDialog(true); }}
       />
+      <TrustModal isOpen={showTrustDialog} onClose={() => setShowTrustDialog(false)} />
     </div>
   );
 }

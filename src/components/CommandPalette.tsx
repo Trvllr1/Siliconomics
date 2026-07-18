@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Build, PersonaType } from '../types';
-import { Search, Monitor, Cpu, Database, Award, Settings, Terminal, Zap, ArrowRight, User } from 'lucide-react';
+import { Search, Monitor, Cpu, Terminal, Zap, ArrowRight, User, ShieldCheck } from 'lucide-react';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -17,6 +17,7 @@ interface CommandPaletteProps {
   onChangePersona: (persona: PersonaType) => void;
   onNavigate: (tab: string) => void;
   onQuickCompare: (idA: string, idB: string) => void;
+  onOpenTrust: () => void;
 }
 
 interface CommandItem {
@@ -38,6 +39,7 @@ export default function CommandPalette({
   onChangePersona,
   onNavigate,
   onQuickCompare,
+  onOpenTrust,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -142,6 +144,17 @@ export default function CommandPalette({
       icon: <Zap className="w-4 h-4 text-art-rust" />
     });
   }
+
+  commands.push({
+    id: 'op-trust',
+    category: 'Advanced Strategic Tools',
+    label: 'View Trust & Data Handling Disclosure',
+    action: () => {
+      onOpenTrust();
+      onClose();
+    },
+    icon: <ShieldCheck className="w-4 h-4 text-art-rust" />
+  });
 
   // Filter commands by query
   const filteredCommands = commands.filter((cmd) =>

@@ -49,7 +49,7 @@ function applyVariation(build: Build, param: SensitivityParam, pct: number): Bui
   return updated;
 }
 
-export function computeSensitivity(build: Build, baseSnap: Snapshot): SensitivityResult[] {
+export function computeSensitivity(build: Build, _baseSnap: Snapshot): SensitivityResult[] {
   const dm = build.designModel;
   const results: SensitivityResult[] = [];
   const params: SensitivityParam[] = ['defectDensity', 'waferCost', 'asp', 'dieArea', 'nreCost', 'packagingYield', 'testYield', 'targetVolume', 'packagingCost'];

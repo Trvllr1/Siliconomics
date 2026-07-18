@@ -3,9 +3,8 @@ import { Build, ArchitectureBlock, BlockCategory, PersonaType } from '../types';
 import { round } from '../utils/mathEngine';
 import { BLOCK_FIELD_OWNER } from '../data/personaConfig';
 import {
-  Cpu, Plus, Trash2, Edit3, DollarSign, Save, AlertCircle,
-  Sliders, Clock, ShieldAlert, Truck, Wrench, ArrowRight,
-  CheckCircle, BookOpen
+  Cpu, Plus, Trash2, Edit3, Save, AlertCircle,
+  Sliders, ArrowRight
 } from 'lucide-react';
 
 interface ArchitectureBomViewProps {
@@ -42,12 +41,6 @@ const CATEGORY_COLORS: Record<BlockCategory, string> = {
   rf: 'bg-rose-50 border-rose-200 text-rose-700',
   clocking: 'bg-slate-50 border-slate-200 text-slate-700',
   other: 'bg-gray-50 border-gray-200 text-gray-700',
-};
-
-const CATEGORY_DEFECT: Record<BlockCategory, number> = {
-  cpu: 1.0, memory: 1.5, security: 1.0, interconnect: 1.0,
-  accelerator: 1.0, io: 1.0, power: 0.8, packaging: 0,
-  networking: 1.0, rf: 0.7, clocking: 0.9, other: 1.0,
 };
 
 export default function ArchitectureBomView({ activeBuild, onUpdateBuild, activePersona }: ArchitectureBomViewProps) {

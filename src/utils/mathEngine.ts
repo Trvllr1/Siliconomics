@@ -3,7 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Build, DesignModel, MetricCardData, CalculationTrace, Snapshot, CostContributor, SupplyChainSnapshot, SupplyChainRiskLevel, CommodityPrice, ArchitectureBlock, AlertRule, Alert, AlertSeverity } from '../types';
+import { Build, DesignModel, MetricCardData, Snapshot, CostContributor, SupplyChainSnapshot, SupplyChainRiskLevel, ArchitectureBlock, AlertRule, Alert } from '../types';
+import { computeTimeProjection } from './timeEngine';
+import {
+  PACKAGING_COST_MODEL,
+  EMIB_BRIDGE_COST_USD,
+  EMIB_BRIDGES_PER_PACKAGE,
+  SUPPLY_CHAIN_WEIGHTS,
+} from '../data/packagingCostModel';
 
 /**
  * Rounds a number to a specified number of decimal places
@@ -49,8 +56,6 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
   const {
     processNode,
     dieArea,
-    dieWidth,
-    dieHeight,
     transistorCount,
     tdp,
     topology,
@@ -72,35 +77,19 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
 
   const mpwEnabled = mpw?.enabled ?? false;
 
-  // CoWoS / Advanced Packaging configuration
+  // CoWoS / Advanced Packaging configuration.
+  // NOTE: interposer COST is computed after the topology block below, once totalDieArea
+  // is known, so the default interposer area reflects the full system footprint.
   const packagingType = dm.packagingType ?? 'standard';
   const isAdvancedPackaging = packagingType !== 'standard';
-  let interposerArea = dm.interposerArea ?? dieArea * 1.2;
-
-  const cowosConfig = isAdvancedPackaging
-    ? ({
-        'cowos-s': { costPerMm2: 3.50, yield: 0.96, label: 'CoWoS-S Silicon Interposer' },
-        'cowos-r': { costPerMm2: 1.20, yield: 0.98, label: 'CoWoS-R RDL Interposer' },
-        'cowos-l': { costPerMm2: 2.20, yield: 0.97, label: 'CoWoS-L Local SI + RDL' },
-        'emib': { costPerMm2: 0, yield: 0.99, label: 'Intel EMIB' },
-      } as const)[packagingType]
-    : null;
-
-  let interposerCostPerUnit = 0;
+  const cowosConfig = isAdvancedPackaging ? PACKAGING_COST_MODEL[packagingType] : null;
   const interposerYieldFraction = cowosConfig ? cowosConfig.yield : 1;
-  const pkgAssemblyYieldFraction = packagingYield / 100;
-  if (cowosConfig) {
-    interposerCostPerUnit = packagingType === 'emib'
-      ? 12.00 * 2
-      : (interposerArea * cowosConfig.costPerMm2) / cowosConfig.yield;
-  }
 
   // MPW-adjusted values override standard NRE/volume when shuttle pricing is active
   const mpwNreCost = mpwEnabled && mpw ? (mpw.shuttleCostPerSlot * mpw.shuttlesPerYear) / 1_000_000 : nreCost;
   const mpwTargetVolume = mpwEnabled && mpw ? (mpw.diesPerSlot * mpw.shuttlesPerYear) / 1_000_000 : targetVolume;
   const effectiveNreCost = mpwEnabled ? mpwNreCost : nreCost;
   const effectiveTargetVolume = mpwEnabled ? mpwTargetVolume : targetVolume;
-  const mpwWarning = mpwEnabled && mpw && dieArea > mpw.reticleSlotArea ? '⚠ Die exceeds reticle slot area' : '';
 
   // Architecture BOM — block-level cost waterfall
   const arch = build.architecture;
@@ -110,30 +99,22 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
   const totalRoyaltyBurdenPerUnit = archBlocks.reduce((s, b) => s + (b.royaltyPerUnit ?? 0), 0);
   const effectiveNreCostIp = effectiveNreCost + totalLicenseFeesM + totalIpNreM;
 
-  // Block-weighted effective defect density (from category → defect mapping)
-  const catDefect: Record<string, number> = {
-    cpu: 1.0, memory: 1.5, security: 1.0, interconnect: 1.0,
-    accelerator: 1.0, io: 1.0, power: 0.8, packaging: 0,
-    networking: 1.0, rf: 0.7, clocking: 0.9, other: 1.0,
-  };
-  let blockBreakdownAreaWarning = '';
-  if (archBlocks.length > 0) {
-    const totalBlockArea = archBlocks.reduce((s, b) => s + b.estimatedAreaMm2, 0);
-    if (totalBlockArea > 0) {
-      const weightedD0 = archBlocks.reduce((s, b) => s + b.estimatedAreaMm2 * (catDefect[b.category] ?? 1.0), 0) / totalBlockArea;
-      const areaDiff = Math.abs(totalBlockArea - dieArea);
-      if (areaDiff > dieArea * 0.05) {
-        blockBreakdownAreaWarning = `Block area sum (${round(totalBlockArea, 1)} mm²) differs from die area (${dieArea} mm²) by ${round(areaDiff, 1)} mm². Yield estimate uses weighted defect density.`;
-      }
-    }
-  }
-
   // 1. Engineering Area & Yield Math
-  let totalDieArea = dieArea;
-  let dpw = 0;
-  let dieYield = 0;
-  let yieldExplanation = '';
-  let dpwExplanation = '';
+  // Unified KGD (known-good-die) semantics for BOTH topologies:
+  //   dieYield       = silicon sort yield only (Murphy model), before packaging
+  //   effectiveYield = dieYield × interposerYield × packageAssemblyYield × testYield
+  let totalDieArea: number;
+  let dpw: number;
+  let dieYield: number;
+  let yieldExplanation: string;
+  let dpwExplanation: string;
+
+  // Per-die values for chiplet topology (hoisted so cost math reuses the exact same numbers)
+  const coreYield = calculateMurphyYield(dieArea, defectDensity);
+  const coreDPW = calculateDPW(dieArea);
+  const hasIoDie = ioDieArea > 0;
+  const ioYield = hasIoDie ? calculateMurphyYield(ioDieArea, defectDensity) : 1;
+  const ioDPW = hasIoDie ? calculateDPW(ioDieArea) : 0;
 
   const waferDiameter = 300;
   const waferArea = Math.PI * Math.pow(waferDiameter / 2, 2); // ~70685.83 mm2
@@ -146,41 +127,31 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     yieldExplanation = `Murphy's Model: ((1 - e^(-A * D0)) / (A * D0))^2 for monolith area ${totalDieArea} mm²`;
     dpwExplanation = `DPW = (π * d²) / (4 * A) - (π * d) / √(2 * A) for area ${totalDieArea} mm²`;
   } else {
-    // Chiplet topology
-    // We have 'chipletCount' of CPU/Core chiplets (dieArea is the core chiplet area)
-    // plus 1 I/O die (ioDieArea)
-    const coreArea = dieArea;
-    const coreDPW = calculateDPW(coreArea);
-    const coreYield = calculateMurphyYield(coreArea, defectDensity);
+    // Chiplet topology: 'chipletCount' core chiplets (dieArea each) plus one optional I/O die.
+    // Silicon yield of a complete set = probability that all chiplets AND the I/O die are good.
+    dieYield = Math.pow(coreYield, chipletCount) * ioYield;
+    totalDieArea = (dieArea * chipletCount) + ioDieArea;
 
-    const ioYield = calculateMurphyYield(ioDieArea, defectDensity);
-    const ioDPW = calculateDPW(ioDieArea);
-
-    // Yield for the package's silicon is the yield of getting all chiplets good
-    // multiplied by advanced packaging assembly yield
-    const siliconYield = Math.pow(coreYield, chipletCount) * ioYield;
+    // Equivalent systems-per-wafer: each system consumes (chipletCount / coreDPW) wafer
+    // equivalents of core silicon plus (1 / ioDPW) for the I/O die. The reciprocal gives
+    // complete systems per wafer-equivalent of silicon. Smaller dies pack better than one
+    // large monolith, and this derives that advantage geometrically instead of assuming it.
+    const waferEquivalentsPerSystem =
+      chipletCount / Math.max(1, coreDPW) + (hasIoDie ? 1 / Math.max(1, ioDPW) : 0);
+    dpw = waferEquivalentsPerSystem > 0 ? Math.floor(1 / waferEquivalentsPerSystem) : 0;
     
-    // Overall effective silicon-assembly yield
-    dieYield = siliconYield * interposerYieldFraction * pkgAssemblyYieldFraction;
-    totalDieArea = (coreArea * chipletCount) + ioDieArea;
-    
-    // Equivalent DPW is based on core and I/O die constraints.
-    // For every complete system, we need 'chipletCount' cores and 1 I/O.
-    // So equivalent DPW per wafer is complex. Let's simplify equivalent DPW:
-    // How many systems can we build per wafer equivalent?
-    // Cost of silicon set = (chipletCount * CoreCost) + IoCost
-    // Or we can define equivalent DPW as WaferArea / totalDieArea * utilization
-    dpw = Math.floor(calculateDPW(totalDieArea) * 1.15); // Chiplet layout packing is 15% better due to smaller die modularity!
-    
-    yieldExplanation = cowosConfig
-      ? `Chiplet System: (CoreYield^${chipletCount} * IoYield) * InterposerYield (${(cowosConfig.yield * 100).toFixed(1)}%) * PkgYield (${packagingYield}%)`
-      : `Chiplet System: (CoreYield^${chipletCount} * IoYield) * AdvancedPkgYield (${packagingYield}%)`;
-    dpwExplanation = `Equivalent DPW representing chiplet packaging efficiency. Cores DPW: ${coreDPW}, I/O DPW: ${ioDPW}`;
+    yieldExplanation = `Chiplet silicon yield: CoreYield^${chipletCount} * IoYield. Interposer and packaging yields are applied in effective yield.`;
+    dpwExplanation = `Equivalent systems per wafer: 1 / (${chipletCount}/CoreDPW + 1/IoDPW). Cores DPW: ${coreDPW}, I/O DPW: ${ioDPW}`;
   }
 
-  // Update interposerArea default based on computed totalDieArea if user didn't set one explicitly
-  if (dm.interposerArea === undefined) {
-    interposerArea = totalDieArea * 1.2;
+  // Interposer area defaults to 120% of the full system silicon footprint.
+  const interposerArea = dm.interposerArea ?? totalDieArea * 1.2;
+  let interposerCostPerUnit = 0;
+  if (cowosConfig) {
+    interposerCostPerUnit =
+      packagingType === 'emib'
+        ? EMIB_BRIDGE_COST_USD * EMIB_BRIDGES_PER_PACKAGE
+        : (interposerArea * cowosConfig.costPerMm2) / cowosConfig.yield;
   }
 
   // Transistor density: Billion Transistors / Area (M Tr/mm2)
@@ -192,12 +163,12 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
   const waferUtilization = Math.min(98, (dpw * totalDieArea) / waferArea * 100);
 
   // 2. Manufacturing Yield Math
-  const pkgYieldFraction = packagingYield / 100;
-  const testYieldFraction = testYield / 100;
-  const effectiveYield = dieYield * (topology === 'monolithic' ? pkgYieldFraction : 1) * testYieldFraction; // Packaging yield is already counted in chiplet siliconYield
+  // Packaging, interposer, and test yields are applied exactly once, identically for both topologies.
+  const pkgYieldFraction = Math.min(1, Math.max(0, packagingYield / 100));
+  const testYieldFraction = Math.min(1, Math.max(0.0001, testYield / 100)); // floor guards divide-by-zero in per-good-unit cost
+  const effectiveYield = dieYield * interposerYieldFraction * pkgYieldFraction * testYieldFraction;
 
   // Monthly good chips
-  const rawDiesPerWafer = dpw * dieYield;
   const goodDiesPerWafer = dpw * effectiveYield;
   const monthlyGoodChips = goodDiesPerWafer * waferStartsPerMonth;
   const annualVolumeMillion = (monthlyGoodChips * 12) / 1000000;
@@ -206,21 +177,13 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
   // 3. Financial Costs
   // Raw Die Cost ($)
   // If monolithic:
-  let rawDieCost = 0;
+  let rawDieCost: number;
   if (topology === 'monolithic') {
     rawDieCost = waferCost / Math.max(1, dpw * dieYield);
   } else {
-    // If chiplet, let's represent silicon sets cost:
-    // Cores cost + I/O cost + Packaging
-    const coreArea = dieArea;
-    const coreYield = calculateMurphyYield(coreArea, defectDensity);
-    const coreDPW = calculateDPW(coreArea);
+    // Chiplet silicon set cost: cores + optional I/O die, using per-die DPW and sort yield.
     const coreCost = waferCost / Math.max(1, coreDPW * coreYield);
-
-    const ioYield = calculateMurphyYield(ioDieArea, defectDensity);
-    const ioDPW = calculateDPW(ioDieArea);
-    const ioCost = waferCost / Math.max(1, ioDPW * ioYield);
-
+    const ioCost = hasIoDie ? waferCost / Math.max(1, ioDPW * ioYield) : 0;
     rawDieCost = (coreCost * chipletCount) + ioCost;
   }
 
@@ -419,11 +382,10 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
           `Murphy raw yield result: ${round(dieYield * 100, 2)}%`
         ]
       : [
-          `Core chiplet area: ${dieArea} mm² -> yield: ${round(calculateMurphyYield(dieArea, defectDensity) * 100, 1)}%`,
-          `I/O die area: ${ioDieArea} mm² -> yield: ${round(calculateMurphyYield(ioDieArea, defectDensity) * 100, 1)}%`,
-          `Advanced Packaging Assembly Yield: ${packagingYield}%`,
-          `Multi-die system yields: (CoreYield ^ ${chipletCount}) * IoYield * PackagingYield`,
-          `Final system-in-package effective silicon yield: ${round(dieYield * 100, 2)}%`
+          `Core chiplet area: ${dieArea} mm² -> yield: ${round(coreYield * 100, 1)}%`,
+          `I/O die area: ${ioDieArea} mm² -> yield: ${round(ioYield * 100, 1)}%`,
+          `Multi-die silicon yield: (CoreYield ^ ${chipletCount}) * IoYield = ${round(dieYield * 100, 2)}%`,
+          `Packaging (${packagingYield}%) and interposer yields are applied in effective yield, not die yield`
         ]
   );
 
@@ -517,8 +479,8 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
           `Silicon Cost = $${waferCost} / ${round(dpw * dieYield, 2)} = $${round(rawDieCost, 2)}`
         ]
       : [
-          `Core Die Area: ${dieArea} mm² -> Yield: ${round(calculateMurphyYield(dieArea, defectDensity)*100,1)}% -> Cost: $${round(waferCost / (calculateDPW(dieArea) * calculateMurphyYield(dieArea, defectDensity)), 2)}`,
-          `I/O Die Area: ${ioDieArea} mm² -> Yield: ${round(calculateMurphyYield(ioDieArea, defectDensity)*100,1)}% -> Cost: $${round(waferCost / (calculateDPW(ioDieArea) * calculateMurphyYield(ioDieArea, defectDensity)), 2)}`,
+          `Core Die Area: ${dieArea} mm² -> Yield: ${round(coreYield * 100, 1)}% -> Cost: $${round(waferCost / Math.max(1, coreDPW * coreYield), 2)}`,
+          `I/O Die Area: ${ioDieArea} mm² -> Yield: ${round(ioYield * 100, 1)}% -> Cost: $${hasIoDie ? round(waferCost / Math.max(1, ioDPW * ioYield), 2) : 0}`,
           `System Silicon Cost = (CoreCost * ${chipletCount}) + IoCost = $${round(rawDieCost, 2)}`
         ]
   );
@@ -760,7 +722,6 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
   // --- ARCHITECTURE BOM — IP PORTFOLIO METRICS ---
   if (archBlocks.length > 0) {
     const ipNreTotal = totalLicenseFeesM + totalIpNreM;
-    const ipCostPerUnit = effectiveTargetVolume > 0 ? (ipNreTotal * 1000000) / (effectiveTargetVolume * 1000000) : 0;
     const ipCostPctCogs = fullyLoadedCostPerDie > 0 ? ((amortizedTotalNreCost + totalRoyaltyBurden) / fullyLoadedCostPerDie) * 100 : 0;
     const externalCount = archBlocks.filter(b => b.implementation === 'licensed').length;
 
@@ -830,10 +791,73 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     );
   }
 
+  // --- TIME-DIMENSION METRICS (when timeModel is present) ---
+  if (build.timeModel) {
+    const timeResult = computeTimeProjection(build);
+
+    if (timeResult.breakEvenQuarter != null) {
+      addMetric(
+        'break_even_quarter',
+        'Break-Even Quarter',
+        `Q${timeResult.breakEvenQuarter + 1}`,
+        'quarter',
+        88,
+        `Cumulative CF: $${round(timeResult.expected.cumulativeCashFlowM, 1)}M`,
+        timeResult.breakEvenQuarter <= 12 ? 'positive' : 'negative',
+        timeResult.breakEvenQuarter <= 12 ? 'up' : 'down',
+        'program',
+        'BE_q = min{ q | Σ(netProfit_0..q) ≥ 0 }',
+        { breakEvenQuarter: timeResult.breakEvenQuarter },
+        'First quarter where cumulative net cash flow turns non-negative.',
+        'SIA Time-Dimension Modeling v3.0',
+        [`Time-phased break-even at quarter ${timeResult.breakEvenQuarter}`]
+      );
+    }
+
+    addMetric(
+      'program_constraint',
+      'Program Constraint',
+      timeResult.programConstraint === 'supply' ? 'Supply-Constrained' : timeResult.programConstraint === 'demand' ? 'Demand-Constrained' : 'Balanced',
+      'constraint',
+      90,
+      timeResult.programConstraint === 'supply' ? 'Increase wafer starts' : timeResult.programConstraint === 'demand' ? 'Expand market' : 'Optimal',
+      timeResult.programConstraint === 'balanced' ? 'positive' : 'neutral',
+      'flat',
+      'program',
+      'Shipped_q = min(Supply_q × Ramp(q), Demand_q)',
+      { maxSupply: build.timeModel.maxQuarterlySupplyMillion ?? 0, targetVolume: dm.targetVolume },
+      'Whether the program is constrained by manufacturing supply or market demand.',
+      'SIA Supply-Demand Reconciliation v3.0',
+      [timeResult.constraintExplanation]
+    );
+
+    if (timeResult.withRespin) {
+      addMetric(
+        'respin_adjusted_net',
+        'Respin-Adjusted Expected Net',
+        `$${round(timeResult.expected.totalNetProfitM, 1)}M`,
+        'USD',
+        80,
+        `Baseline: $${round(timeResult.baseline.totalNetProfitM, 1)}M`,
+        timeResult.expected.totalNetProfitM > 0 ? 'positive' : 'negative',
+        timeResult.expected.totalNetProfitM > 0 ? 'up' : 'down',
+        'program',
+        'E[P] = (1-p_r) × P_baseline + p_r × P_respin',
+        { baselineNetM: timeResult.baseline.totalNetProfitM, respinProbability: build.timeModel.respin?.probability ?? 0, respinNetM: timeResult.withRespin.totalNetProfitM },
+        'Probability-weighted expected net profit accounting for respin risk.',
+        'SIA Respin Risk Model v3.0',
+        [
+          `Baseline: $${round(timeResult.baseline.totalNetProfitM, 1)}M`,
+          `With Respin: $${round(timeResult.withRespin.totalNetProfitM, 1)}M`,
+          `Expected: $${round(timeResult.expected.totalNetProfitM, 1)}M`
+        ]
+      );
+    }
+  }
+
   // --- CoWoS / ADVANCED PACKAGING METRICS ---
   if (isAdvancedPackaging && cowosConfig) {
     const cowosThermalDensity = interposerArea > 0 ? tdp / interposerArea : 0;
-    const cowosSavingsVsStandard = packagingCost > 0 ? ((packagingCost - interposerCostPerUnit) / packagingCost) * 100 : 0;
 
     addMetric(
       'interposer_cost',
@@ -852,7 +876,7 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
       'Per-unit cost contribution of the interposer or bridge in the advanced packaging stack.',
       `${cowosConfig.label} Pricing v1.0`,
       packagingType === 'emib'
-        ? [`Bridge bridges per package: 2`, `Cost per bridge: $12.00`, `Bridge yield: ${(cowosConfig.yield * 100).toFixed(1)}%`, `Interposer cost: $${round(interposerCostPerUnit, 2)}`]
+        ? [`Bridges per package: ${EMIB_BRIDGES_PER_PACKAGE}`, `Cost per bridge: $${EMIB_BRIDGE_COST_USD.toFixed(2)}`, `Bridge yield: ${(cowosConfig.yield * 100).toFixed(1)}%`, `Interposer cost: $${round(interposerCostPerUnit, 2)}`]
         : [`Interposer area: ${round(interposerArea, 1)} mm²`, `Cost per mm²: $${cowosConfig.costPerMm2.toFixed(2)}`, `Interposer yield: ${(cowosConfig.yield * 100).toFixed(1)}%`, `Interposer cost: (${round(interposerArea, 1)} × $${cowosConfig.costPerMm2.toFixed(2)}) / ${(cowosConfig.yield * 100).toFixed(1)}% = $${round(interposerCostPerUnit, 2)}`]
     );
 
@@ -874,7 +898,7 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
     );
 
     if (topology === 'chiplet') {
-      const cowosYieldMultiplier = interposerYieldFraction * pkgAssemblyYieldFraction;
+      const cowosYieldMultiplier = interposerYieldFraction * pkgYieldFraction;
       addMetric(
         'cowos_yield_multiplier',
         'CoWoS Yield Multiplier',
@@ -933,7 +957,7 @@ export function computeBuildMetrics(build: Build): ComputedBuildMetrics {
 
 function computeSupplyChainMetrics(
   blocks: ArchitectureBlock[],
-  waferCost: number,
+  siliconCostPerUnit: number,
   packagingCost: number,
   isAdvancedPackaging: boolean
 ): SupplyChainSnapshot {
@@ -955,15 +979,18 @@ function computeSupplyChainMetrics(
     : 'low';
 
   // Commodity costs embedded in the build
-  const commodityCostPerUnit = round(
-    (waferCost || 0) + (packagingCost || 0) + (isAdvancedPackaging ? 15 : 0),
-    2
-  );
+  const advPkgAdder = isAdvancedPackaging ? SUPPLY_CHAIN_WEIGHTS.advancedPackagingCommodityAdder : 0;
+  const commodityCostPerUnit = round((siliconCostPerUnit || 0) + (packagingCost || 0) + advPkgAdder, 2);
 
-  // Supplier concentration: estimate from implementation types
+  // Supplier concentration: estimate from implementation types (heuristic weights, see packagingCostModel.ts)
+  const concW = SUPPLY_CHAIN_WEIGHTS.supplierConcentration;
   const licensedCount = blocks.filter(b => b.implementation === 'licensed').length;
   const supplierConcentrationScore = totalBlocks > 0
-    ? round((licensedCount / totalBlocks) * 50 + (highRiskBlockCount / Math.max(totalBlocks, 1)) * 50, 1)
+    ? round(
+        (licensedCount / totalBlocks) * concW.licensedWeight +
+          (highRiskBlockCount / totalBlocks) * concW.highRiskWeight,
+        1
+      )
     : 0;
 
   // Geopolitical: estimate from high-risk blocks
@@ -971,21 +998,25 @@ function computeSupplyChainMetrics(
     ? round((highRiskBlockCount / totalBlocks) * 100, 1)
     : 10;
 
+  const voltW = SUPPLY_CHAIN_WEIGHTS.leadTimeVolatility;
   const leadTimeVolatilityScore = totalBlocks > 0
     ? round(
-        (blocks.filter(b => b.supplyChainRisk === 'high').length / totalBlocks) * 60 +
-        (blocks.filter(b => b.supplyChainRisk === 'medium').length / totalBlocks) * 30 +
-        (blocks.filter(b => b.supplyChainRisk === 'low').length / totalBlocks) * 10,
+        (blocks.filter(b => b.supplyChainRisk === 'high').length / totalBlocks) * voltW.high +
+        (blocks.filter(b => b.supplyChainRisk === 'medium').length / totalBlocks) * voltW.medium +
+        (blocks.filter(b => b.supplyChainRisk === 'low').length / totalBlocks) * voltW.low,
         1
       )
     : 5;
 
-  // Risk-adjusted cost adder as % uplift on wafer cost
-  const riskAdjustedCostAdder = round(waferCost * (compositeRiskScore / 100) * 0.15, 2);
+  // Risk-adjusted cost adder as % uplift on per-unit silicon cost
+  const riskAdjustedCostAdder = round(
+    siliconCostPerUnit * (compositeRiskScore / 100) * SUPPLY_CHAIN_WEIGHTS.maxRiskCostUplift,
+    2
+  );
 
   const topCommodityCosts = [
-    { name: 'Wafer (front-end)', costPerUnit: waferCost, category: 'wafer' as const },
-    { name: 'Package & Test', costPerUnit: packagingCost + (isAdvancedPackaging ? 15 : 0), category: 'substrate' as const },
+    { name: 'Wafer (front-end)', costPerUnit: siliconCostPerUnit, category: 'wafer' as const },
+    { name: 'Package & Test', costPerUnit: packagingCost + advPkgAdder, category: 'substrate' as const },
   ];
 
   return {

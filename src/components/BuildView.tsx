@@ -4,14 +4,13 @@
  */
 
 import React, { useState } from 'react';
-import { Build, DesignModel, MetricCardData, PersonaType } from '../types';
+import { Build, DesignModel, MetricCardData, PersonaType, TimeModel, RespinConfig } from '../types';
 import { Archetype } from '../data/archetypes';
 import { ComputedBuildMetrics, round, computeBuildMetrics } from '../utils/mathEngine';
 import { DEFAULT_BUILDS } from '../data/defaultBuilds';
 import { 
   ChevronDown, 
   ChevronUp, 
-  Settings, 
   FileCheck, 
   HelpCircle, 
   Sliders, 
@@ -19,7 +18,6 @@ import {
   Activity, 
   DollarSign, 
   Briefcase,
-  AlertCircle,
   GitBranch,
   FileText,
   Database,
@@ -32,7 +30,8 @@ import {
   ShieldAlert,
   Shield,
   Trash2,
-  CloudLightning
+  CloudLightning,
+  Clock
 } from 'lucide-react';
 
 const LOWER_IS_BETTER_METRICS = new Set([
@@ -65,7 +64,6 @@ export default function BuildView({
   computedMetrics,
   onUpdateBuild,
   onCommitBuild,
-  activePersona,
   onHoverMetric,
   onClickMetric,
   onAddCustomArchetype,
@@ -101,7 +99,6 @@ export default function BuildView({
       defectDensity,
       packagingCost,
       testTimeSeconds,
-      testCostPerSecond,
       testYield,
       packagingYield
     } = dm;
@@ -109,11 +106,6 @@ export default function BuildView({
     // A. Yield Stability Risk (0-100)
     // Influenced by defect density, total silicon area, and topology.
     const totalArea = topology === 'monolithic' ? dieArea : (dieArea * chipletCount + ioDieArea);
-    
-    // Murphy yield estimate of core die
-    const d0_mm2 = defectDensity / 100;
-    const ad0 = dieArea * d0_mm2;
-    const coreYield = ad0 > 0 ? Math.pow((1 - Math.exp(-ad0)) / ad0, 2) : 1;
     
     // Higher defect density and larger total area lead to higher yield volatility.
     let yieldRisk = 25; // Base risk
@@ -250,6 +242,7 @@ export default function BuildView({
     manufacturing: true,
     financial: true,
     program: true,
+    timeline: true,
     riskAnalysis: true,
   });
 
@@ -390,7 +383,7 @@ export default function BuildView({
     setExpanded((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const handleInputChange = (field: keyof DesignModel, value: any) => {
+  const handleInputChange = <K extends keyof DesignModel>(field: K, value: DesignModel[K]) => {
     const updated = {
       ...activeBuild,
       designModel: { ...activeBuild.designModel, [field]: value }
@@ -417,6 +410,58 @@ export default function BuildView({
       }
     }
 
+    onUpdateBuild(updated);
+  };
+
+  const handleTimeModelChange = <K extends keyof TimeModel>(field: K, value: TimeModel[K]) => {
+    const currentTm = activeBuild.timeModel || {
+      d0Initial: 0.15,
+      d0Mature: 0.08,
+      d0Tau: 6,
+      rampShape: 'linear' as const,
+      rampDurationQuarters: 4,
+      peakQuarterlyVolumeMillion: 0.3,
+      annualAspErosionPct: 3,
+      maxQuarterlySupplyMillion: 0.5,
+      respin: null,
+      projectionQuarters: 20,
+      volumeAllocation: 'even' as const,
+    };
+    const updated = {
+      ...activeBuild,
+      timeModel: { ...currentTm, [field]: value },
+    };
+    onUpdateBuild(updated);
+  };
+
+  const handleRespinChange = <K extends keyof RespinConfig>(field: K, value: RespinConfig[K]) => {
+    const currentTm = activeBuild.timeModel || {
+      d0Initial: 0.15,
+      d0Mature: 0.08,
+      d0Tau: 6,
+      rampShape: 'linear' as const,
+      rampDurationQuarters: 4,
+      peakQuarterlyVolumeMillion: 0.3,
+      annualAspErosionPct: 3,
+      maxQuarterlySupplyMillion: 0.5,
+      respin: null,
+      projectionQuarters: 20,
+      volumeAllocation: 'even' as const,
+    };
+    const currentRespin = currentTm.respin || {
+      probability: 0,
+      costM: 50,
+      scheduleDelayQuarters: 2,
+      yieldImpact: 1.2,
+      recoveryQuarters: 4,
+    };
+    const updated = {
+      ...activeBuild,
+      timeModel: {
+        ...currentTm,
+        respin: { ...currentRespin, [field]: value },
+      },
+    };
     onUpdateBuild(updated);
   };
 
@@ -634,7 +679,7 @@ export default function BuildView({
                   <label className="block text-[10px] font-bold text-art-ink/60 uppercase font-mono mb-1">Industry Segment / Classification</label>
                   <select
                     value={archCategory}
-                    onChange={(e) => setArchCategory(e.target.value as any)}
+                    onChange={(e) => setArchCategory(e.target.value as typeof archCategory)}
                     className="w-full px-2 py-1.5 border border-art-ink/15 rounded bg-white text-art-ink text-xs focus:outline-none focus:border-art-rust font-mono"
                   >
                     <option value="ASIC">ASIC (Custom Compute)</option>
@@ -1241,7 +1286,272 @@ export default function BuildView({
           )}
         </div>
 
-        {/* SECTION 5: SILICON RISK ANALYSIS & COMPLIANCE */}
+        {/* SECTION 5: PROGRAM TIMELINE & TIME MODELING */}
+        <div className="bg-white border-2 border-art-ink/10 rounded-xl shadow-sm overflow-hidden">
+          <button
+            onClick={() => toggleSection('timeline')}
+            className="w-full px-4 py-3.5 bg-art-cream/30 hover:bg-art-cream/60 transition-colors duration-150 flex items-center justify-between border-b border-art-ink/10"
+          >
+            <div className="flex items-center space-x-2 text-art-ink">
+              <Clock className="w-4.5 h-4.5 text-art-rust" />
+              <span className="text-xs font-bold uppercase tracking-[0.15em] font-mono">Program Timeline & Time Modeling</span>
+            </div>
+            {expanded.timeline ? <ChevronUp className="w-4 h-4 text-art-ink/50" /> : <ChevronDown className="w-4 h-4 text-art-ink/50" />}
+          </button>
+
+          {expanded.timeline && (
+            <div className="p-5 grid grid-cols-1 lg:grid-cols-4 gap-6 bg-white">
+              {/* Inputs Panel */}
+              <div className="lg:col-span-1 bg-art-cream/40 p-4 rounded-xl border border-art-ink/10 space-y-4">
+                <div className="flex items-center space-x-1.5 border-b border-art-ink/10 pb-2">
+                  <Sliders className="w-4 h-4 text-art-rust" />
+                  <span className="text-[10px] font-bold text-art-ink/50 uppercase tracking-[0.15em] font-mono">Time Modeling Knobs</span>
+                </div>
+
+                {/* D0 Yield Learning */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <label className="font-bold text-art-ink/50 uppercase font-mono">Initial D0</label>
+                    <span className="font-mono text-art-ink font-bold">{activeBuild.timeModel?.d0Initial?.toFixed(2) ?? '-'} /cm²</span>
+                  </div>
+                  <input
+                    type="range" min="0.04" max="0.50" step="0.01"
+                    value={activeBuild.timeModel?.d0Initial ?? 0.15}
+                    onChange={(e) => handleTimeModelChange('d0Initial', Number(e.target.value))}
+                    className="w-full accent-art-rust"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <label className="font-bold text-art-ink/50 uppercase font-mono">Mature D0</label>
+                    <span className="font-mono text-art-ink font-bold">{activeBuild.timeModel?.d0Mature?.toFixed(2) ?? '-'} /cm²</span>
+                  </div>
+                  <input
+                    type="range" min="0.02" max="0.30" step="0.01"
+                    value={activeBuild.timeModel?.d0Mature ?? 0.08}
+                    onChange={(e) => handleTimeModelChange('d0Mature', Number(e.target.value))}
+                    className="w-full accent-art-rust"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <label className="font-bold text-art-ink/50 uppercase font-mono">Learning Rate (τ)</label>
+                    <span className="font-mono text-art-ink font-bold">{activeBuild.timeModel?.d0Tau ?? '-'} q</span>
+                  </div>
+                  <input
+                    type="range" min="1" max="20" step="1"
+                    value={activeBuild.timeModel?.d0Tau ?? 6}
+                    onChange={(e) => handleTimeModelChange('d0Tau', Number(e.target.value))}
+                    className="w-full accent-art-rust"
+                  />
+                </div>
+
+                {/* Volume Ramp */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <label className="font-bold text-art-ink/50 uppercase font-mono">Ramp Shape</label>
+                    <span className="font-mono text-art-ink font-bold capitalize">{activeBuild.timeModel?.rampShape ?? 'linear'}</span>
+                  </div>
+                  <select
+                    value={activeBuild.timeModel?.rampShape ?? 'linear'}
+                    onChange={(e) => handleTimeModelChange('rampShape', e.target.value as TimeModel['rampShape'])}
+                    className="w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-semibold cursor-pointer"
+                  >
+                    <option value="linear">Linear</option>
+                    <option value="s-curve">S-Curve</option>
+                    <option value="flat">Flat (Instant)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <label className="font-bold text-art-ink/50 uppercase font-mono">Ramp Duration</label>
+                    <span className="font-mono text-art-ink font-bold">{activeBuild.timeModel?.rampDurationQuarters ?? '-'} q</span>
+                  </div>
+                  <input
+                    type="range" min="1" max="16" step="1"
+                    value={activeBuild.timeModel?.rampDurationQuarters ?? 4}
+                    onChange={(e) => handleTimeModelChange('rampDurationQuarters', Number(e.target.value))}
+                    className="w-full accent-art-rust"
+                  />
+                </div>
+
+                {/* ASP Erosion */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <label className="font-bold text-art-ink/50 uppercase font-mono">Annual ASP Erosion</label>
+                    <span className="font-mono text-art-ink font-bold">{activeBuild.timeModel?.annualAspErosionPct ?? '-'}%/yr</span>
+                  </div>
+                  <input
+                    type="range" min="0" max="20" step="0.5"
+                    value={activeBuild.timeModel?.annualAspErosionPct ?? 3}
+                    onChange={(e) => handleTimeModelChange('annualAspErosionPct', Number(e.target.value))}
+                    className="w-full accent-art-rust"
+                  />
+                </div>
+
+                {/* Supply Constraint */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <label className="font-bold text-art-ink/50 uppercase font-mono">Max Quarterly Supply</label>
+                    <span className="font-mono text-art-ink font-bold">{activeBuild.timeModel?.maxQuarterlySupplyMillion?.toFixed(2) ?? '-'}M</span>
+                  </div>
+                  <input
+                    type="range" min="0.01" max="10" step="0.01"
+                    value={activeBuild.timeModel?.maxQuarterlySupplyMillion ?? 0.5}
+                    onChange={(e) => handleTimeModelChange('maxQuarterlySupplyMillion', Number(e.target.value))}
+                    className="w-full accent-art-rust"
+                  />
+                </div>
+
+                {/* Volume Allocation */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <label className="font-bold text-art-ink/50 uppercase font-mono">Volume Allocation</label>
+                    <span className="font-mono text-art-ink font-bold capitalize">{activeBuild.timeModel?.volumeAllocation ?? 'even'}</span>
+                  </div>
+                  <select
+                    value={activeBuild.timeModel?.volumeAllocation ?? 'even'}
+                    onChange={(e) => handleTimeModelChange('volumeAllocation', e.target.value as TimeModel['volumeAllocation'])}
+                    className="w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-semibold cursor-pointer"
+                  >
+                    <option value="even">Even (Uniform)</option>
+                    <option value="front-loaded">Front-Loaded</option>
+                    <option value="back-loaded">Back-Loaded</option>
+                    <option value="bell">Bell Curve</option>
+                  </select>
+                </div>
+
+                {/* Projection Horizon */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <label className="font-bold text-art-ink/50 uppercase font-mono">Projection Horizon</label>
+                    <span className="font-mono text-art-ink font-bold">{activeBuild.timeModel?.projectionQuarters ?? '-'} q ({((activeBuild.timeModel?.projectionQuarters ?? 20) / 4).toFixed(0)} yr)</span>
+                  </div>
+                  <input
+                    type="range" min="4" max="40" step="4"
+                    value={activeBuild.timeModel?.projectionQuarters ?? 20}
+                    onChange={(e) => handleTimeModelChange('projectionQuarters', Number(e.target.value))}
+                    className="w-full accent-art-rust"
+                  />
+                </div>
+
+                {/* Respin Risk */}
+                <div className="border-t border-art-ink/10 pt-3 mt-3">
+                  <div className="flex items-center space-x-1.5 mb-2">
+                    <span className="text-[10px] font-bold text-art-ink/50 uppercase tracking-[0.15em] font-mono">Respin Risk</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[10px]">
+                      <label className="font-bold text-art-ink/50 uppercase font-mono">Respin Probability</label>
+                      <span className="font-mono text-art-ink font-bold">{((activeBuild.timeModel?.respin?.probability ?? 0) * 100).toFixed(0)}%</span>
+                    </div>
+                    <input
+                      type="range" min="0" max="100" step="5"
+                      value={(activeBuild.timeModel?.respin?.probability ?? 0) * 100}
+                      onChange={(e) => handleRespinChange('probability', Number(e.target.value) / 100)}
+                      className="w-full accent-art-rust"
+                    />
+                  </div>
+
+                  {(activeBuild.timeModel?.respin?.probability ?? 0) > 0 && (
+                    <>
+                      <div className="space-y-1 mt-2">
+                        <div className="flex justify-between text-[10px]">
+                          <label className="font-bold text-art-ink/50 uppercase font-mono">Respin Cost</label>
+                          <span className="font-mono text-art-ink font-bold">${activeBuild.timeModel?.respin?.costM ?? '-'}M</span>
+                        </div>
+                        <input
+                          type="range" min="10" max="500" step="10"
+                          value={activeBuild.timeModel?.respin?.costM ?? 50}
+                          onChange={(e) => handleRespinChange('costM', Number(e.target.value))}
+                          className="w-full accent-art-rust"
+                        />
+                      </div>
+
+                      <div className="space-y-1 mt-2">
+                        <div className="flex justify-between text-[10px]">
+                          <label className="font-bold text-art-ink/50 uppercase font-mono">Schedule Delay</label>
+                          <span className="font-mono text-art-ink font-bold">{activeBuild.timeModel?.respin?.scheduleDelayQuarters ?? '-'} q</span>
+                        </div>
+                        <input
+                          type="range" min="0" max="8" step="1"
+                          value={activeBuild.timeModel?.respin?.scheduleDelayQuarters ?? 2}
+                          onChange={(e) => handleRespinChange('scheduleDelayQuarters', Number(e.target.value))}
+                          className="w-full accent-art-rust"
+                        />
+                      </div>
+
+                      <div className="space-y-1 mt-2">
+                        <div className="flex justify-between text-[10px]">
+                          <label className="font-bold text-art-ink/50 uppercase font-mono">Yield Impact</label>
+                          <span className="font-mono text-art-ink font-bold">{((activeBuild.timeModel?.respin?.yieldImpact ?? 1) - 1) * 100}% worse</span>
+                        </div>
+                        <input
+                          type="range" min="1" max="2" step="0.1"
+                          value={activeBuild.timeModel?.respin?.yieldImpact ?? 1.2}
+                          onChange={(e) => handleRespinChange('yieldImpact', Number(e.target.value))}
+                          className="w-full accent-art-rust"
+                        />
+                      </div>
+
+                      <div className="space-y-1 mt-2">
+                        <div className="flex justify-between text-[10px]">
+                          <label className="font-bold text-art-ink/50 uppercase font-mono">Recovery Time</label>
+                          <span className="font-mono text-art-ink font-bold">{activeBuild.timeModel?.respin?.recoveryQuarters ?? '-'} q</span>
+                        </div>
+                        <input
+                          type="range" min="1" max="12" step="1"
+                          value={activeBuild.timeModel?.respin?.recoveryQuarters ?? 4}
+                          onChange={(e) => handleRespinChange('recoveryQuarters', Number(e.target.value))}
+                          className="w-full accent-art-rust"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Outputs Panel */}
+              <div className="lg:col-span-3 space-y-3">
+                <div className="flex items-center space-x-2 text-[10px] font-bold text-art-ink/50 uppercase font-mono border-b border-art-ink/10 pb-2">
+                  <Clock className="w-3.5 h-3.5 text-art-rust" />
+                  <span>Time-Phased Metrics</span>
+                </div>
+
+                {(activeBuild.timeModel ? programMetrics : []).length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {programMetrics.map((m) => m.trace.name.includes('Time') || m.trace.name.includes('Quarter') || m.trace.name.includes('Constraint') || m.trace.name.includes('Respin')
+                      ? (() => {
+                          const { snapshot: ts } = computeBuildMetrics(activeBuild);
+                          const timeMetrics = ts.metricsList.filter(tm2 =>
+                            ['time_model_enabled', 'break_even_quarter', 'program_constraint', 'respin_adjusted_net'].includes(tm2.id)
+                          );
+                          return timeMetrics.map(m2 => renderMetricCard(m2));
+                        })()
+                      : null
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-10 bg-art-cream/20 rounded-xl border border-dashed border-art-ink/20">
+                    <Clock className="w-8 h-8 mx-auto text-art-ink/20 mb-2" />
+                    <p className="text-xs text-art-ink/40 font-semibold">
+                      Time-dimension modeling not enabled for this build.
+                    </p>
+                    <p className="text-[10px] text-art-ink/30 mt-1">
+                      Adjust the knobs above to enable time-phased projections.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 6: SILICON RISK ANALYSIS & COMPLIANCE */}
         <div className="bg-white border-2 border-art-ink/10 rounded-xl shadow-sm overflow-hidden">
           <button
             type="button"

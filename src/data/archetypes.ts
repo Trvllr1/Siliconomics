@@ -1,6 +1,12 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Archetype templates are illustrative design starting points, not audited reference data.
+ * Each archetype carries process & cost assumptions that should be validated against
+ * current ReferenceModel and CommodityPrice entries before being used for production
+ * cost analysis. See defaultReferenceModels.ts and defaultCommodityPrices.ts for
+ * versioned, provenance-tracked baseline values.
  */
 
 import { Build, FoundryType, PackagingType } from '../types';
@@ -280,7 +286,7 @@ export function convertArchetypeToBuild(archetype: Archetype, name: string, vers
     portfolio: `${archetype.category} Projects`,
     createdDate: new Date().toISOString().split('T')[0] ?? '',
     referenceModel: `${archetype.name} Baseline Template`,
-    formulaVersion: 'Murphy-SIA-v4.1',
+    formulaVersion: 'Murphy-SIA-v4.3',
     designModel: {
       processNode: archetype.processNode,
       dieArea: archetype.dieArea,

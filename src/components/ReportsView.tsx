@@ -2,8 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Build, Decision, MetricCardData, ArchitectureBlock } from '../types';
 import { computeBuildMetrics } from '../utils/mathEngine';
 import { metricsToCsv, consolidatedToCsv, downloadCsv } from '../utils/csvGenerator';
-import { generateConsolidatedAudit, downloadPdf } from '../utils/pdfGenerator';
-import { FileText, Download, Clock, ArrowRight, FileCheck, Loader, CheckCircle, FileSpreadsheet } from 'lucide-react';
+import { FileText, Download, Clock, FileCheck, Loader, CheckCircle, FileSpreadsheet } from 'lucide-react';
 
 interface ReportsViewProps {
   builds: Build[];
@@ -28,6 +27,8 @@ export default function ReportsView({ builds, decisions }: ReportsViewProps) {
       const blocks: ArchitectureBlock[] = build.architecture?.blocks ?? [];
 
       if (type === 'pdf') {
+        // Lazy-load the PDF stack (jspdf + html2canvas) so it stays out of the initial bundle.
+        const { generateConsolidatedAudit, downloadPdf } = await import('../utils/pdfGenerator');
         const doc = generateConsolidatedAudit([build], []);
         downloadPdf(doc, `siliconomics-${build.id}-${new Date().toISOString().slice(0, 10)}.pdf`);
       } else {
@@ -48,6 +49,7 @@ export default function ReportsView({ builds, decisions }: ReportsViewProps) {
     setExportType(type);
     try {
       if (type === 'pdf') {
+        const { generateConsolidatedAudit, downloadPdf } = await import('../utils/pdfGenerator');
         const doc = generateConsolidatedAudit(builds, decisions);
         downloadPdf(doc, `siliconomics-consolidated-${new Date().toISOString().slice(0, 10)}.pdf`);
       } else {

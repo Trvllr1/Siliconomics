@@ -8,7 +8,7 @@ import ChartsView from './ChartsView';
 import SensitivityView from './SensitivityView';
 import CostContributorView from './CostContributorView';
 import SupplyChainView from './SupplyChainView';
-import { ChevronUp, ChevronDown, HelpCircle, ShieldAlert, Shield, Wrench, Cpu, Database, FileText, Fingerprint, Package, Sliders, Activity, DollarSign, Briefcase, Award, Copy, Check, BarChart3, TrendingUp, FileCheck, AlertCircle, Shuffle, Truck, MessageSquare } from 'lucide-react';
+import { ChevronUp, ChevronDown, HelpCircle, ShieldAlert, Shield, Wrench, Cpu, Database, FileText, Fingerprint, Package, Sliders, Activity, DollarSign, Briefcase, Award, Copy, Check, BarChart3, TrendingUp, Shuffle, Truck, MessageSquare } from 'lucide-react';
 
 const LOWER_IS_BETTER_METRICS = new Set(['total_die_area', 'raw_die_cost', 'gross_die_cost', 'break_even']);
 
@@ -62,11 +62,8 @@ export default function MetricsLab({
   const [isCopied, setIsCopied] = useState(false);
 
   const riskMetrics = React.useMemo(() => {
-    const { processNode, dieArea, transistorCount, tdp, topology, chipletCount, ioDieArea, defectDensity, packagingCost, testTimeSeconds, testCostPerSecond, testYield, packagingYield } = dm;
+    const { processNode, dieArea, transistorCount, tdp, topology, chipletCount, ioDieArea, defectDensity, packagingCost, testTimeSeconds, testYield, packagingYield } = dm;
     const totalArea = topology === 'monolithic' ? dieArea : (dieArea * chipletCount + ioDieArea);
-    const d0_mm2 = defectDensity / 100;
-    const ad0 = dieArea * d0_mm2;
-    const coreYield = ad0 > 0 ? Math.pow((1 - Math.exp(-ad0)) / ad0, 2) : 1;
 
     let yieldRisk = 25 + Math.min(35, (totalArea / 800) * 35) + Math.min(25, (defectDensity / 0.3) * 25);
     if (topology === 'monolithic') { if (dieArea > 350) yieldRisk += 15; }
@@ -312,7 +309,7 @@ export default function MetricsLab({
               {[
                 { title: 'Yield Stability', score: riskMetrics.yieldStabilityScore, desc: 'Assesses vulnerability of die yield to line fluctuations.', items: [`Defect Density: ${dm.defectDensity <= 0.05 ? 'Low' : dm.defectDensity <= 0.15 ? 'Moderate' : 'Severe'}`, `Total Area: ${Math.round(riskMetrics.totalArea)} mm²`, `Topology: ${dm.topology === 'chiplet' ? 'Chiplet Defect Redundancy' : 'None (Monolithic Die)'}`], note: dm.topology === 'chiplet' ? '✓ Chiplets isolate defects to smaller dies.' : '⚠ Monolithic die makes entire system vulnerable to single point-of-defect.' },
                 { title: 'Process Complexity', score: riskMetrics.processComplexityScore, desc: 'Measures wafer fab execution complexity.', items: [`Node: ${dm.processNode}`, `Foundry: ${dm.foundry === 'intel' ? 'Intel Foundry Services' : dm.foundry === 'samsung' ? 'Samsung Foundry' : 'TSMC'}`, `Packaging: ${dm.packagingType === 'standard' ? 'Standard Substrate' : dm.packagingType === 'emib' ? 'Intel EMIB' : dm.packagingType?.toUpperCase() ?? 'Standard'}`, `Density: ${Math.round((dm.transistorCount * 1000) / riskMetrics.totalArea)} M/mm²`, `Thermal: ${round(dm.tdp / riskMetrics.totalArea, 3)} W/mm²`], note: dm.foundry === 'intel' ? '⚠ Intel Foundry early-ramping nodes have higher defect density uncertainty.' : dm.processNode === '3nm' ? '⚠ 3nm demands GAA architecture, high electromigration risk.' : dm.processNode === '5nm' ? '⚠ 5nm uses extreme EUV double-patterning.' : '✓ Mature lithography node.' },
-                { title: 'Test Cost Volatility', score: riskMetrics.testVolatilityRiskScore, desc: 'Measures economic exposure to scrap and test overhead.', items: [`Test Time: ${dm.testTimeSeconds}s`, `Package Scrap: \$${dm.packagingCost.toFixed(2)}`, `Test Yield: ${dm.testYield}% pass rate`], note: dm.testTimeSeconds > 90 ? '⚠ Extended test insertion amplifies bottlenecks.' : '✓ Lean test program limits cycle time exposure.' },
+                { title: 'Test Cost Volatility', score: riskMetrics.testVolatilityRiskScore, desc: 'Measures economic exposure to scrap and test overhead.', items: [`Test Time: ${dm.testTimeSeconds}s`, `Package Scrap: $${dm.packagingCost.toFixed(2)}`, `Test Yield: ${dm.testYield}% pass rate`], note: dm.testTimeSeconds > 90 ? '⚠ Extended test insertion amplifies bottlenecks.' : '✓ Lean test program limits cycle time exposure.' },
               ].map((s) => (
                 <div key={s.title} className="border border-art-ink/10 rounded-xl p-4 bg-white space-y-3">
                   <div className="flex justify-between items-center border-b border-art-ink/5 pb-2">
@@ -451,7 +448,7 @@ export default function MetricsLab({
                 <div className="flex items-center space-x-2 border-b border-art-ink/5 pb-2"><Sliders className="w-4.5 h-4.5 text-art-rust" /><h4 className="text-sm font-serif font-black text-art-ink">Section 1: Engineering Intent & Parameter Design Knobs</h4></div>
                 <p className="text-xs text-art-ink/60 leading-relaxed italic">Captures configuration decisions, architectural limits, and commercial volume projections. Under Siliconomics Principles, changing any intent parameter branches a new build.</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-[11px] font-mono bg-art-cream/40 p-4 rounded-xl border border-art-ink/10">
-                  {[['Process Node', dm.processNode], ['Foundry', dm.foundry === 'intel' ? 'Intel Foundry' : dm.foundry === 'samsung' ? 'Samsung' : 'TSMC'], ['Packaging', dm.packagingType === 'standard' ? 'Standard Substrate' : dm.packagingType === 'emib' ? 'Intel EMIB' : (dm.packagingType?.toUpperCase() ?? 'Standard')], ['Topology', dm.topology], ['Die Area', `${dm.dieArea} mm²`], ['Transistors', `${dm.transistorCount} B`], ['TDP', `${dm.tdp} W`], ['Defect Density (D0)', `${dm.defectDensity} /cm²`], ['Wafer Starts', `${dm.waferStartsPerMonth.toLocaleString()}/mo`], ['Packaging Cost', `\$${dm.packagingCost.toFixed(2)}`], ['Test Time', `${dm.testTimeSeconds}s @ \$${dm.testCostPerSecond.toFixed(2)}/s`], ['Packaging Yield', `${dm.packagingYield}%`], ['Wafer Cost', `\$${dm.waferCost.toLocaleString()}`], ['Volume', `${dm.targetVolume}M`]].map(([label, val]) => (
+                  {[['Process Node', dm.processNode], ['Foundry', dm.foundry === 'intel' ? 'Intel Foundry' : dm.foundry === 'samsung' ? 'Samsung' : 'TSMC'], ['Packaging', dm.packagingType === 'standard' ? 'Standard Substrate' : dm.packagingType === 'emib' ? 'Intel EMIB' : (dm.packagingType?.toUpperCase() ?? 'Standard')], ['Topology', dm.topology], ['Die Area', `${dm.dieArea} mm²`], ['Transistors', `${dm.transistorCount} B`], ['TDP', `${dm.tdp} W`], ['Defect Density (D0)', `${dm.defectDensity} /cm²`], ['Wafer Starts', `${dm.waferStartsPerMonth.toLocaleString()}/mo`], ['Packaging Cost', `$${dm.packagingCost.toFixed(2)}`], ['Test Time', `${dm.testTimeSeconds}s @ $${dm.testCostPerSecond.toFixed(2)}/s`], ['Packaging Yield', `${dm.packagingYield}%`], ['Wafer Cost', `$${dm.waferCost.toLocaleString()}`], ['Volume', `${dm.targetVolume}M`]].map(([label, val]) => (
                     <div key={label as string} className="p-2 border-b border-art-ink/5">
                       <span className="text-art-ink/40 block uppercase tracking-wider text-[9px] font-semibold">{label}</span>
                       <span className="text-art-ink font-bold text-xs">{val}</span>
@@ -476,7 +473,7 @@ export default function MetricsLab({
                 <div className="flex items-center space-x-2 border-b border-art-ink/5 pb-2"><Cpu className="w-4.5 h-4.5 text-art-rust" /><h4 className="text-sm font-serif font-black text-art-ink">Section 3: Deterministic Computation Outputs</h4></div>
                 <p className="text-xs text-art-ink/60 leading-relaxed italic">Immutable results demonstrating yield, throughput, cost, and commercial feasibility.</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[11px] font-mono">
-                  {[['Dies Per Wafer', `${snap.dpw} dies`], ['Silicon Yield', `${round(snap.dieYield * 100, 2)}%`], ['Unit COGS', `\$${round(snap.grossCostPerGoodDie, 2)}`], ['Gross Margin', `${round(snap.grossMargin, 2)}%`], ['Break-Even', `${round(snap.breakEvenVolumeMillion, 2)}M`], ['Net Profit', `\$${round(snap.lifetimeNetProfitMillion, 1)}M`], ['ROI', `${round(snap.roi, 1)}%`], ['Annual Volume', `${round(snap.annualVolumeMillion, 3)}M`]].map(([label, val]) => (
+                  {[['Dies Per Wafer', `${snap.dpw} dies`], ['Silicon Yield', `${round(snap.dieYield * 100, 2)}%`], ['Unit COGS', `$${round(snap.grossCostPerGoodDie, 2)}`], ['Gross Margin', `${round(snap.grossMargin, 2)}%`], ['Break-Even', `${round(snap.breakEvenVolumeMillion, 2)}M`], ['Net Profit', `$${round(snap.lifetimeNetProfitMillion, 1)}M`], ['ROI', `${round(snap.roi, 1)}%`], ['Annual Volume', `${round(snap.annualVolumeMillion, 3)}M`]].map(([label, val]) => (
                     <div key={label as string} className="p-3 bg-art-cream/20 border border-art-ink/5 rounded-lg">
                       <span className="text-art-ink/40 text-[9px] block uppercase font-semibold">{label}</span>
                       <span className="text-art-ink font-serif italic font-black text-sm">{val}</span>

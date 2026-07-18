@@ -1,0 +1,55 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden snapshots — default builds (locks model behavior) > key metrics for brooklyn-a2 1`] = `
+{
+  "breakEvenVolumeMillion": 3.361,
+  "compositeRiskScore": 0,
+  "dieYieldPct": 97.439,
+  "dpw": 1004,
+  "fullyLoadedCostPerDie": 8.96,
+  "grossCostPerGoodDie": 8.09,
+  "grossMargin": 56.29,
+  "lifetimeNetProfitMillion": 381.5,
+  "monthlyVolumeMillion": 24.1887,
+  "packagingAndTestingCost": 2.4,
+  "rawDieCost": 5.62,
+  "roi": 1090.1,
+  "waferUtilization": 92.3,
+}
+`;
+
+exports[`golden snapshots — default builds (locks model behavior) > key metrics for manhattan-x1 1`] = `
+{
+  "breakEvenVolumeMillion": 0.517,
+  "compositeRiskScore": 0,
+  "dieYieldPct": 81.514,
+  "dpw": 230,
+  "fullyLoadedCostPerDie": 96.8,
+  "grossCostPerGoodDie": 72.36,
+  "grossMargin": 74.61,
+  "lifetimeNetProfitMillion": 846.9,
+  "monthlyVolumeMillion": 1.5571,
+  "packagingAndTestingCost": 20.6,
+  "rawDieCost": 50.67,
+  "roi": 769.9,
+  "waferUtilization": 84.6,
+}
+`;
+
+exports[`golden snapshots — default builds (locks model behavior) > key metrics for manhattan-x2 1`] = `
+{
+  "breakEvenVolumeMillion": 0.054,
+  "compositeRiskScore": 50,
+  "dieYieldPct": 40.737,
+  "dpw": 82,
+  "fullyLoadedCostPerDie": 3471.05,
+  "grossCostPerGoodDie": 3233.39,
+  "grossMargin": 61.96,
+  "lifetimeNetProfitMillion": 6034.7,
+  "monthlyVolumeMillion": 0.1201,
+  "packagingAndTestingCost": 2841.33,
+  "rawDieCost": 262.72,
+  "roi": 2134,
+  "waferUtilization": 88.2,
+}
+`;

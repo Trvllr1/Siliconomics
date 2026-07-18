@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { Build, PersonaType, ReferenceModel, BuildStatus, STATUS_TRANSITIONS } from '../types';
+import { Build, PersonaType, ReferenceModel, STATUS_TRANSITIONS } from '../types';
 import { Archetype } from '../data/archetypes';
 import { DEFAULT_BUILDS } from '../data/defaultBuilds';
 import { round } from '../utils/mathEngine';
+import { encodeBuildShareUrl } from '../utils/buildShare';
 import { PERSONA_CONFIG, FIELD_OWNER } from '../data/personaConfig';
 import {
-  Cpu, Activity, DollarSign, Briefcase, Sliders, GitBranch, FileCheck, RotateCcw,
-  ChevronUp, ChevronDown, CheckCircle, BookOpen, Save, Shuffle, AlertCircle, ShieldCheck, MessageSquare, Wrench
+  Cpu, DollarSign, Briefcase, GitBranch, FileCheck, RotateCcw,
+  ChevronUp, ChevronDown, CheckCircle, Shuffle, AlertCircle, Sliders, ShieldCheck, Database, Wrench, Share2
 } from 'lucide-react';
 
 interface DesignBoardProps {
@@ -19,6 +20,7 @@ interface DesignBoardProps {
   onClearDraft?: () => void;
   models?: ReferenceModel[];
   onStatusTransition?: () => void;
+  isDemoMode?: boolean;
 }
 
 export default function DesignBoard({
@@ -26,14 +28,15 @@ export default function DesignBoard({
   onUpdateBuild,
   onCommitBuild,
   activePersona,
-  onAddCustomArchetype,
   lastSaved,
-  onClearDraft,
   models,
   onStatusTransition,
+  isDemoMode,
 }: DesignBoardProps) {
   const dm = activeBuild.designModel;
+  const isFrozen = !['Draft', 'Alert'].includes(activeBuild.status);
   const canEditField = (field: string) => {
+    if (isFrozen) return false;
     const owner = FIELD_OWNER[field];
     if (!owner) return activePersona === 'architect';
     return activePersona === owner;
@@ -116,10 +119,9 @@ export default function DesignBoard({
   const [resetConfirm, setResetConfirm] = useState(false);
   const [isBranching, setIsBranching] = useState(false);
   const [branchName, setBranchName] = useState('');
-  const [branchDesc, setBranchDesc] = useState('');
   const [branchVersion, setBranchVersion] = useState('');
-  const [branchCreator, setBranchCreator] = useState('eagleximpact');
-  const [branchOrg, setBranchOrg] = useState('Siliconomics Manhattan Corp');
+  const [branchDesc, setBranchDesc] = useState('');
+  const [shareCopied, setShareCopied] = useState(false);
 
   const handleResetToBaseline = () => {
     if (!resetConfirm) { setResetConfirm(true); setTimeout(() => setResetConfirm(false), 3000); return; }
@@ -288,6 +290,12 @@ export default function DesignBoard({
               }`}>
                 {activeBuild.status}
               </span>
+              {isFrozen && (
+                <span className="text-[9px] bg-art-ink/5 text-art-ink/50 border border-art-ink/10 px-2 py-0.5 rounded-full font-mono font-bold flex items-center space-x-1">
+                  <ShieldCheck className="w-2.5 h-2.5" />
+                  <span>Frozen</span>
+                </span>
+              )}
               {isDirty && (
                 <span className="text-[9px] bg-yellow-50 text-yellow-700 border border-yellow-200 px-2 py-0.5 rounded-full font-mono font-bold">
                   Modified
@@ -343,7 +351,51 @@ export default function DesignBoard({
             <GitBranch className="w-3.5 h-3.5" />
             <span>Branch Variant</span>
           </button>
+          {isDemoMode && (
+            <button
+              onClick={() => {
+                const url = encodeBuildShareUrl(activeBuild);
+                navigator.clipboard.writeText(url).then(() => {
+                  setShareCopied(true);
+                  setTimeout(() => setShareCopied(false), 2000);
+                }).catch(() => {
+                  const ta = document.createElement('textarea');
+                  ta.value = url;
+                  document.body.appendChild(ta);
+                  ta.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(ta);
+                  setShareCopied(true);
+                  setTimeout(() => setShareCopied(false), 2000);
+                });
+              }}
+              className="flex items-center space-x-1.5 px-3 py-1.5 border border-art-ink/15 bg-white hover:bg-art-rust/10 text-art-ink/70 hover:text-art-rust rounded-lg text-xs font-mono font-bold transition-all cursor-pointer shadow-sm"
+              title="Copy shareable demo link (demo mode)"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>{shareCopied ? 'Copied!' : 'Copy Share Link'}</span>
+            </button>
+          )}
         </div>
+      </div>
+
+      {/* Lineage breadcrumb + data vintage */}
+      <div className="bg-white border-2 border-art-ink/5 rounded-xl px-4 py-2 flex items-center space-x-2 text-[10px] font-mono text-art-ink/50">
+        {activeBuild.parentId ? (
+          <GitBranch className="w-3 h-3 text-art-rust" />
+        ) : (
+          <Database className="w-3 h-3 text-art-rust" />
+        )}
+        <span>{activeBuild.parentId ? `Derived from ` : `Build `}</span>
+        {activeBuild.parentId && <span className="font-bold text-art-ink/70 truncate max-w-[120px]">{activeBuild.parentId}</span>}
+        {activeBuild.dataVintage && (
+          <>
+            {activeBuild.parentId && <span className="text-art-ink/20">|</span>}
+            <span>Data vintage: ref-model v{activeBuild.dataVintage.referenceModelVersion} (verified {activeBuild.dataVintage.referenceModelVerified})</span>
+            <span className="text-art-ink/20">|</span>
+            <span>commodity prices: {activeBuild.dataVintage.commodityPriceDate}</span>
+          </>
+        )}
       </div>
 
       {/* Branch dialog */}

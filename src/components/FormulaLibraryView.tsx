@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { FormulaEntry } from '../types';
-import { BookOpen, ChevronDown, ChevronRight, Search, Cpu, Activity, DollarSign, Briefcase, Hash, ArrowRight } from 'lucide-react';
+import { getFreshness } from '../utils/dataFreshness';
+import { BookOpen, ChevronDown, ChevronRight, Search, Cpu, Activity, DollarSign, Briefcase, Hash, ArrowRight, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 interface FormulaLibraryViewProps {
   formulas: FormulaEntry[];
@@ -139,6 +140,13 @@ export default function FormulaLibraryView({ formulas }: FormulaLibraryViewProps
                     {/* Footer */}
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-mono text-art-ink/40 border-t border-art-ink/5 pt-3">
                       <span className="flex items-center space-x-1"><Hash className="w-3 h-3" /><span>v{f.version}</span></span>
+                      {(() => { const fr = getFreshness(f.lastValidated); return (
+                        <span className={`flex items-center space-x-0.5 px-1.5 py-0.5 rounded-full font-bold text-[9px] ${
+                          fr.level === 'fresh' ? 'bg-green-100 text-green-700' :
+                          fr.level === 'aging' ? 'bg-amber-100 text-amber-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>{fr.level === 'fresh' ? <ShieldCheck className="w-2.5 h-2.5" /> : <AlertTriangle className="w-2.5 h-2.5" />}<span>Validated {f.lastValidated}</span></span>
+                      ); })()}
                       {f.references.map((r, i) => (
                         <span key={i} className="flex items-center space-x-1">
                           <BookOpen className="w-3 h-3" />

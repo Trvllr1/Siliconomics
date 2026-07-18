@@ -1,10 +1,9 @@
-import React, { useEffect, useCallback, useState, useMemo } from 'react';
-import { Build, Snapshot, Decision, PersonaType, DecisionOutcome } from '../types';
+import React, { useEffect, useCallback, useState } from 'react';
+import { Build, Snapshot, Decision, DecisionOutcome } from '../types';
 import { computeBuildMetrics } from '../utils/mathEngine';
 import { computeBusinessImpact, BusinessImpact } from '../utils/BusinessImpact';
 import { evaluateBuild, RecommendationDetail } from '../utils/ExecutiveRecommendation';
-import { round } from '../utils/mathEngine';
-import { TrendingUp, ShieldAlert, AlertTriangle, XCircle, CheckCircle, FileCheck, ArrowRight, X, ChevronLeft, ChevronRight, Plus, BarChart3, Scale, Cpu, DollarSign, Wrench, Activity, Clock, User, Eye } from 'lucide-react';
+import { TrendingUp, ShieldAlert, AlertTriangle, FileCheck, ArrowRight, X, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 interface MeetingModeProps {
   builds: Build[];
@@ -15,6 +14,41 @@ interface MeetingModeProps {
 }
 
 type Slide = 'overview' | 'comparison' | 'impact' | 'recommendation' | 'scorecard' | 'risk' | 'decisions';
+
+const SLIDES: Slide[] = ['overview', 'comparison', 'impact', 'scorecard', 'risk', 'recommendation', 'decisions'];
+
+function SlideNav({
+  slideIndex,
+  goPrev,
+  goNext,
+  onSelect,
+}: {
+  slideIndex: number;
+  goPrev: () => void;
+  goNext: () => void;
+  onSelect: (s: Slide) => void;
+}) {
+  return (
+    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center space-x-4">
+      <button onClick={goPrev} className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all cursor-pointer">
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+      <div className="flex space-x-2">
+        {SLIDES.map((s, i) => (
+          <button
+            key={s}
+            onClick={() => onSelect(s)}
+            className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${i === slideIndex ? 'bg-art-rust scale-125' : 'bg-white/20 hover:bg-white/40'}`}
+          />
+        ))}
+      </div>
+      <button onClick={goNext} className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all cursor-pointer">
+        <ChevronRight className="w-5 h-5" />
+      </button>
+      <span className="text-white/30 text-xs font-mono ml-4">{slideIndex + 1} / {SLIDES.length}</span>
+    </div>
+  );
+}
 
 const outcomeColor: Record<string, string> = {
   'Proceed': 'text-green-400',
@@ -49,20 +83,19 @@ export default function MeetingMode({ builds, decisions, onClose, activeBuildId,
   const recA = evaluateBuild(snapA, buildA.designModel);
   const recB = evaluateBuild(snapB, buildB.designModel);
 
-  const slides: Slide[] = ['overview', 'comparison', 'impact', 'scorecard', 'risk', 'recommendation', 'decisions'];
-  const slideIndex = slides.indexOf(slide);
+  const slideIndex = SLIDES.indexOf(slide);
 
   const goNext = useCallback(() => {
     setSlide((prev) => {
-      const idx = slides.indexOf(prev);
-      return slides[Math.min(idx + 1, slides.length - 1)]!;
+      const idx = SLIDES.indexOf(prev);
+      return SLIDES[Math.min(idx + 1, SLIDES.length - 1)]!;
     });
   }, []);
 
   const goPrev = useCallback(() => {
     setSlide((prev) => {
-      const idx = slides.indexOf(prev);
-      return slides[Math.max(idx - 1, 0)]!;
+      const idx = SLIDES.indexOf(prev);
+      return SLIDES[Math.max(idx - 1, 0)]!;
     });
   }, []);
 
@@ -75,27 +108,6 @@ export default function MeetingMode({ builds, decisions, onClose, activeBuildId,
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [onClose, goNext, goPrev]);
-
-  const SlideNav = () => (
-    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center space-x-4">
-      <button onClick={goPrev} className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all cursor-pointer">
-        <ChevronLeft className="w-5 h-5" />
-      </button>
-      <div className="flex space-x-2">
-        {slides.map((s, i) => (
-          <button
-            key={s}
-            onClick={() => setSlide(s)}
-            className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${i === slideIndex ? 'bg-art-rust scale-125' : 'bg-white/20 hover:bg-white/40'}`}
-          />
-        ))}
-      </div>
-      <button onClick={goNext} className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all cursor-pointer">
-        <ChevronRight className="w-5 h-5" />
-      </button>
-      <span className="text-white/30 text-xs font-mono ml-4">{slideIndex + 1} / {slides.length}</span>
-    </div>
-  );
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -146,12 +158,12 @@ export default function MeetingMode({ builds, decisions, onClose, activeBuildId,
         )}
       </div>
 
-      <SlideNav />
+      <SlideNav slideIndex={slideIndex} goPrev={goPrev} goNext={goNext} onSelect={setSlide} />
     </div>
   );
 }
 
-function ScorecardSlide({ buildA, snapA, buildB, snapB, buildAId, buildBId }: { buildA: Build; snapA: Snapshot; buildB: Build; snapB: Snapshot; buildAId: string; buildBId: string }) {
+function ScorecardSlide({ buildA, snapA, buildB, snapB, buildAId: _buildAId, buildBId: _buildBId }: { buildA: Build; snapA: Snapshot; buildB: Build; snapB: Snapshot; buildAId: string; buildBId: string }) {
   const dims = [
     { key: 'technical', label: 'Technical Feasibility', a: Math.round(Math.min(10, (snapA.dieYield / 0.95) * 3 + (snapA.transistorDensity > 50 ? 4 : 2) + (snapA.dpw > 200 ? 3 : 1))), b: Math.round(Math.min(10, (snapB.dieYield / 0.95) * 3 + (snapB.transistorDensity > 50 ? 4 : 2) + (snapB.dpw > 200 ? 3 : 1))) },
     { key: 'manufacturing', label: 'Manufacturing Readiness', a: Math.round(Math.min(10, (buildA.designModel.packagingYield / 99) * 4 + (buildA.designModel.testYield / 99) * 3 + (snapA.dieYield > 0.6 ? 3 : 0))), b: Math.round(Math.min(10, (buildB.designModel.packagingYield / 99) * 4 + (buildB.designModel.testYield / 99) * 3 + (snapB.dieYield > 0.6 ? 3 : 0))) },
@@ -297,9 +309,6 @@ function OverviewSlide({ builds }: { builds: Build[] }) {
 }
 
 function ComparisonSlide({ buildA, snapA, buildB, snapB }: { buildA: Build; snapA: Snapshot; buildB: Build; snapB: Snapshot }) {
-  const dmA = buildA.designModel;
-  const dmB = buildB.designModel;
-
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <h2 className="text-3xl font-serif font-black text-white tracking-tight">Side-by-Side Comparison</h2>

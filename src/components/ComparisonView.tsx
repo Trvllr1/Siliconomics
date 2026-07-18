@@ -8,8 +8,7 @@ import { Build, Decision, DecisionOutcome } from '../types';
 import { computeBuildMetrics, round } from '../utils/mathEngine';
 import { computeBusinessImpact } from '../utils/BusinessImpact';
 import { evaluateBuild } from '../utils/ExecutiveRecommendation';
-import { Sparkles, Loader2, ArrowRightLeft, ShieldAlert, CheckCircle, TrendingUp, DollarSign, FileText, Pin, Trash2, FileCheck } from 'lucide-react';
-import { generateComparisonPdf } from '../utils/pdfGenerator';
+import { Sparkles, Loader2, ArrowRightLeft, ShieldAlert, CheckCircle, TrendingUp, FileText, Pin, Trash2, FileCheck } from 'lucide-react';
 
 interface ComparisonViewProps {
   builds: Build[];
@@ -26,6 +25,63 @@ interface ComparisonSnapshot {
   timestamp: string;
 }
 
+// Custom renderer for comparison markdown (module-scope so it isn't recreated per render)
+function RenderMarkdown({ text }: { text: string }) {
+  const lines = text.split('\n');
+  return (
+    <div className="space-y-4 font-sans text-xs text-art-ink/80 leading-relaxed">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+
+        if (trimmed.startsWith('###')) {
+          const heading = trimmed.replace(/^###\s*/, '').replace(/\*\*/g, '');
+          return (
+            <h4 key={idx} className="text-xs font-serif italic font-bold text-art-rust border-b border-art-ink/10 pb-1.5 pt-4 uppercase tracking-wider first:pt-0 flex items-center space-x-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-art-rust" />
+              <span>{heading}</span>
+            </h4>
+          );
+        }
+
+        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+          const listContent = trimmed.replace(/^[-*]\s*/, '');
+          const boldMatch = listContent.match(/^\*\*(.*?)\*\*:(.*)$/);
+          if (boldMatch) {
+            return (
+              <div key={idx} className="flex items-start space-x-2 pl-3">
+                <span className="text-art-rust mt-1">•</span>
+                <p className="text-art-ink/80">
+                  <strong className="text-art-ink font-bold">{boldMatch[1]}:</strong>
+                  {boldMatch[2]}
+                </p>
+              </div>
+            );
+          }
+          return (
+            <div key={idx} className="flex items-start space-x-2 pl-3">
+              <span className="text-art-rust mt-1">•</span>
+              <p className="text-art-ink/80">{listContent}</p>
+            </div>
+          );
+        }
+
+        if (trimmed.length > 0) {
+          const parts = trimmed.split('**');
+          return (
+            <p className="text-art-ink/85" key={idx}>
+              {parts.map((part, pIdx) => (
+                pIdx % 2 === 1 ? <strong key={pIdx} className="text-art-ink font-bold">{part}</strong> : part
+              ))}
+            </p>
+          );
+        }
+
+        return <div key={idx} className="h-1" />;
+      })}
+    </div>
+  );
+}
+
 export default function ComparisonView({ builds, initialBuildAId, initialBuildBId, onRecordDecision }: ComparisonViewProps) {
   const [buildAId, setBuildAId] = useState(initialBuildAId || builds[0]?.id || '');
   const [buildBId, setBuildBId] = useState(initialBuildBId || builds[1]?.id || builds[0]?.id || '');
@@ -34,7 +90,7 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
     try {
       const saved = localStorage.getItem('siliconomics_comparison_snapshots');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -103,7 +159,9 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
       const updated = [newSnapshot, ...filtered];
       try {
         localStorage.setItem('siliconomics_comparison_snapshots', JSON.stringify(updated));
-      } catch (e) {}
+      } catch (err) {
+        console.warn('Siliconomics: failed to persist comparison snapshots.', err);
+      }
       return updated;
     });
 
@@ -126,7 +184,9 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
     setSnapshots([]);
     try {
       localStorage.removeItem('siliconomics_comparison_snapshots');
-    } catch (e) {}
+    } catch (err) {
+      console.warn('Siliconomics: failed to clear comparison snapshots.', err);
+    }
   };
 
   const handleAiCompare = async () => {
@@ -183,63 +243,6 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
     if (valA === valB) return "text-art-ink/50";
     return "text-art-ink font-bold";
   };
-
-  // Custom renderer for comparison markdown
-  function RenderMarkdown({ text }: { text: string }) {
-    const lines = text.split('\n');
-    return (
-      <div className="space-y-4 font-sans text-xs text-art-ink/80 leading-relaxed">
-        {lines.map((line, idx) => {
-          const trimmed = line.trim();
-          
-          if (trimmed.startsWith('###')) {
-            const heading = trimmed.replace(/^###\s*/, '').replace(/\*\*/g, '');
-            return (
-              <h4 key={idx} className="text-xs font-serif italic font-bold text-art-rust border-b border-art-ink/10 pb-1.5 pt-4 uppercase tracking-wider first:pt-0 flex items-center space-x-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-art-rust" />
-                <span>{heading}</span>
-              </h4>
-            );
-          }
-
-          if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
-            const listContent = trimmed.replace(/^[-*]\s*/, '');
-            const boldMatch = listContent.match(/^\*\*(.*?)\*\*:(.*)$/);
-            if (boldMatch) {
-              return (
-                <div key={idx} className="flex items-start space-x-2 pl-3">
-                  <span className="text-art-rust mt-1">•</span>
-                  <p className="text-art-ink/80">
-                    <strong className="text-art-ink font-bold">{boldMatch[1]}:</strong>
-                    {boldMatch[2]}
-                  </p>
-                </div>
-              );
-            }
-            return (
-              <div key={idx} className="flex items-start space-x-2 pl-3">
-                <span className="text-art-rust mt-1">•</span>
-                <p className="text-art-ink/80">{listContent}</p>
-              </div>
-            );
-          }
-
-          if (trimmed.length > 0) {
-            const parts = trimmed.split('**');
-            return (
-              <p className="text-art-ink/85" key={idx}>
-                {parts.map((part, pIdx) => (
-                  pIdx % 2 === 1 ? <strong key={pIdx} className="text-art-ink font-bold">{part}</strong> : part
-                ))}
-              </p>
-            );
-          }
-
-          return <div key={idx} className="h-1" />;
-        })}
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 font-sans">
@@ -327,7 +330,10 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
           </div>
 
           <button
-            onClick={() => generateComparisonPdf(buildA, snapA, buildB, snapB, aiComparison)}
+            onClick={async () => {
+              const { generateComparisonPdf } = await import('../utils/pdfGenerator');
+              generateComparisonPdf(buildA, snapA, buildB, snapB, aiComparison);
+            }}
             className="flex items-center justify-center space-x-2 bg-art-rust hover:bg-art-rust/90 text-white rounded-lg px-4 py-3 text-xs font-bold font-serif italic transition-all duration-150 cursor-pointer shadow-md border-none h-fit whitespace-nowrap self-stretch sm:self-center"
             title="Download high-fidelity, board-ready comparative PDF summary with full compliance markers"
           >

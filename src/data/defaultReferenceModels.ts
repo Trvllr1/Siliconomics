@@ -19,6 +19,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-01-15',
     updatedDate: '2026-06-01',
+    provenance: { source: 'TSMC N3E Platform Disclosure (Analyst Day 2025)', sourceType: 'analyst-estimate', confidence: 'medium', lastVerified: '2026-06-01' },
   },
   {
     id: 'ref-node-5nm',
@@ -38,6 +39,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2025-08-01',
     updatedDate: '2026-03-10',
+    provenance: { source: 'TSMC N5 Pricing Disclosure (Q2-2026 Analyst Note)', sourceType: 'analyst-estimate', confidence: 'medium', lastVerified: '2026-03-10' },
   },
   {
     id: 'ref-node-7nm',
@@ -57,6 +59,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2024-05-20',
     updatedDate: '2026-02-15',
+    provenance: { source: 'TSMC N7 Public Pricing, SIA Industry Blueprint v4.2', sourceType: 'published-list-price', confidence: 'high', lastVerified: '2026-02-15' },
   },
   {
     id: 'ref-node-10nm',
@@ -76,6 +79,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2023-11-01',
     updatedDate: '2025-09-20',
+    provenance: { source: 'Multi-vendor composite (SMIC, UMC, Tower)', sourceType: 'analyst-estimate', confidence: 'medium', lastVerified: '2025-09-20' },
   },
   {
     id: 'ref-pkg-standard',
@@ -92,6 +96,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2024-01-10',
     updatedDate: '2025-12-01',
+    provenance: { source: 'OSAT Assembly Pricing Q3-2026 (ASE, Amkor, SPIL)', sourceType: 'analyst-estimate', confidence: 'medium', lastVerified: '2025-12-01' },
   },
   {
     id: 'ref-pkg-advanced',
@@ -109,6 +114,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2025-06-15',
     updatedDate: '2026-04-20',
+    provenance: { source: 'TSMC CoWoS Pricing (NVIDIA B200 Teardown Estimates)', sourceType: 'analyst-estimate', confidence: 'medium', lastVerified: '2026-04-20' },
   },
   {
     id: 'ref-labor-northamerica',
@@ -125,6 +131,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2024-06-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Internal composite — Glassdoor, Levels.fyi, local tax burden estimates, EDA vendor surveys', sourceType: 'internal-assumption', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-labor-weurope',
@@ -141,6 +148,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Internal composite — Glassdoor, Levels.fyi, local tax burden estimates', sourceType: 'internal-assumption', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-labor-japan',
@@ -157,6 +165,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Internal composite — Glassdoor, Levels.fyi, local tax burden estimates', sourceType: 'internal-assumption', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-labor-israel',
@@ -173,6 +182,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Internal composite — Glassdoor, Levels.fyi, local tax burden estimates', sourceType: 'internal-assumption', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-labor-skorea',
@@ -189,6 +199,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Internal composite — Glassdoor, Levels.fyi, local tax burden estimates', sourceType: 'internal-assumption', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-labor-taiwan',
@@ -205,6 +216,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Internal composite — Glassdoor, Levels.fyi, local tax burden estimates', sourceType: 'internal-assumption', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-labor-eeurope',
@@ -221,6 +233,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Internal composite — Glassdoor, Levels.fyi, local tax burden estimates', sourceType: 'internal-assumption', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-labor-india',
@@ -237,6 +250,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Internal composite — Glassdoor, Levels.fyi, local tax burden estimates', sourceType: 'internal-assumption', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-labor-china',
@@ -253,6 +267,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Internal composite — Glassdoor, Levels.fyi, local tax burden estimates', sourceType: 'internal-assumption', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-labor-sea-asia',
@@ -269,6 +284,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Internal composite — Glassdoor, Levels.fyi, local tax burden estimates', sourceType: 'internal-assumption', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-labor-latam',
@@ -285,6 +301,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Internal composite — Glassdoor, Levels.fyi, local tax burden estimates', sourceType: 'internal-assumption', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-mask-3nm',
@@ -300,6 +317,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-01-15',
     updatedDate: '2026-06-01',
+    provenance: { source: 'TSMC Mask Set Pricing (published NRE schedule)', sourceType: 'published-list-price', confidence: 'high', lastVerified: '2026-06-01' },
   },
   {
     id: 'ref-mpw-tsmc-3nm',
@@ -318,6 +336,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-01-15',
     updatedDate: '2026-06-01',
+    provenance: { source: 'TSMC CyberShuttle Program Pricing Q2-2026', sourceType: 'published-list-price', confidence: 'high', lastVerified: '2026-06-01' },
   },
   {
     id: 'ref-mpw-tsmc-5nm',
@@ -336,6 +355,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2025-08-01',
     updatedDate: '2026-03-10',
+    provenance: { source: 'TSMC CyberShuttle Program Pricing Q1-2026', sourceType: 'published-list-price', confidence: 'high', lastVerified: '2026-03-10' },
   },
   {
     id: 'ref-mpw-tsmc-7nm',
@@ -354,6 +374,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2024-05-20',
     updatedDate: '2026-02-15',
+    provenance: { source: 'TSMC CyberShuttle Program Pricing Q1-2026', sourceType: 'published-list-price', confidence: 'high', lastVerified: '2026-02-15' },
   },
   {
     id: 'ref-mpw-cea-leti',
@@ -373,6 +394,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2024-01-10',
     updatedDate: '2025-11-15',
+    provenance: { source: 'CEA-Leti MPW Pricing Schedule 2025', sourceType: 'published-list-price', confidence: 'high', lastVerified: '2025-11-15' },
   },
   {
     id: 'ref-mask-5nm',
@@ -388,6 +410,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2025-08-01',
     updatedDate: '2026-03-10',
+    provenance: { source: 'TSMC Mask Set Pricing Schedule Q1-2026', sourceType: 'published-list-price', confidence: 'high', lastVerified: '2026-03-10' },
   },
   {
     id: 'ref-intel-18a',
@@ -409,6 +432,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Intel Foundry Services Pricing Disclosure (2026)', sourceType: 'analyst-estimate', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-pkg-cowos-s',
@@ -430,6 +454,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'TSMC CoWoS-S Pricing (NVIDIA B200 Teardown, analyst est.)', sourceType: 'analyst-estimate', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-pkg-cowos-r',
@@ -451,6 +476,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'TSMC CoWoS-R Pricing (analyst estimates Q2-2026)', sourceType: 'analyst-estimate', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-pkg-cowos-l',
@@ -472,6 +498,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'TSMC CoWoS-L Pricing (analyst estimates Q2-2026)', sourceType: 'analyst-estimate', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-pkg-emib',
@@ -493,6 +520,7 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Intel EMIB Pricing (IFS disclosure, analyst cross-check)', sourceType: 'analyst-estimate', confidence: 'medium', lastVerified: '2026-07-01' },
   },
   {
     id: 'ref-intel-foundry-3nm',
@@ -512,5 +540,6 @@ export const DEFAULT_REFERENCE_MODELS: ReferenceModel[] = [
     },
     createdDate: '2026-07-01',
     updatedDate: '2026-07-01',
+    provenance: { source: 'Intel Foundry Services Pricing (Q2-2026 analyst note)', sourceType: 'analyst-estimate', confidence: 'medium', lastVerified: '2026-07-01' },
   },
 ];

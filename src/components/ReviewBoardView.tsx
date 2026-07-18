@@ -1,7 +1,7 @@
 import React from 'react';
-import { Build, Comment, STATUS_TRANSITIONS, BuildStatus, PersonaType, Decision } from '../types';
+import { Build, Comment, STATUS_TRANSITIONS, BuildStatus, PersonaType } from '../types';
 import { PERSONA_CONFIG } from '../data/personaConfig';
-import { ShieldAlert, CheckCircle, Clock, ArrowRight, MessageSquare, Cpu, Wrench, DollarSign, Award, Activity, FileCheck } from 'lucide-react';
+import { ShieldAlert, CheckCircle, Clock, ArrowRight, MessageSquare, Cpu, DollarSign, Award, Activity, FileCheck } from 'lucide-react';
 
 interface ReviewBoardViewProps {
   activeBuild: Build;
@@ -66,7 +66,6 @@ export default function ReviewBoardView({ activeBuild, comments, activePersona, 
           {STATUS_ORDER.map((s, i) => {
             const isPast = currentIdx > i;
             const isCurrent = currentIdx === i;
-            const isFuture = currentIdx < i;
             const sc = STATUS_COLORS[s];
             return (
               <React.Fragment key={s}>

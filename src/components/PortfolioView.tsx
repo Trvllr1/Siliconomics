@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Build, Portfolio } from '../types';
 import { computeBuildMetrics, round } from '../utils/mathEngine';
 import {
-  FolderOpen, Plus, Trash2, ChevronDown, ChevronRight, X, Edit3, BarChart3,
-  TrendingUp, DollarSign, Percent, Layers, GitBranch, FileCheck, Clock, Users, Tag, Package
+  FolderOpen, Plus, Trash2, ChevronDown, ChevronRight, X,
+  TrendingUp, DollarSign, Percent, Layers, GitBranch, Clock, Tag
 } from 'lucide-react';
 
 interface PortfolioViewProps {
@@ -12,18 +12,6 @@ interface PortfolioViewProps {
   onCreatePortfolio: (p: Portfolio) => void;
   onDeletePortfolio: (id: string) => void;
   onUpdatePortfolio: (p: Portfolio) => void;
-}
-
-function buildLineage(builds: Build[], rootId?: string): Build[] {
-  const map = new Map(builds.map(b => [b.id, b]));
-  const result: Build[] = [];
-  let current = rootId ? map.get(rootId) : builds.find(b => !b.parentId);
-  while (current) {
-    result.push(current);
-    const child = builds.find(b => b.parentId === current!.id);
-    current = child || undefined;
-  }
-  return result;
 }
 
 export default function PortfolioView({
@@ -231,7 +219,7 @@ export default function PortfolioView({
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {pBuilds.map((b, i) => {
+                          {pBuilds.map((b, _i) => {
                             const m = computeBuildMetrics(b);
                             return (
                               <div key={b.id} className="flex items-center justify-between p-3 bg-art-cream/20 rounded-lg border border-art-ink/5 hover:border-art-ink/15 transition-all">

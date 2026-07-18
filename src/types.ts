@@ -66,6 +66,18 @@ export interface ArchitectureComposition {
 
 export type CostContributorCategory = 'silicon' | 'packaging' | 'test' | 'ip-license' | 'ip-royalty' | 'labor' | 'mask' | 'architecture-block' | 'commodity';
 
+export type DataProvenanceSourceType = 'vendor-quote' | 'analyst-estimate' | 'published-list-price' | 'literature' | 'internal-assumption';
+
+export type DataConfidence = 'high' | 'medium' | 'low';
+
+export interface DataProvenance {
+  source: string;
+  sourceType: DataProvenanceSourceType;
+  confidence: DataConfidence;
+  lastVerified: string;
+  notes?: string;
+}
+
 export type CommodityCategory = 'wafer' | 'substrate' | 'interposer' | 'mold-compound' | 'underfill' | 'solder-ball' | 'test-socket' | 'probe-card' | 'memory';
 
 export interface CommodityPrice {
@@ -78,6 +90,7 @@ export interface CommodityPrice {
   region: string;
   updatedDate: string;
   notes: string;
+  confidence: DataConfidence;
 }
 
 export type SupplyChainRiskLevel = 'low' | 'moderate' | 'elevated' | 'high' | 'critical';
@@ -148,6 +161,70 @@ export interface DesignModel {
   resolvedLaborRateVerification?: number;
 }
 
+export interface RespinConfig {
+  probability: number;       // 0-1, e.g. 0.35 = 35% chance of needing a respin
+  costM: number;             // mask-set cost in $M for the respin
+  scheduleDelayQuarters: number;  // quarters of delay from respin
+  yieldImpact: number;       // D0 multiplier after respin (e.g. 1.2 = 20% worse D0 temporarily)
+  recoveryQuarters: number;  // quarters to recover baseline yield after respin
+}
+
+export interface QuarterlyProjection {
+  quarter: number;           // 0 = first production quarter
+  label: string;             // e.g. "Q1 2027"
+  d0: number;                // defect density this quarter
+  dieYield: number;          // Murphy yield at this quarter's D0
+  effectiveYield: number;    // full stack yield
+  goodUnits: number;         // shipped units this quarter
+  supplyUnits: number;       // max possible from wafer supply
+  demandUnits: number;       // demand from targetVolume distribution
+  asp: number;               // selling price this quarter
+  revenueM: number;          // revenue in $M
+  cogsM: number;             // COGS in $M
+  grossProfitM: number;      // gross profit in $M
+  cumulativeNreM: number;    // cumulative NRE spent so far
+  netProfitM: number;        // quarterly net profit
+  cumulativeCashFlowM: number; // cumulative cash flow
+  isRespinQuarter: boolean;  // true if respin occurs this quarter
+}
+
+export interface TimeModel {
+  // D0 yield-learning curve: D0(q) = d0Mature + (d0Initial - d0Mature) * exp(-q / tau)
+  d0Initial: number;          // starting defect density (defects/cm²)
+  d0Mature: number;           // mature/long-run defect density
+  d0Tau: number;              // learning rate time constant (quarters)
+
+  // Volume ramp
+  rampShape: 'linear' | 's-curve' | 'flat';
+  rampDurationQuarters: number; // quarters to reach full production
+  peakQuarterlyVolumeMillion: number; // max quarterly shipped units (M)
+
+  // ASP erosion
+  annualAspErosionPct: number;  // e.g. 3 = 3% per year (~0.75% per quarter)
+
+  // Supply constraint
+  maxQuarterlySupplyMillion: number; // max units from wafer starts (M)
+
+  // Respin
+  respin: RespinConfig | null;
+
+  // Horizon
+  projectionQuarters: number;  // default 20 (5 years)
+
+  // Volume allocation across quarters (demand distribution)
+  // If not set, distributes targetVolume evenly across projectionQuarters
+  volumeAllocation: 'even' | 'front-loaded' | 'back-loaded' | 'bell';
+
+  // Output (computed)
+  quarterlyProjections?: QuarterlyProjection[];
+}
+export interface DataVintage {
+  referenceModelVersion: string;
+  referenceModelVerified: string;
+  packagingModelVersion: string;
+  commodityPriceDate: string;
+}
+
 export interface Build {
   id: string;
   name: string;
@@ -164,6 +241,8 @@ export interface Build {
   formulaVersion: string;
   architecture?: ArchitectureComposition;
   designModel: DesignModel;
+  dataVintage?: DataVintage;
+  timeModel?: TimeModel;
 }
 
 export type BuildStatus = 'Draft' | 'TechnicalReview' | 'FinancialReview' | 'ProgramReview' | 'Approved' | 'Alert';
@@ -258,6 +337,9 @@ export interface ReferenceModel {
   parameters: { [key: string]: number | string | boolean };
   createdDate: string;
   updatedDate: string;
+  provenance: DataProvenance;
+  isCustom?: boolean;
+  sourceModelId?: string;
 }
 
 export interface FormulaEntry {
@@ -271,6 +353,7 @@ export interface FormulaEntry {
   version: string;
   references: string[];
   affectedMetrics: string[];
+  lastValidated: string;
 }
 
 export interface Portfolio {

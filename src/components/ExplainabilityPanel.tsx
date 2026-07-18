@@ -4,20 +4,23 @@
  */
 
 import React from 'react';
-import { CalculationTrace, MetricCardData } from '../types';
-import { HelpCircle, CheckCircle, Database, FileText, Download } from 'lucide-react';
+import { CalculationTrace, MetricCardData, DataProvenance } from '../types';
+
+import { HelpCircle, CheckCircle, Database, FileText, Download, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 interface ExplainabilityPanelProps {
   trace: CalculationTrace | null;
   metricsList?: MetricCardData[];
   onSelectTrace?: (trace: CalculationTrace) => void;
+  provenance?: DataProvenance;
+  dataVintage?: { referenceModelVersion: string; referenceModelVerified: string; packagingModelVersion: string; commodityPriceDate: string };
 }
 
-export default function ExplainabilityPanel({ trace, metricsList, onSelectTrace }: ExplainabilityPanelProps) {
+export default function ExplainabilityPanel({ trace, metricsList, onSelectTrace, provenance, dataVintage }: ExplainabilityPanelProps) {
   const handleDownloadAudit = () => {
     if (!trace) return;
     
-    const auditPackage = {
+    const auditPackage: Record<string, unknown> = {
       auditType: "Deterministic Calculation Trace",
       timestamp: new Date().toISOString(),
       platform: "Siliconomics Build Evaluator",
@@ -33,6 +36,12 @@ export default function ExplainabilityPanel({ trace, metricsList, onSelectTrace 
         version: trace.version
       }
     };
+    if (provenance) {
+      auditPackage.dataProvenance = provenance;
+    }
+    if (dataVintage) {
+      auditPackage.dataVintage = dataVintage;
+    }
 
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(auditPackage, null, 2));
     const downloadAnchor = document.createElement('a');
@@ -174,6 +183,21 @@ export default function ExplainabilityPanel({ trace, metricsList, onSelectTrace 
           </div>
         </div>
       </div>
+
+      {/* Provenance Section */}
+      {provenance && (
+        <div className="px-4 py-2 bg-art-cream/40 border-t border-art-ink/5">
+          <div className="flex items-center space-x-1.5 text-[9px] font-mono text-art-ink/50">
+            {provenance.confidence === 'high' ? <ShieldCheck className="w-3 h-3 text-green-600" /> : <AlertTriangle className={`w-3 h-3 ${provenance.confidence === 'medium' ? 'text-amber-600' : 'text-red-600'}`} />}
+            <span className="font-bold uppercase">{provenance.confidence} Confidence</span>
+            <span className="text-art-ink/20">|</span>
+            <span>{provenance.sourceType.replace(/-/g, ' ')}</span>
+            <span className="text-art-ink/20">|</span>
+            <span>Verified {provenance.lastVerified}</span>
+          </div>
+          <p className="text-[9px] font-mono text-art-ink/40 mt-0.5 truncate">{provenance.source}</p>
+        </div>
+      )}
 
       {/* Footer / Provenance Info */}
       <div className="px-4 py-2 bg-art-cream border-t border-art-ink/10 flex items-center justify-between text-[10px] text-art-ink/50 font-mono">

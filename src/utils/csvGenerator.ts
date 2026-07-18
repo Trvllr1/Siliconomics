@@ -71,7 +71,7 @@ export function consolidatedToCsv(
     lines.push(`"Metric",${Array.from(metricsMap.keys()).map(k => `"${k}"`).join(',')}`);
     for (const key of allKeys) {
       const row = [key];
-      for (const [buildId, metrics] of metricsMap) {
+      for (const [, metrics] of metricsMap) {
         const m = metrics.find(x => x.label === key);
         row.push(m ? m.value : '');
       }

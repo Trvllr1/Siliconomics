@@ -1028,12 +1028,11 @@ export function generateComparisonPdf(
   }
 
   if (aiComparison) {
-    if (rowY > PAGE_H - 60 || true) {
-      doc.addPage();
-      doc.setFillColor(br, bg, bc);
-      doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
-      rowY = 25;
-    }
+    // AI analysis always starts on a fresh page for readability.
+    doc.addPage();
+    doc.setFillColor(br, bg, bc);
+    doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+    rowY = 25;
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(ar, ag, ab);

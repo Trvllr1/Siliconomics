@@ -3,7 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Build } from '../types';
+import { Build, DataVintage } from '../types';
+
+const DEFAULT_DATA_VINTAGE: DataVintage = {
+  referenceModelVersion: 'v2.0',
+  referenceModelVerified: '2026-06-01',
+  packagingModelVersion: 'v1.1',
+  commodityPriceDate: '2026-01-15',
+};
 
 export const DEFAULT_BUILDS: Build[] = [
   {
@@ -19,7 +26,8 @@ export const DEFAULT_BUILDS: Build[] = [
     portfolio: 'Automotive Platforms',
     createdDate: '2026-03-12',
     referenceModel: 'TSMC N4P Reference Model v1.2',
-    formulaVersion: 'Murphy-SIA-v4.1',
+    formulaVersion: 'Murphy-SIA-v4.3',
+    dataVintage: { ...DEFAULT_DATA_VINTAGE, referenceModelVersion: 'v1.2', referenceModelVerified: '2026-03-10' },
     designModel: {
       processNode: '5nm',
       dieArea: 260,
@@ -44,6 +52,19 @@ export const DEFAULT_BUILDS: Build[] = [
       foundry: 'tsmc',
       packagingType: 'standard',
     },
+    timeModel: {
+      d0Initial: 0.15,
+      d0Mature: 0.08,
+      d0Tau: 6,
+      rampShape: 'linear',
+      rampDurationQuarters: 4,
+      peakQuarterlyVolumeMillion: 0.3,
+      annualAspErosionPct: 3,
+      maxQuarterlySupplyMillion: 0.35,
+      respin: null,
+      projectionQuarters: 20,
+      volumeAllocation: 'even',
+    },
   },
   {
     id: 'manhattan-x2',
@@ -58,7 +79,8 @@ export const DEFAULT_BUILDS: Build[] = [
     portfolio: 'Data Center AI',
     createdDate: '2026-06-01',
     referenceModel: 'TSMC N3E High-Density Platform v2.0',
-    formulaVersion: 'Murphy-SIA-v4.1',
+    formulaVersion: 'Murphy-SIA-v4.3',
+    dataVintage: { ...DEFAULT_DATA_VINTAGE, referenceModelVersion: 'v2.0', referenceModelVerified: '2026-06-01' },
     designModel: {
       processNode: '3nm',
       dieArea: 145,
@@ -78,7 +100,11 @@ export const DEFAULT_BUILDS: Build[] = [
       testYield: 96.0,
       waferCost: 18000,
       nreCost: 260,
-      asp: 1250,
+      // ASP calibrated to merchant datacenter training-accelerator pricing (H100/MI300-class
+      // parts carry chip-level ASPs of $8k–$30k). At $8,500 the build clears its ~$3.2k COGS
+      // (dominated by 760 mm² CoWoS-S interposer at $3.50/mm² ÷ 0.96 yield) with a ~62% gross
+      // margin — typical for this class. The previous $1,250 placeholder implied −159% margin.
+      asp: 8500,
       targetVolume: 1.2,
       foundry: 'tsmc',
       packagingType: 'cowos-s',
@@ -88,6 +114,25 @@ export const DEFAULT_BUILDS: Build[] = [
       resolvedLaborRateDesign: 185,
       verificationReferenceModelId: 'ref-labor-northamerica',
       resolvedLaborRateVerification: 145,
+    },
+    timeModel: {
+      d0Initial: 0.18,
+      d0Mature: 0.10,
+      d0Tau: 8,
+      rampShape: 's-curve',
+      rampDurationQuarters: 8,
+      peakQuarterlyVolumeMillion: 0.05,
+      annualAspErosionPct: 0,
+      maxQuarterlySupplyMillion: 0.04,
+      respin: {
+        probability: 0.35,
+        costM: 260,
+        scheduleDelayQuarters: 2,
+        yieldImpact: 1.2,
+        recoveryQuarters: 4,
+      },
+      projectionQuarters: 20,
+      volumeAllocation: 'even',
     },
     architecture: {
       version: 'v1.0',
@@ -159,7 +204,8 @@ export const DEFAULT_BUILDS: Build[] = [
     portfolio: 'Edge Solutions',
     createdDate: '2026-07-10',
     referenceModel: 'Intel 16 / TSMC N7 Mature Platform v4.0',
-    formulaVersion: 'Murphy-SIA-v4.1',
+    formulaVersion: 'Murphy-SIA-v4.3',
+    dataVintage: { ...DEFAULT_DATA_VINTAGE, referenceModelVersion: 'v4.0', referenceModelVerified: '2026-02-15' },
     designModel: {
       processNode: '7nm',
       dieArea: 65,
@@ -183,6 +229,19 @@ export const DEFAULT_BUILDS: Build[] = [
       targetVolume: 40.0,
       foundry: 'tsmc',
       packagingType: 'standard',
+    },
+    timeModel: {
+      d0Initial: 0.08,
+      d0Mature: 0.04,
+      d0Tau: 4,
+      rampShape: 'linear',
+      rampDurationQuarters: 3,
+      peakQuarterlyVolumeMillion: 2.5,
+      annualAspErosionPct: 8,
+      maxQuarterlySupplyMillion: 5.0,
+      respin: null,
+      projectionQuarters: 20,
+      volumeAllocation: 'bell',
     },
   }
 ];

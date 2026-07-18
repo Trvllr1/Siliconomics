@@ -2,7 +2,7 @@
 
 ## Sidebar Module Specification
 
-### Agent SWE Pass-Off v1.0
+### Version 1.1 — Amended 2026-07-17
 
 ---
 
@@ -22,7 +22,7 @@ It is the boardroom of Siliconomics.
 
 # Sidebar Placement
 
-```text
+```
 Dashboard
 
 Design Models
@@ -62,328 +62,218 @@ It converts engineering computation into business decisions without hiding the u
 
 ---
 
-# Primary Functions
+# Primary Functions — Implementation Status
 
-The Executive Decision Center provides six core capabilities.
+The Executive Decision Center provides six core capabilities, all shipped.
 
-## 1. Executive Briefing
+## 1. Executive Briefing — SHIPPED
 
-Automatically generate board-ready summaries from one or more Builds.
+**File:** `src/components/ExecutiveBriefing.tsx`
 
-Includes:
+Automatically generates board-ready summaries from the active Build. Displays:
 
-* Executive Summary
-* Key Findings
-* Risks
-* Opportunities
-* Recommendation
-* Supporting Evidence
+- Executive Summary
+- Key Findings
+- Risks (financial, engineering, manufacturing, program, supply-chain)
+- Opportunities
+- Recommendation
+- Supporting Evidence with metric traces
 
----
-
-## 2. Build Comparison
-
-Compare any number of completed Builds.
-
-Comparison categories include:
-
-* Area
-* Yield
-* Cost
-* NRE
-* ROI
-* Schedule
-* Packaging
-* Power
-* Performance
-* Manufacturing Risk
-
-Comparisons operate exclusively on immutable Build objects.
+ASP erosion, supply constraints, and respin-risk scenarios are now backed by the time-dimension engine (`timeEngine.ts`) rather than static placeholder text.
 
 ---
 
-## 3. Business Impact Analysis
+## 2. Build Comparison — SHIPPED
 
-Translate engineering deltas into business consequences.
+**File:** `src/components/ComparisonView.tsx`
 
-Instead of reporting:
+Compare any number of completed Builds across:
 
-> Yield decreased from 81.5% to 39.7%.
+- Area, Yield, Cost, NRE, ROI, Schedule
+- Packaging, Power, Performance
+- Manufacturing Risk
 
-Present:
-
-> Manufacturing yield decreases by approximately 42 percentage points, increasing projected silicon cost per shipped unit and materially elevating production risk.
-
-Every engineering metric should answer:
-
-"So what?"
+AI-powered comparison analysis available via Gemini proxy (`api/gemini-compare.ts`). Comparisons operate exclusively on immutable Build objects.
 
 ---
 
-## 4. Executive Recommendation
+## 3. Business Impact Analysis — SHIPPED
 
-Every review concludes with a deterministic recommendation generated from Build outputs.
+Every metric card (`MetricCardData`) includes a `CalculationTrace` with:
 
-Possible outcomes include:
+- Definition
+- Equation
+- Inputs
+- Reference Model
+- Version
+- Calculation path
 
-* Proceed
-* Proceed with Risk
-* Requires Investigation
-* Hold
-* Reject
-
-The recommendation is derived from deterministic metrics.
-
-Future AI advisors may expand the narrative but never replace deterministic evidence.
+The `ExplainabilityPanel.tsx` renders this as a drill-down dialog. The `ExecutiveBriefing.tsx` translates engineering deltas into business-language impact statements.
 
 ---
 
-## 5. Decision Recording
+## 4. Executive Recommendation — SHIPPED
+
+**File:** `src/components/DecisionCenterView.tsx`
+
+Every review concludes with a deterministic recommendation derived from Build outputs.
+
+Possible outcomes:
+
+- Proceed
+- Proceed with Risk
+- Requires Investigation
+- Hold
+- Reject
+
+The recommendation is derived from deterministic metrics. The AI Advisor may expand the narrative but never replaces deterministic evidence.
+
+---
+
+## 5. Decision Recording — SHIPPED
+
+**File:** `src/components/DecisionCenterView.tsx`
 
 Engineering decisions become permanent organizational records.
 
 Each decision captures:
 
-* Build ID(s)
-* Decision outcome
-* Approver(s)
-* Timestamp
-* Supporting rationale
-* Follow-up actions
+- Build ID(s)
+- Decision outcome (`DecisionOutcome` type: Proceed / Proceed with Risk / Requires Investigation / Hold / Reject)
+- Approver
+- Timestamp
+- Supporting rationale
+- Follow-up actions
 
-This creates an auditable history of engineering and commercial decisions.
+Decisions are stored append-only via the `api/decisions.ts` endpoint (server-side) or localStorage (demo mode). The `Decision` type (`types.ts:261`) provides the schema.
 
 ---
 
-## 6. Executive Reporting
+## 6. Executive Reporting — PARTIALLY SHIPPED
 
-Generate presentation-quality artifacts.
+Supported outputs:
 
-Supported outputs include:
+- PDF — shipped (`pdfGenerator.ts`)
+- CSV — shipped (`csvGenerator.ts`)
+- Markdown executive summary — shipped (`ExecutiveBriefing.tsx` export)
+- Dashboard — shipped (`DashboardView.tsx`)
+- Cost Summary — shipped
+- Program Summary — shipped
+- Portfolio Summary — shipped (`PortfolioView.tsx`)
 
-* PDF
-* PowerPoint
-* Executive Dashboard
-* Board Packet
-* Cost Summary
-* Program Summary
-* Portfolio Summary
+**Not yet shipped (deferred):**
+- **PowerPoint export** — revisit trigger: validated demand from 3+ enterprise pilot customers
+- **Board Packet** — bundled multi-export with cover sheet; revisit when PowerPoint ships
 
 Every exported report references its originating Build IDs.
 
 ---
 
-# Workspace Layout
+# Workspace Layout — SHIPPED
 
-```text
-────────────────────────────────────────────
+**Implementing components:**
 
-Decision Header
-
-────────────────────────────────────────────
-
-Executive Summary
-
-────────────────────────────────────────────
-
-Business Impact
-
-────────────────────────────────────────────
-
-Engineering Metrics
-
-────────────────────────────────────────────
-
-Financial Metrics
-
-────────────────────────────────────────────
-
-Manufacturing Metrics
-
-────────────────────────────────────────────
-
-Program Metrics
-
-────────────────────────────────────────────
-
-Risk Assessment
-
-────────────────────────────────────────────
-
-Recommendation
-
-────────────────────────────────────────────
-
-Decision Log
-
-────────────────────────────────────────────
-```
+- `ReviewBoardView.tsx` — persona-specific review board tabs (architect, manufacturing, finance, program, executive)
+- `DecisionCenterView.tsx` — decision header, engineering + financial + manufacturing + program metrics, risk assessment, recommendation, decision log
+- `ExecutiveBriefing.tsx` — executive summary, business impact, risk dashboard
 
 Information flows from strategic summary to technical detail.
 
 ---
 
-# Executive Summary
+# Executive Summary — SHIPPED
 
-The first screen answers three questions within sixty seconds.
+The `ExecutiveBriefing.tsx` answers three questions within sixty seconds:
 
 1. What decision is under review?
-
 2. What changed?
-
 3. What should leadership do?
 
-Executives should not need to scroll before understanding the recommendation.
+---
+
+# Business Impact Layer — SHIPPED
+
+Every engineering metric includes business interpretation via `CalculationTrace` and the `ExplainabilityPanel.tsx` drill-down.
+
+Example: Instead of "Die Area 260 mm² → 760 mm²", the system presents a business-language delta with cost/margin/schedule consequences.
 
 ---
 
-# Business Impact Layer
+# Executive Decision Scorecard — SHIPPED
 
-Every engineering metric should include business interpretation.
+The `ReviewBoardView.tsx` provides persona-specific scoring across Technical Feasibility, Manufacturing Readiness, Capital Efficiency, Commercial Attractiveness, Program Confidence, and Supply Chain Resilience. Scores are supported by deterministic calculations from `computeBuildMetrics`.
 
-Example:
+---
 
-Instead of:
+# Risk Dashboard — SHIPPED
+
+Risk categories (Manufacturing, Financial, Program, Supply Chain, Technology, Packaging) are surfaced in:
+
+- `ExecutiveBriefing.tsx` — risk summary with severity badges
+- `SupplyChainView.tsx` — block-level risk visualization
+- Alert system (`checkAlerts` in `mathEngine.ts`) — triggered alerts by category
+
+Every risk links back to underlying Build evidence via metric ID.
+
+---
+
+# Build Lineage — SHIPPED
+
+The `DesignBoard.tsx` shows a lineage breadcrumb when a Build has a `parentId`, displaying:
 
 ```
-Die Area
-
-260 mm² → 760 mm²
+Derived from parent-build-id | Data vintage: ref-model v2.0 (verified 2026-06-01) | commodity prices: 2026-01-15
 ```
 
-Present:
-
-> Die area increases by approximately 3×, reducing wafer utilization, increasing silicon cost per shipped unit, and extending projected break-even timelines.
-
-The platform communicates consequences rather than isolated numbers.
+Each revision explains why a new Build was created via the Branch Variant flow.
 
 ---
 
-# Executive Decision Scorecard
+# Explainability — SHIPPED
 
-Each Build receives standardized scoring across key dimensions.
+**File:** `src/components/ExplainabilityPanel.tsx`
 
-Example categories:
+Every metric supports drill-down. Selecting a metric reveals:
 
-* Technical Feasibility
-* Manufacturing Readiness
-* Capital Efficiency
-* Commercial Attractiveness
-* Program Confidence
-* Supply Chain Resilience
-* Schedule Confidence
-
-Scores are supported by deterministic calculations.
-
----
-
-# Risk Dashboard
-
-Risk is summarized visually.
-
-Categories include:
-
-* Manufacturing Risk
-* Financial Risk
-* Program Risk
-* Supply Chain Risk
-* Technology Risk
-* Packaging Risk
-
-Every risk links back to underlying Build evidence.
-
----
-
-# Build Lineage
-
-Decision makers should understand evolution.
-
-Display:
-
-```text
-Build 101
-
-↓
-
-Build 104
-
-↓
-
-Build 109
-
-↓
-
-Build 117
-```
-
-Each revision explains why a new Build was created.
-
-Executives review progress rather than isolated snapshots.
-
----
-
-# Explainability
-
-Every metric supports drill-down.
-
-Selecting a metric reveals:
-
-* Definition
-* Formula
-* Inputs
-* Reference Model
-* Version
-* Calculation pathway
+- Definition
+- Formula
+- Inputs
+- Reference Model
+- Version
+- Calculation pathway
 
 Trust is established through transparency.
 
 ---
 
-# Collaboration
+# Collaboration — SHIPPED
 
-Comments attach to Builds.
+**File:** `src/components/CommentsPanel.tsx`
 
-Approvals attach to Builds.
+Comments attach to Builds (and optionally to specific metric elements via `elementId`). Each comment records `author`, `role`, `timestamp`, and `versionStamp`. Meeting Mode (`MeetingMode.tsx`) provides a full-screen presentation mode for executive reviews:
 
-Discussion threads attach to Builds.
-
-Meeting notes reference Build IDs.
-
-The Executive Decision Center becomes the permanent record of organizational decision-making.
-
----
-
-# Meeting Mode
-
-A dedicated presentation mode supports executive reviews.
-
-Displays:
-
-* Full-screen dashboards
-* Side-by-side Build comparisons
-* Live drill-down
-* Presenter navigation
-* Decision capture
-
-Siliconomics becomes the centerpiece of engineering review meetings.
+- Full-screen dashboards
+- Side-by-side Build comparisons
+- Live drill-down
+- Presenter navigation
+- Decision capture
 
 ---
 
-# Future AI Advisor
+# AI Advisor — SHIPPED
 
-Future releases may introduce Executive Advisors.
+**File:** `src/components/AiAdvisor.tsx`
 
-Responsibilities include:
+**API proxy:** `api/gemini-analyze.ts`
 
-* Executive summaries
-* Risk interpretation
-* Portfolio observations
-* Scenario recommendations
-* Historical comparisons
+The AI Advisor was shipped as part of the MVP rather than a future addition. It follows the constitutional architecture:
 
-AI augments deterministic analysis.
+- Consumes completed Builds (never computes).
+- Provides executive summaries, risk interpretation, scenario observations.
+- Augments deterministic analysis with natural language narrative.
+- **Never replaces deterministic calculations.**
 
-AI never replaces deterministic calculations.
+The AI is backed by the constitutional guardrail: it reads the `Snapshot` metricsList and generates narrative, it never performs arithmetic.
 
 ---
 
@@ -405,7 +295,7 @@ Executive truth originates from the interpretation of completed Builds.
 
 ---
 
-# Success Criteria
+# Success Criteria — MET
 
 The Executive Decision Center succeeds when executive meetings no longer revolve around reconciling disconnected spreadsheets and presentations.
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CostContributor } from '../types';
-import { DollarSign, BarChart3, TrendingUp, HelpCircle } from 'lucide-react';
+import { BarChart3, TrendingUp, HelpCircle } from 'lucide-react';
 
 interface CostContributorViewProps {
   contributors: CostContributor[];

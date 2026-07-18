@@ -2,7 +2,7 @@
 
 ## Core Domain Model
 
-### Version 1.0
+### Version 1.1 — Amended 2026-07-17
 
 ---
 
@@ -197,6 +197,12 @@ Examples:
 * Technology selections
 
 Intent records what the engineer requested.
+
+**Shipped composition members added since v1.0:**
+
+- `architecture` — ArchitectureComposition with block-level BOM (NRE, licenses, royalties, schedule impact, verification effort, supply chain risk).
+- `dataVintage` — DataVintage tracking the reference model version, packaging model version, and commodity price date used at computation time. Ensures reproducibility by anchoring the reference data snapshot.
+- `timeModel` — Optional TimeModel enabling time-dimension projection. Contains D0 yield-learning curve parameters, ramp shape/duration, annual ASP erosion rate, max quarterly supply, volume allocation profile, projection horizon, and respin risk configuration. When present, `computeBuildMetrics` includes time-phased metrics (break-even quarter, program constraint, respin-adjusted expected net). When absent, the engine produces the exact static lifetime values (equivalence theorem).
 
 ---
 

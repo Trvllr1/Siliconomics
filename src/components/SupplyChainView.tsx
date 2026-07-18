@@ -1,7 +1,7 @@
 import React from 'react';
-import { SupplyChainSnapshot, CommodityPrice } from '../types';
+import { SupplyChainSnapshot } from '../types';
 import { DEFAULT_COMMODITY_PRICES } from '../data/defaultCommodityPrices';
-import { ShieldAlert, Truck, Globe, Clock, DollarSign, AlertTriangle, BarChart3, Package, Cpu, Wrench } from 'lucide-react';
+import { ShieldAlert, Truck, Globe, Clock, DollarSign, AlertTriangle, BarChart3, Package } from 'lucide-react';
 
 interface SupplyChainViewProps {
   supplyChain: SupplyChainSnapshot;

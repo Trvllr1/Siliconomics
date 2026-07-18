@@ -21,11 +21,7 @@ import {
   List,
   Plus,
   Database,
-  Cpu,
-  Layers,
-  BookOpen,
-  Sparkles,
-  Check
+  Sparkles
 } from 'lucide-react';
 
 const formatActivityTime = (timestampStr: string): string => {
@@ -40,7 +36,7 @@ const formatActivityTime = (timestampStr: string): string => {
     if (diffHours < 24) return `${diffHours}h ago`;
     
     return date.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  } catch (e) {
+  } catch {
     return 'Recent';
   }
 };
@@ -83,10 +79,10 @@ export default function DashboardView({
   const [newArchChiplets, setNewArchChiplets] = useState(1);
   const [newArchIoDieArea, setNewArchIoDieArea] = useState(0);
   const [newArchDefectDensity, setNewArchDefectDensity] = useState(0.08);
-  const [newArchWaferStarts, setNewArchWaferStarts] = useState(5000);
+  const [newArchWaferStarts] = useState(5000);
   const [newArchPackagingCost, setNewArchPackagingCost] = useState(12.50);
-  const [newArchTestTime, setNewArchTestTime] = useState(40);
-  const [newArchTestCostRate, setNewArchTestCostRate] = useState(0.15);
+  const [newArchTestTime] = useState(40);
+  const [newArchTestCostRate] = useState(0.15);
   const [newArchWaferCost, setNewArchWaferCost] = useState(9500);
   const [newArchNreCost, setNewArchNreCost] = useState(110);
   const [newArchAsp, setNewArchAsp] = useState(250);
@@ -385,9 +381,6 @@ export default function DashboardView({
                         {children.map(build => {
                           const metrics = computeBuildMetrics(build);
                           const snap = metrics.snapshot;
-                          const totalDieArea = snap.totalDieArea;
-                          const dieYield = snap.dieYield;
-                          const grossMargin = snap.grossMargin;
                           
                           return (
                             <div key={build.id} className="space-y-1">
@@ -438,7 +431,6 @@ export default function DashboardView({
                   return rootBuilds.map(root => {
                     const metrics = computeBuildMetrics(root);
                     const snap = metrics.snapshot;
-                    const totalDieArea = snap.totalDieArea;
                     const dieYield = snap.dieYield;
                     const grossMargin = snap.grossMargin;
                     

@@ -252,6 +252,13 @@ How can I assist in reviewing **${activeBuild.name}** today? Select a tactical a
         <div ref={chatEndRef} />
       </div>
 
+      {/* Data-flow disclosure */}
+      <div className="px-3 py-1.5 bg-art-cream/60 border-t border-art-ink/5">
+        <p className="text-[9px] font-mono text-art-ink/40 leading-relaxed">
+          Analysis sends your build parameters and computed metrics to Google Gemini via our proxy — opt-in per click, never automatic.
+        </p>
+      </div>
+
       {/* Suggested Quick Consults */}
       <div className="px-3 py-2.5 bg-art-cream border-t border-b border-art-ink/10">
         <span className="text-[9px] font-mono font-bold text-art-ink/40 uppercase tracking-widest block mb-1.5">
