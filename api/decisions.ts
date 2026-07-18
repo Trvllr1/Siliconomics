@@ -37,6 +37,7 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
           rationale,
           followUpActions: followUpActions || [],
         }).returning();
+        if (!decision) return res.status(500).json({ error: 'Failed to create decision' });
 
         for (const buildId of buildIds) {
           await db.insert(buildEvents).values({

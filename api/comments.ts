@@ -40,6 +40,7 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
           content: parsed.data.content,
           versionStamp: parsed.data.versionStamp || null,
         }).returning();
+        if (!comment) return res.status(500).json({ error: 'Failed to create comment' });
 
         await db.insert(buildEvents).values({
           buildId: parsed.data.buildId,

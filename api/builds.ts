@@ -10,9 +10,9 @@ const FREEZE_STATUSES = ['TechnicalReview', 'FinancialReview', 'ProgramReview', 
 const updateBuildSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
-  designModel: z.record(z.any()).optional(),
-  architecture: z.record(z.any()).nullable().optional(),
-  dataVintage: z.record(z.any()).nullable().optional(),
+  designModel: z.record(z.string(), z.any()).optional(),
+  architecture: z.record(z.string(), z.any()).nullable().optional(),
+  dataVintage: z.record(z.string(), z.any()).nullable().optional(),
   referenceModel: z.string().optional(),
   formulaVersion: z.string().optional(),
   portfolio: z.string().optional(),
@@ -82,6 +82,7 @@ async function createBuild(req: AuthenticatedRequest, res: VercelResponse) {
     architecture: body.architecture || null,
     dataVintage: body.dataVintage || null,
   }).returning();
+  if (!build) return res.status(500).json({ error: 'Failed to create build' });
 
   await db.insert(buildEvents).values({
     buildId: build.id,
@@ -100,7 +101,7 @@ async function updateBuild(req: AuthenticatedRequest, res: VercelResponse) {
   const existing = await db.select().from(builds).where(eq(builds.id, id)).limit(1);
   if (!existing.length) return res.status(404).json({ error: 'Build not found' });
 
-  const build = existing[0];
+  const build = existing[0]!;
 
   if (build.frozenAt) {
     return res.status(409).json({
@@ -130,6 +131,7 @@ async function updateBuild(req: AuthenticatedRequest, res: VercelResponse) {
     })
     .where(eq(builds.id, id))
     .returning();
+  if (!updated) return res.status(500).json({ error: 'Failed to update build' });
 
   await db.insert(buildEvents).values({
     buildId: id,

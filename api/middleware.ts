@@ -20,7 +20,7 @@ export async function requireAuth(req: AuthenticatedRequest, res: VercelResponse
     const parts = token.split('.');
     if (parts.length !== 3) throw new Error('Invalid JWT format');
 
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
+    const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf-8'));
     const clerkUserId = payload.sub as string;
 
     if (!clerkUserId) {

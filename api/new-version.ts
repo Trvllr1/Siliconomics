@@ -15,9 +15,9 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
     const existing = await db.select().from(builds).where(eq(builds.id, sourceBuildId)).limit(1);
     if (!existing.length) return res.status(404).json({ error: 'Source build not found' });
 
-    const source = existing[0];
+    const source = existing[0]!;
     const verParts = source.version.match(/^v?(\d+)\.(\d+)$/);
-    const newVersion = verParts ? `v${verParts[1]}.${parseInt(verParts[2]) + 1}` : 'v1.1';
+    const newVersion = verParts ? `v${verParts[1]!}.${parseInt(verParts[2]!) + 1}` : 'v1.1';
 
     const [newBuild] = await db.insert(builds).values({
       name: newName || `Copy of ${source.name}`,
@@ -36,6 +36,7 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
       architecture: changes?.architecture !== undefined ? changes.architecture : source.architecture,
       dataVintage: source.dataVintage,
     }).returning();
+    if (!newBuild) return res.status(500).json({ error: 'Failed to create new version' });
 
     await db.insert(buildEvents).values({
       buildId: newBuild.id,

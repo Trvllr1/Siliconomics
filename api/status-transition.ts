@@ -24,7 +24,7 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
     const existing = await db.select().from(builds).where(eq(builds.id, buildId)).limit(1);
     if (!existing.length) return res.status(404).json({ error: 'Build not found' });
 
-    const build = existing[0];
+    const build = existing[0]!;
     const nextStatus = STATUS_FLOW[build.status];
 
     if (!nextStatus) {
