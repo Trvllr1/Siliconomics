@@ -17,7 +17,7 @@ Open http://localhost:5173. The app runs in **demo mode** by default — no data
 
 - **Node.js 22+**
 - Optional: `VITE_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` for auth + Neon persistence
-- Optional: `GEMINI_API_KEY` for AI Advisor (falls back to local analysis mode)
+- Optional: `NIM_API_KEY` for Chippie, the embedded AI advisor (falls back to demo mode)
 - Optional: `DATABASE_URL` for Neon Postgres (demo mode uses localStorage)
 
 ## Stack
@@ -30,7 +30,7 @@ Open http://localhost:5173. The app runs in **demo mode** by default — no data
 | Auth (opt) | Clerk |
 | Persistence (opt) | Neon Postgres + Drizzle ORM |
 | API (opt) | Vercel serverless functions |
-| AI (opt) | Google Gemini 2.5 Pro |
+| AI (opt) | NVIDIA NIM open models (Chippie advisor) |
 | Engine | TypeScript pure functions (mathEngine.ts + timeEngine.ts) |
 
 The engine is fully deterministic — same inputs always produce identical outputs. No Monte Carlo, no randomness. Every metric includes a full calculation trace with equation, inputs, reference model, and version.
@@ -86,7 +86,7 @@ Siliconomics is built for pre-tapeout semiconductor program data. Here is how yo
 - **Demo mode (default):** All data stays in your browser (localStorage). Nothing is transmitted or stored server-side. You can model a complete chip program entirely offline.
 - **Signed-in mode:** Builds are stored in tenant-isolated Postgres (Neon) with authentication via Clerk. Data is owner-scoped.
 - **Reference data policy:** All platform-default assumptions are sourced from public, analyst-published estimates only. User-entered private assumptions via "Duplicate & Customize" are never read, aggregated, or shared.
-- **AI Advisor:** When you click to invoke analysis, the active Build's parameters and computed metrics are sent to Google's Gemini API via our proxy for natural-language processing. Analysis is opt-in per click, never automatic. No build data is used for model training.
+- **AI Advisor (Chippie):** When you send a message or invoke an analysis, the active Build's parameters and computed metrics are sent to NVIDIA-hosted open models via our proxy for natural-language processing. Analysis is opt-in per message, never automatic. No build data is used for model training. Every number cited comes from the deterministic engine.
 
 No analytics, no tracking pixels, no third-party data sharing.
 

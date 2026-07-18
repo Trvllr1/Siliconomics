@@ -671,7 +671,7 @@ export default function App() {
       buildName: buildWithVintage.name,
       timestamp: new Date().toISOString(),
       type: 'commit',
-      delta: `Committed new build version v${buildWithVintage.version}`,
+      delta: `Committed new build version ${buildWithVintage.version}`,
     };
     setActivities((act) => [newLog, ...act]);
     setBuilds((prev) => [...prev, buildWithVintage]);
@@ -734,6 +734,26 @@ export default function App() {
   const handleSelectMetric = (m: MetricCardData) => {
     setClickedTrace(m.trace);
     setContextTab('explain');
+  };
+
+  // Chippie proposal → new Draft branch of the active build (never mutates it).
+  const handleApplyChippieProposal = (proposal: { field: string; proposedValue: number; rationale: string }) => {
+    if (!activeBuild) return;
+    const verParts = activeBuild.version.match(/^v?(\d+)\.(\d+)$/);
+    const newVersion = verParts && verParts[1] && verParts[2]
+      ? `v${verParts[1]}.${parseInt(verParts[2]) + 1}`
+      : 'v1.1';
+    const branch: Build = {
+      ...activeBuild,
+      designModel: { ...activeBuild.designModel, [proposal.field]: proposal.proposedValue },
+      id: `build-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+      name: `${activeBuild.name} — Chippie proposal`,
+      version: newVersion,
+      description: `Branched from ${activeBuild.name} ${activeBuild.version} via Chippie proposal: ${proposal.field} → ${proposal.proposedValue}. Rationale: ${proposal.rationale}`,
+      parentId: activeBuild.id,
+      status: 'Draft',
+    };
+    void handleCommitBuild(branch);
   };
 
   const activeTrace = hoveredTrace || clickedTrace;
@@ -1290,8 +1310,10 @@ export default function App() {
                 activeBuild={activeBuild} 
                 computedMetrics={computedMetrics} 
                 activePersona={activePersona}
+                builds={builds}
                 decisions={decisions}
                 onNavigate={setActiveTab}
+                onApplyProposal={handleApplyChippieProposal}
               />
             )}
           </div>

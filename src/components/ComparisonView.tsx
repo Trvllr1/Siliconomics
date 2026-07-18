@@ -195,12 +195,13 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
     setError(null);
 
     try {
-      const response = await fetch('/api/gemini/compare', {
+      const response = await fetch('/api/chippie-brief', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          kind: 'compare',
           buildA: buildA,
           computedA: metricsA,
           buildB: buildB,
@@ -213,7 +214,7 @@ export default function ComparisonView({ builds, initialBuildAId, initialBuildBI
       }
 
       const data = await response.json();
-      setAiComparison(data.comparison);
+      setAiComparison(data.content);
     } catch (err: any) {
       console.error(err);
       setError(err?.message || 'Error executing AI comparison.');

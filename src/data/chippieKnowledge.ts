@@ -1377,18 +1377,18 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
     "keywords": [
       "product",
       "evolution",
+      "chippie",
       "api",
       "advisor",
       "shipped",
-      "analysis",
       "builds",
-      "never",
       "deterministic",
-      "gemini",
+      "engine",
+      "never",
       "optimization",
       "engines"
     ],
-    "content": "AI Advisor (shipped in v1.0)\n\nOptimization Engines\n\nScenario Recommendations\n\nMarket Intelligence\n\nForecasting\n\nSupply Chain Analysis\n\nThe AI Advisor (`AiAdvisor.tsx`) is shipped and operational. It follows the constitutional architecture: it consumes completed Builds, generates narrative from snapshot metrics, and never performs arithmetic or replaces the deterministic engine. Backed by a Gemini API proxy (`api/gemini-analyze.ts`) with a fallback local analysis mode when the API key is absent.\n\nThese systems consume Builds.\n\nThey never replace deterministic computation.\n\n---"
+    "content": "AI Advisor (shipped in v1.0)\n\nOptimization Engines\n\nScenario Recommendations\n\nMarket Intelligence\n\nForecasting\n\nSupply Chain Analysis\n\nThe AI Advisor (Chippie, `Chippie.tsx`) is shipped and operational. It follows the constitutional architecture: it consumes completed Builds, cites metrics from the deterministic engine via tool calls, and never performs arithmetic or replaces the engine. Backed by NVIDIA NIM open models via a serverless proxy (`api/chippie.ts`, one-shot briefings via `api/chippie-brief.ts`) with a demo fallback mode when the API key is absent.\n\nThese systems consume Builds.\n\nThey never replace deterministic computation.\n\n---"
   },
   {
     "id": "02-product-blueprint--user-journey",
@@ -1528,15 +1528,15 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
       "charts",
       "cost"
     ],
-    "content": "Implemented as a **Vite + React + TypeScript SPA**, deployed on Vercel.\n\n**Key libraries:**\n- `recharts` — all charts (yield curves, cost stacks, sensitivity, time-phased revenue/margin, cumulative cash flow, yield-ramp).\n- `lucide-react` — icon system.\n- `@clerk/clerk-react` — authentication (optional; degrades gracefully to demo mode).\n- `@tanstack/react-query` — API data fetching (when signed in).\n- `tailwindcss` — styling.\n\n**Key components:**\n\n| Component | File | Purpose |\n|-----------|------|---------|\n| DesignBoard | `DesignBoard.tsx` | Primary design-editing surface for the DesignModel; freeze-gated when build is immutable |\n| BuildView | `BuildView.tsx` | Five-section collapsible workspace with input knobs + metric cards; includes Program Timeline section |\n| ChartsView | `ChartsView.tsx` | Six charts: Murphy yield curve, cost stack, D0 sensitivity, quarterly revenue/margin, cumulative cash flow, yield-ramp |\n| AI Advisor | `AiAdvisor.tsx` | Constitutional AI assistant — consumes Builds, never computes |\n| ComparisonView | `ComparisonView.tsx` | Side-by-side Build comparison with AI analysis |\n| DecisionCenterView | `DecisionCenterView.tsx` | Executive review, decision recording, approval workflow |\n| MeetingMode | `MeetingMode.tsx` | Full-screen presentation mode for executive reviews |\n| ReviewBoardView | `ReviewBoardView.tsx` | Multi-persona review board (architect, manufacturing, finance, program, executive) |\n| SensitivityView | `SensitivityView.tsx` | Tornado chart and interactive sensitivity sweeps |\n| ExecutiveBriefing | `ExecutiveBriefing.tsx` | Board-ready executive summary with risk/opportunity analysis |\n| CommentsPanel | `CommentsPanel.tsx` | Collaboration threads anchored to metrics |\n| CommandPalette | `CommandPalette.tsx` | ⌘K global command palette |\n| DashboardView | `DashboardView.tsx` | Dashboard with recent builds, portfolios, activity |\n| ExplainabilityPanel | `ExplainabilityPanel.tsx` | Metric drill-down with trace, equation, reference, data provenance |\n\n**Persona system:** Five built-in personas (architect, manufacturing, finance, program, executive) with field-level edit gating via `FIELD_OWNER` in `personaConfig.ts`. Persona affects which sections/fields are editable.\n\n---"
+    "content": "Implemented as a **Vite + React + TypeScript SPA**, deployed on Vercel.\n\n**Key libraries:**\n- `recharts` — all charts (yield curves, cost stacks, sensitivity, time-phased revenue/margin, cumulative cash flow, yield-ramp).\n- `lucide-react` — icon system.\n- `@clerk/clerk-react` — authentication (optional; degrades gracefully to demo mode).\n- `@tanstack/react-query` — API data fetching (when signed in).\n- `tailwindcss` — styling.\n\n**Key components:**\n\n| Component | File | Purpose |\n|-----------|------|---------|\n| DesignBoard | `DesignBoard.tsx` | Primary design-editing surface for the DesignModel; freeze-gated when build is immutable |\n| BuildView | `BuildView.tsx` | Five-section collapsible workspace with input knobs + metric cards; includes Program Timeline section |\n| ChartsView | `ChartsView.tsx` | Six charts: Murphy yield curve, cost stack, D0 sensitivity, quarterly revenue/margin, cumulative cash flow, yield-ramp |\n| AI Advisor | `Chippie.tsx` | Constitutional AI assistant — consumes Builds, never computes |\n| ComparisonView | `ComparisonView.tsx` | Side-by-side Build comparison with AI analysis |\n| DecisionCenterView | `DecisionCenterView.tsx` | Executive review, decision recording, approval workflow |\n| MeetingMode | `MeetingMode.tsx` | Full-screen presentation mode for executive reviews |\n| ReviewBoardView | `ReviewBoardView.tsx` | Multi-persona review board (architect, manufacturing, finance, program, executive) |\n| SensitivityView | `SensitivityView.tsx` | Tornado chart and interactive sensitivity sweeps |\n| ExecutiveBriefing | `ExecutiveBriefing.tsx` | Board-ready executive summary with risk/opportunity analysis |\n| CommentsPanel | `CommentsPanel.tsx` | Collaboration threads anchored to metrics |\n| CommandPalette | `CommandPalette.tsx` | ⌘K global command palette |\n| DashboardView | `DashboardView.tsx` | Dashboard with recent builds, portfolios, activity |\n| ExplainabilityPanel | `ExplainabilityPanel.tsx` | Metric drill-down with trace, equation, reference, data provenance |\n\n**Persona system:** Five built-in personas (architect, manufacturing, finance, program, executive) with field-level edit gating via `FIELD_OWNER` in `personaConfig.ts`. Persona affects which sections/fields are editable.\n\n---"
   },
   {
     "id": "03-architecture--production-clerk-authenticated",
     "source": "03-Architecture.md",
     "title": "Production (Clerk-authenticated)",
     "keywords": [
-      "clerk",
       "api",
+      "clerk",
       "production",
       "authenticated",
       "build",
@@ -1546,9 +1546,9 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
       "append",
       "only",
       "frozen",
-      "gemini"
+      "chippie"
     ],
-    "content": "**Neon Postgres** with **Drizzle ORM** (`db/schema.ts`):\n\n- `users` — Clerk-mapped user records.\n- `builds` — Build metadata + serialized DesignModel, dataVintage, timeModel.\n- `snapshots` — Computed Snapshot payloads, SHA-256 content-addressed.\n- `build_events` — Append-only event log (creation, status transitions, respin branching).\n- `decisions` — Append-only decision records with outcome, approver, rationale.\n- `comments` — Build-anchored collaboration threads.\n- `portfolios` — Build groupings.\n- `alert_acks` — Acknowledged alert records.\n- `custom_archetypes` — User-registered template archetypes.\n\nFrozen builds (status ≥ TechnicalReview) reject PATCH requests with 409 Conflict. Freeze is enforced server-side via JWT middleware (`api/middleware.ts`).\n\n**API layer:** Vercel serverless functions in `api/*.ts`:\n- `api/builds.ts` — GET (list), POST (create), PATCH (update, 409 if frozen).\n- `api/status-transition.ts` — Promotes status; freezes at Draft→TechnicalReview.\n- `api/new-version.ts` — Creates an unfrozen child Build from a frozen parent.\n- `api/decisions.ts` — Append-only decision recording.\n- `api/comments.ts` — Build-anchored CRUD.\n- `api/snapshots.ts` — GET snapshot by build ID.\n- `api/gemini-analyze.ts`, `api/gemini-compare.ts` — Serverless Gemini proxy endpoints (replacing the retired Express `server.ts`)."
+    "content": "**Neon Postgres** with **Drizzle ORM** (`db/schema.ts`):\n\n- `users` — Clerk-mapped user records.\n- `builds` — Build metadata + serialized DesignModel, dataVintage, timeModel.\n- `snapshots` — Computed Snapshot payloads, SHA-256 content-addressed.\n- `build_events` — Append-only event log (creation, status transitions, respin branching).\n- `decisions` — Append-only decision records with outcome, approver, rationale.\n- `comments` — Build-anchored collaboration threads.\n- `portfolios` — Build groupings.\n- `alert_acks` — Acknowledged alert records.\n- `custom_archetypes` — User-registered template archetypes.\n\nFrozen builds (status ≥ TechnicalReview) reject PATCH requests with 409 Conflict. Freeze is enforced server-side via JWT middleware (`api/middleware.ts`).\n\n**API layer:** Vercel serverless functions in `api/*.ts`:\n- `api/builds.ts` — GET (list), POST (create), PATCH (update, 409 if frozen).\n- `api/status-transition.ts` — Promotes status; freezes at Draft→TechnicalReview.\n- `api/new-version.ts` — Creates an unfrozen child Build from a frozen parent.\n- `api/decisions.ts` — Append-only decision recording.\n- `api/comments.ts` — Build-anchored CRUD.\n- `api/snapshots.ts` — GET snapshot by build ID.\n- `api/chippie.ts`, `api/chippie-brief.ts` — Serverless NVIDIA NIM proxy endpoints for Chippie chat and one-shot briefings (shared core in `api/_lib/chippieCore.ts`)."
   },
   {
     "id": "03-architecture--demo-mode-no-clerk-no-postgres",
@@ -1677,9 +1677,9 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
     "keywords": [
       "comparison",
       "scenario",
-      "compare",
-      "gemini",
+      "chippie",
       "users",
+      "compare",
       "multiple",
       "immutable",
       "builds",
@@ -1688,7 +1688,7 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
       "covers",
       "cost"
     ],
-    "content": "Users compare multiple immutable Builds via `ComparisonView.tsx`. Comparison covers cost, yield, die count, packaging, NRE, ROI, break-even, and commercial impact. AI-powered comparison available via Gemini proxy (`api/gemini-compare.ts`).\n\n---"
+    "content": "Users compare multiple immutable Builds via `ComparisonView.tsx`. Comparison covers cost, yield, die count, packaging, NRE, ROI, break-even, and commercial impact. AI-powered comparison available via the Chippie briefing proxy (`api/chippie-brief.ts`).\n\n---"
   },
   {
     "id": "03-architecture--precision-requirements",
@@ -1725,10 +1725,10 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
       "vite",
       "build",
       "optional",
-      "neon",
-      "vercel"
+      "demo",
+      "neon"
     ],
-    "content": "**Current:** Vite build → Vercel. `vercel.json` configures function runtime (Node 22), API rewrites, and CORS headers.\n\n**Environment variables:**\n- `VITE_CLERK_PUBLISHABLE_KEY` — Clerk frontend API key (optional; demo mode when absent).\n- `DATABASE_URL` — Neon Postgres connection string (optional for demo).\n- `GEMINI_API_KEY` — Google Gemini API key (optional; AI Advisor uses local mode when absent).\n- `CLERK_SECRET_KEY` — Clerk backend secret (required for API auth).\n- `CLERK_PUBLISHABLE_KEY` — Clerk frontend API key (server-side reference).\n\n**Commands:**\n- `npm run dev` — Vite dev server + API watcher (`npm run dev:api`).\n- `npm run build` — Production build.\n- `npm run db:generate` — Generate Drizzle migrations.\n- `npm run db:migrate` — Apply migrations to Neon.\n- `npm run db:push` — Push schema to Neon (dev).\n\n---"
+    "content": "**Current:** Vite build → Vercel. `vercel.json` configures function runtime (Node 22), API rewrites, and CORS headers.\n\n**Environment variables:**\n- `VITE_CLERK_PUBLISHABLE_KEY` — Clerk frontend API key (optional; demo mode when absent).\n- `DATABASE_URL` — Neon Postgres connection string (optional for demo).\n- `NIM_API_KEY` — NVIDIA NIM API key (optional; Chippie uses demo mode when absent). `CHIPPIE_BASE_URL` / `CHIPPIE_MODEL` override the endpoint and model.\n- `CLERK_SECRET_KEY` — Clerk backend secret (required for API auth).\n- `CLERK_PUBLISHABLE_KEY` — Clerk frontend API key (server-side reference).\n\n**Commands:**\n- `npm run dev` — Vite dev server + API watcher (`npm run dev:api`).\n- `npm run build` — Production build.\n- `npm run db:generate` — Generate Drizzle migrations.\n- `npm run db:migrate` — Apply migrations to Neon.\n- `npm run db:push` — Push schema to Neon (dev).\n\n---"
   },
   {
     "id": "03-architecture--deferred-architecture",
@@ -1768,7 +1768,7 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
       "react",
       "mode"
     ],
-    "content": "| Deliverable | Status | Implementation |\n|-------------|--------|----------------|\n| Deterministic computation engine (TypeScript) | Shipped | `mathEngine.ts`, `timeEngine.ts` |\n| Build generation + immutability | Shipped | `computeBuildMetrics`, status lifecycle, freeze on TechnicalReview |\n| Snapshot generation | Shipped | `Snapshot` interface, metricsList with CalculationTrace |\n| Formula Library (versioned) | Shipped | `defaultFormulaLibrary.ts` (34 entries, v1.0–v3.0) |\n| Reference Model Library | Shipped | `defaultReferenceModels.ts`, `packagingCostModel.ts`, `defaultCommodityPrices.ts` |\n| React frontend | Shipped | 20+ components in `src/components/` |\n| React/Next.js frontend | Shipped | Vite + React + TypeScript SPA |\n| Build comparison | Shipped | `ComparisonView.tsx` |\n| Explainability (per-metric trace) | Shipped | `CalculationTrace` on every MetricCardData |\n| Supply chain risk scoring | Shipped | Block-level risk → composite score |\n| Architecture BOM + IP cost waterfall | Shipped | Block-level NRE, licenses, royalties |\n| CoWoS / advanced packaging | Shipped | CoWoS-S/R/L + EMIB pricing models |\n| MPW shuttle economics | Shipped | MPW toggle replaces NRE + volume |\n| Time-dimension modeling (P3) | Shipped | `TimeModel`, 20-quarter projections, D0 learning, ASP erosion, ramp, respin |\n| DataVintage / reference data freshness | Shipped | `DataVintage` on each Build |\n| AI Advisor (constitutional) | Shipped | `AiAdvisor.tsx`, Gemini proxy |\n| Decision recording | Shipped | `DecisionCenterView.tsx` |\n| Meeting Mode | Shipped | `MeetingMode.tsx` |\n| Executive Briefing | Shipped | `ExecutiveBriefing.tsx` |\n| Command Palette | Shipped | `CommandPalette.tsx` (⌘K) |\n| Multi-persona review board | Shipped | `ReviewBoardView.tsx` |\n| Postgres + API persistence | Shipped | Neon + Drizzle + Vercel API routes |\n| Clerk authentication | Shipped | Optional; demo mode when absent |\n| Dual-mode StorageAdapter | Shipped | localStorage (demo) / API (auth) |\n| PDF export | Shipped | `pdfGenerator.ts` |\n| Markdown/CSV export | Shipped | `csvGenerator.ts` |\n| Machine learning / AI agents | Future | Constitutional AI Advisor shipped; autonomous optimization deferred |\n| External data acquisition | Future | Not in scope |\n| Memgraph integration | Deferred | See deferred table above |\n| TigerBeetle ledger | Deferred | See deferred table above |\n| OCI deployment | Deferred | See deferred table above |\n| PowerPoint export | Deferred | See deferred table above |\n| NPV / WACC discounting | Deferred | See deferred table above |\n\n---"
+    "content": "| Deliverable | Status | Implementation |\n|-------------|--------|----------------|\n| Deterministic computation engine (TypeScript) | Shipped | `mathEngine.ts`, `timeEngine.ts` |\n| Build generation + immutability | Shipped | `computeBuildMetrics`, status lifecycle, freeze on TechnicalReview |\n| Snapshot generation | Shipped | `Snapshot` interface, metricsList with CalculationTrace |\n| Formula Library (versioned) | Shipped | `defaultFormulaLibrary.ts` (34 entries, v1.0–v3.0) |\n| Reference Model Library | Shipped | `defaultReferenceModels.ts`, `packagingCostModel.ts`, `defaultCommodityPrices.ts` |\n| React frontend | Shipped | 20+ components in `src/components/` |\n| React/Next.js frontend | Shipped | Vite + React + TypeScript SPA |\n| Build comparison | Shipped | `ComparisonView.tsx` |\n| Explainability (per-metric trace) | Shipped | `CalculationTrace` on every MetricCardData |\n| Supply chain risk scoring | Shipped | Block-level risk → composite score |\n| Architecture BOM + IP cost waterfall | Shipped | Block-level NRE, licenses, royalties |\n| CoWoS / advanced packaging | Shipped | CoWoS-S/R/L + EMIB pricing models |\n| MPW shuttle economics | Shipped | MPW toggle replaces NRE + volume |\n| Time-dimension modeling (P3) | Shipped | `TimeModel`, 20-quarter projections, D0 learning, ASP erosion, ramp, respin |\n| DataVintage / reference data freshness | Shipped | `DataVintage` on each Build |\n| AI Advisor (constitutional) | Shipped | `Chippie.tsx`, NVIDIA NIM proxy |\n| Decision recording | Shipped | `DecisionCenterView.tsx` |\n| Meeting Mode | Shipped | `MeetingMode.tsx` |\n| Executive Briefing | Shipped | `ExecutiveBriefing.tsx` |\n| Command Palette | Shipped | `CommandPalette.tsx` (⌘K) |\n| Multi-persona review board | Shipped | `ReviewBoardView.tsx` |\n| Postgres + API persistence | Shipped | Neon + Drizzle + Vercel API routes |\n| Clerk authentication | Shipped | Optional; demo mode when absent |\n| Dual-mode StorageAdapter | Shipped | localStorage (demo) / API (auth) |\n| PDF export | Shipped | `pdfGenerator.ts` |\n| Markdown/CSV export | Shipped | `csvGenerator.ts` |\n| Machine learning / AI agents | Future | Constitutional AI Advisor shipped; autonomous optimization deferred |\n| External data acquisition | Future | Not in scope |\n| Memgraph integration | Deferred | See deferred table above |\n| TigerBeetle ledger | Deferred | See deferred table above |\n| OCI deployment | Deferred | See deferred table above |\n| PowerPoint export | Deferred | See deferred table above |\n| NPV / WACC discounting | Deferred | See deferred table above |\n\n---"
   },
   {
     "id": "03-architecture--engineering-principle",
@@ -2966,17 +2966,17 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
       "build",
       "comparison",
       "shipped",
-      "compare",
-      "gemini",
+      "chippie",
       "file",
       "src",
       "components",
       "comparisonview",
       "tsx",
+      "compare",
       "number",
       "completed"
     ],
-    "content": "**File:** `src/components/ComparisonView.tsx`\n\nCompare any number of completed Builds across:\n\n- Area, Yield, Cost, NRE, ROI, Schedule\n- Packaging, Power, Performance\n- Manufacturing Risk\n\nAI-powered comparison analysis available via Gemini proxy (`api/gemini-compare.ts`). Comparisons operate exclusively on immutable Build objects.\n\n---"
+    "content": "**File:** `src/components/ComparisonView.tsx`\n\nCompare any number of completed Builds across:\n\n- Area, Yield, Cost, NRE, ROI, Schedule\n- Packaging, Power, Performance\n- Manufacturing Risk\n\nAI-powered comparison analysis available via the Chippie briefing proxy (`api/chippie-brief.ts`). Comparisons operate exclusively on immutable Build objects.\n\n---"
   },
   {
     "id": "06-executive-decision-center--3-business-impact-analysis-shipped",
@@ -3226,6 +3226,7 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
       "advisor",
       "shipped",
       "never",
+      "chippie",
       "api",
       "constitutional",
       "deterministic",
@@ -3233,10 +3234,9 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
       "file",
       "src",
       "components",
-      "aiadvisor",
       "tsx"
     ],
-    "content": "**File:** `src/components/AiAdvisor.tsx`\n\n**API proxy:** `api/gemini-analyze.ts`\n\nThe AI Advisor was shipped as part of the MVP rather than a future addition. It follows the constitutional architecture:\n\n- Consumes completed Builds (never computes).\n- Provides executive summaries, risk interpretation, scenario observations.\n- Augments deterministic analysis with natural language narrative.\n- **Never replaces deterministic calculations.**\n\nThe AI is backed by the constitutional guardrail: it reads the `Snapshot` metricsList and generates narrative, it never performs arithmetic.\n\n---"
+    "content": "**File:** `src/components/Chippie.tsx`\n\n**API proxy:** `api/chippie-brief.ts`\n\nThe AI Advisor was shipped as part of the MVP rather than a future addition. It follows the constitutional architecture:\n\n- Consumes completed Builds (never computes).\n- Provides executive summaries, risk interpretation, scenario observations.\n- Augments deterministic analysis with natural language narrative.\n- **Never replaces deterministic calculations.**\n\nThe AI is backed by the constitutional guardrail: it reads the `Snapshot` metricsList and generates narrative, it never performs arithmetic.\n\n---"
   },
   {
     "id": "06-executive-decision-center--architectural-rules",
@@ -3297,703 +3297,6 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
       "where"
     ],
     "content": "> **Engineers create Builds. Executives make decisions from Builds. The Executive Decision Center is where engineering truth becomes organizational action.**"
-  },
-  {
-    "id": "07-glossary--07-glossary-of-terms-acronyms",
-    "source": "07-Glossary.md",
-    "title": "07 — Glossary of Terms & Acronyms",
-    "keywords": [
-      "glossary",
-      "terms",
-      "acronyms",
-      "definitions",
-      "term",
-      "canonical",
-      "every",
-      "acronym",
-      "domain",
-      "across",
-      "siliconomics",
-      "platform"
-    ],
-    "content": "Canonical definitions for every acronym and domain term used across Siliconomics — the platform docs, the Formula Library, and the build workspace. Chippie cites these definitions verbatim when a persona asks what a term means."
-  },
-  {
-    "id": "07-glossary--osat-outsourced-semiconductor-assembly-and-test",
-    "source": "07-Glossary.md",
-    "title": "OSAT (Outsourced Semiconductor Assembly and Test)",
-    "keywords": [
-      "test",
-      "assembly",
-      "osat",
-      "outsourced",
-      "semiconductor",
-      "packaging",
-      "cost",
-      "stands",
-      "osats",
-      "third",
-      "party",
-      "companies"
-    ],
-    "content": "OSAT stands for Outsourced Semiconductor Assembly and Test. OSATs are third-party companies (e.g., ASE, Amkor, JCET) that take finished wafers from a foundry and perform packaging assembly and electrical test on behalf of the chip designer. In Siliconomics, the per-unit packaging assembly cost (C_pkg) and tester time cost rate (R_test) in the Packaging & Test Cost formula come from OSAT price schedules."
-  },
-  {
-    "id": "07-glossary--foundry",
-    "source": "07-Glossary.md",
-    "title": "Foundry",
-    "keywords": [
-      "foundry",
-      "wafer",
-      "semiconductor",
-      "fabrication",
-      "plant",
-      "operator",
-      "tsmc",
-      "samsung",
-      "globalfoundries",
-      "manufactures",
-      "wafers",
-      "fabless"
-    ],
-    "content": "A foundry is a semiconductor fabrication plant operator (e.g., TSMC, Samsung Foundry, GlobalFoundries) that manufactures wafers for fabless chip designers. The wafer cost input in every Siliconomics build reflects the foundry's price per processed wafer at the selected process node."
-  },
-  {
-    "id": "07-glossary--asp-average-selling-price",
-    "source": "07-Glossary.md",
-    "title": "ASP (Average Selling Price)",
-    "keywords": [
-      "asp",
-      "average",
-      "selling",
-      "price",
-      "margin",
-      "expected",
-      "unit",
-      "revenue",
-      "finished",
-      "chip",
-      "siliconomics",
-      "drives"
-    ],
-    "content": "ASP is the Average Selling Price — the expected per-unit revenue for the finished chip. In Siliconomics, ASP drives gross margin, operating margin, break-even volume, and lifetime net profit."
-  },
-  {
-    "id": "07-glossary--nre-non-recurring-engineering",
-    "source": "07-Glossary.md",
-    "title": "NRE (Non-Recurring Engineering)",
-    "keywords": [
-      "nre",
-      "non",
-      "recurring",
-      "engineering",
-      "cost",
-      "volume",
-      "stands",
-      "one",
-      "time",
-      "development",
-      "chip",
-      "program"
-    ],
-    "content": "NRE stands for Non-Recurring Engineering — the one-time development cost of a chip program: design, verification, mask sets, tooling, and software. NRE is amortized across lifetime volume; it is the fixed-cost side of the break-even volume calculation."
-  },
-  {
-    "id": "07-glossary--roi-return-on-investment",
-    "source": "07-Glossary.md",
-    "title": "ROI (Return on Investment)",
-    "keywords": [
-      "investment",
-      "roi",
-      "return",
-      "lifetime",
-      "net",
-      "profit",
-      "nre",
-      "divided",
-      "total",
-      "program",
-      "primarily",
-      "expressed"
-    ],
-    "content": "ROI is Return on Investment: lifetime net profit divided by total program investment (primarily NRE), expressed as a percentage. In Siliconomics it is computed by the deterministic engine from lifetime net profit and NRE."
-  },
-  {
-    "id": "07-glossary--tdp-thermal-design-power",
-    "source": "07-Glossary.md",
-    "title": "TDP (Thermal Design Power)",
-    "keywords": [
-      "power",
-      "thermal",
-      "tdp",
-      "design",
-      "sustained",
-      "watts",
-      "chip",
-      "cooling",
-      "solution",
-      "dissipate",
-      "together",
-      "die"
-    ],
-    "content": "TDP is Thermal Design Power — the sustained power (in watts) the chip's cooling solution must dissipate. Together with die area it defines power density (W/mm²), a key thermal feasibility signal."
-  },
-  {
-    "id": "07-glossary--dpw-dies-per-wafer",
-    "source": "07-Glossary.md",
-    "title": "DPW (Dies Per Wafer)",
-    "keywords": [
-      "wafer",
-      "dpw",
-      "dies",
-      "die",
-      "number",
-      "whole",
-      "candidates",
-      "geometrically",
-      "fit",
-      "computed",
-      "dimensions",
-      "diameter"
-    ],
-    "content": "DPW is Dies Per Wafer — the number of whole die candidates that geometrically fit on a wafer, computed from die dimensions and wafer diameter using the geometric packing standard. Net good dies per wafer = DPW × effective yield."
-  },
-  {
-    "id": "07-glossary--kgd-known-good-die",
-    "source": "07-Glossary.md",
-    "title": "KGD (Known Good Die)",
-    "keywords": [
-      "die",
-      "kgd",
-      "known",
-      "good",
-      "before",
-      "package",
-      "chiplet",
-      "applied",
-      "stands",
-      "passed",
-      "testing",
-      "committed"
-    ],
-    "content": "KGD stands for Known Good Die — a die that has passed testing before being committed to a package. KGD semantics matter for chiplet builds: die (sort) yield is applied per chiplet before assembly, and package/test yields are applied after."
-  },
-  {
-    "id": "07-glossary--defect-density-d0",
-    "source": "07-Glossary.md",
-    "title": "Defect Density (D0)",
-    "keywords": [
-      "defect",
-      "density",
-      "yield",
-      "die",
-      "average",
-      "number",
-      "manufacturing",
-      "defects",
-      "square",
-      "centimeter",
-      "wafer",
-      "area"
-    ],
-    "content": "Defect density (D0) is the average number of manufacturing defects per square centimeter of wafer area at a given process node. It is the dominant input to the Murphy die yield model: larger dies and higher D0 both reduce yield. Improving (lowering) D0 raises die yield."
-  },
-  {
-    "id": "07-glossary--yield-models-murphy-poisson-seeds",
-    "source": "07-Glossary.md",
-    "title": "Yield Models (Murphy, Poisson, Seeds)",
-    "keywords": [
-      "yield",
-      "models",
-      "murphy",
-      "poisson",
-      "seeds",
-      "defect",
-      "model",
-      "die",
-      "dies",
-      "translate",
-      "area",
-      "density"
-    ],
-    "content": "Die yield models translate die area and defect density into the fraction of defect-free dies. The Poisson model is pessimistic for large dies, the Seeds model optimistic, and the Murphy model — used by the Siliconomics engine — is the industry-standard intermediate that accounts for clustered defect distributions: Y = ((1 − e^(−A×D0)) / (A×D0))²."
-  },
-  {
-    "id": "07-glossary--wspm-wafer-starts-per-month",
-    "source": "07-Glossary.md",
-    "title": "WSPM (Wafer Starts Per Month)",
-    "keywords": [
-      "wspm",
-      "wafer",
-      "starts",
-      "month",
-      "monthly",
-      "number",
-      "wafers",
-      "program",
-      "begins",
-      "fabricating",
-      "caps",
-      "unit"
-    ],
-    "content": "WSPM is Wafer Starts Per Month — the number of wafers a program begins fabricating monthly. It caps monthly unit production: monthly units = WSPM × net good dies per wafer."
-  },
-  {
-    "id": "07-glossary--bom-bill-of-materials",
-    "source": "07-Glossary.md",
-    "title": "BOM (Bill of Materials)",
-    "keywords": [
-      "bom",
-      "bill",
-      "materials",
-      "itemized",
-      "list",
-      "components",
-      "costs",
-      "make",
-      "product",
-      "siliconomics",
-      "architecture",
-      "view"
-    ],
-    "content": "BOM is the Bill of Materials — the itemized list of components and costs that make up a product. In Siliconomics, the Architecture BOM view decomposes a build into dies, interposer, package, and test cost elements."
-  },
-  {
-    "id": "07-glossary--mpw-multi-project-wafer",
-    "source": "07-Glossary.md",
-    "title": "MPW (Multi-Project Wafer)",
-    "keywords": [
-      "wafer",
-      "mpw",
-      "multi",
-      "project",
-      "shared",
-      "run",
-      "where",
-      "multiple",
-      "designs",
-      "split",
-      "mask",
-      "costs"
-    ],
-    "content": "MPW is a Multi-Project Wafer — a shared wafer run where multiple designs split mask and wafer costs, used to cut prototyping NRE before committing to dedicated production masks."
-  },
-  {
-    "id": "07-glossary--tape-out",
-    "source": "07-Glossary.md",
-    "title": "Tape-Out",
-    "keywords": [
-      "tape",
-      "out",
-      "design",
-      "milestone",
-      "final",
-      "chip",
-      "database",
-      "released",
-      "foundry",
-      "mask",
-      "making",
-      "after"
-    ],
-    "content": "Tape-out is the milestone when the final chip design database is released to the foundry for mask making. After tape-out, design changes require new masks (a respin), which incurs significant NRE. Siliconomics flags builds approaching tape-out review."
-  },
-  {
-    "id": "07-glossary--process-node",
-    "source": "07-Glossary.md",
-    "title": "Process Node",
-    "keywords": [
-      "process",
-      "node",
-      "higher",
-      "density",
-      "7nm",
-      "5nm",
-      "3nm",
-      "names",
-      "foundry",
-      "manufacturing",
-      "generation",
-      "smaller"
-    ],
-    "content": "The process node (e.g., 7nm, 5nm, 3nm) names a foundry manufacturing generation. Smaller nodes offer higher transistor density and better power efficiency but carry higher wafer cost, higher initial defect density, and higher NRE."
-  },
-  {
-    "id": "07-glossary--chiplet",
-    "source": "07-Glossary.md",
-    "title": "Chiplet",
-    "keywords": [
-      "chiplet",
-      "yield",
-      "die",
-      "dies",
-      "small",
-      "functional",
-      "designed",
-      "combined",
-      "other",
-      "one",
-      "package",
-      "opposed"
-    ],
-    "content": "A chiplet is a small functional die designed to be combined with other dies in one package, as opposed to a monolithic (single-die) design. Chiplet topologies improve yield on large systems (smaller dies yield better) at the price of packaging complexity, interposer cost, and assembly yield loss."
-  },
-  {
-    "id": "07-glossary--interposer",
-    "source": "07-Glossary.md",
-    "title": "Interposer",
-    "keywords": [
-      "interposer",
-      "silicon",
-      "organic",
-      "substrate",
-      "routes",
-      "signals",
-      "chiplets",
-      "advanced",
-      "package",
-      "area",
-      "cost",
-      "explicit"
-    ],
-    "content": "An interposer is a silicon or organic substrate that routes signals between chiplets in an advanced package. Its area and cost are explicit inputs for chiplet-topology builds in Siliconomics."
-  },
-  {
-    "id": "07-glossary--cowos-chip-on-wafer-on-substrate",
-    "source": "07-Glossary.md",
-    "title": "CoWoS (Chip-on-Wafer-on-Substrate)",
-    "keywords": [
-      "cowos",
-      "substrate",
-      "chip",
-      "wafer",
-      "advanced",
-      "packaging",
-      "cost",
-      "tsmc",
-      "technology",
-      "mounts",
-      "chiplets",
-      "silicon"
-    ],
-    "content": "CoWoS is TSMC's 2.5D advanced packaging technology that mounts chiplets on a silicon interposer, then on a substrate. It is a common choice for HPC/AI chips; its assembly cost appears in advanced packaging cost inputs."
-  },
-  {
-    "id": "07-glossary--emib-embedded-multi-die-interconnect-bridge",
-    "source": "07-Glossary.md",
-    "title": "EMIB (Embedded Multi-die Interconnect Bridge)",
-    "keywords": [
-      "emib",
-      "embedded",
-      "multi",
-      "die",
-      "interconnect",
-      "bridge",
-      "packaging",
-      "full",
-      "interposer",
-      "intel",
-      "approach",
-      "uses"
-    ],
-    "content": "EMIB is Intel's 2.5D packaging approach that uses small embedded silicon bridges instead of a full interposer to connect adjacent dies, generally lowering packaging cost versus full-interposer solutions."
-  },
-  {
-    "id": "07-glossary--soc-system-on-chip",
-    "source": "07-Glossary.md",
-    "title": "SoC (System on Chip)",
-    "keywords": [
-      "soc",
-      "system",
-      "chip",
-      "integrates",
-      "major",
-      "functions",
-      "compute",
-      "cores",
-      "memory",
-      "controllers",
-      "accelerators",
-      "single"
-    ],
-    "content": "An SoC integrates the major functions of a system — compute cores, memory controllers, I/O, accelerators — on a single die. Manhattan-X1 (ADAS SoC) is an SoC build."
-  },
-  {
-    "id": "07-glossary--asic-application-specific-integrated-circuit",
-    "source": "07-Glossary.md",
-    "title": "ASIC (Application-Specific Integrated Circuit)",
-    "keywords": [
-      "asic",
-      "application",
-      "specific",
-      "integrated",
-      "circuit",
-      "chip",
-      "designed",
-      "one",
-      "rather",
-      "general",
-      "purpose",
-      "archetype"
-    ],
-    "content": "An ASIC is a chip designed for one specific application rather than general-purpose use. The archetype registry includes ASIC reference profiles."
-  },
-  {
-    "id": "07-glossary--fpga-field-programmable-gate-array",
-    "source": "07-Glossary.md",
-    "title": "FPGA (Field-Programmable Gate Array)",
-    "keywords": [
-      "fpga",
-      "field",
-      "programmable",
-      "gate",
-      "array",
-      "reprogrammable",
-      "logic",
-      "device",
-      "configured",
-      "after",
-      "manufacturing",
-      "fpgas"
-    ],
-    "content": "An FPGA is a reprogrammable logic device configured after manufacturing. FPGAs trade higher unit cost and power for zero mask NRE and field flexibility."
-  },
-  {
-    "id": "07-glossary--sram-static-random-access-memory",
-    "source": "07-Glossary.md",
-    "title": "SRAM (Static Random-Access Memory)",
-    "keywords": [
-      "sram",
-      "memory",
-      "static",
-      "random",
-      "access",
-      "die",
-      "fast",
-      "caches",
-      "density",
-      "scaling",
-      "slowed",
-      "advanced"
-    ],
-    "content": "SRAM is the fast on-die memory used for caches. SRAM density scaling has slowed at advanced nodes, which shifts die area economics for cache-heavy designs."
-  },
-  {
-    "id": "07-glossary--eda-electronic-design-automation",
-    "source": "07-Glossary.md",
-    "title": "EDA (Electronic Design Automation)",
-    "keywords": [
-      "eda",
-      "design",
-      "electronic",
-      "automation",
-      "refers",
-      "software",
-      "tools",
-      "synopsys",
-      "cadence",
-      "verify",
-      "chips",
-      "licenses"
-    ],
-    "content": "EDA refers to the software tools (e.g., Synopsys, Cadence) used to design and verify chips. EDA licenses are a major component of NRE."
-  },
-  {
-    "id": "07-glossary--sia-semiconductor-industry-association",
-    "source": "07-Glossary.md",
-    "title": "SIA (Semiconductor Industry Association)",
-    "keywords": [
-      "sia",
-      "industry",
-      "semiconductor",
-      "association",
-      "formula",
-      "trade",
-      "body",
-      "siliconomics",
-      "standards",
-      "reference",
-      "blueprints",
-      "modeling"
-    ],
-    "content": "SIA is the Semiconductor Industry Association, the U.S. industry trade body. Siliconomics formula standards reference SIA industry blueprints for modeling conventions (e.g., Murphy-SIA formula versions)."
-  },
-  {
-    "id": "07-glossary--npv-net-present-value",
-    "source": "07-Glossary.md",
-    "title": "NPV (Net Present Value)",
-    "keywords": [
-      "net",
-      "value",
-      "npv",
-      "present",
-      "future",
-      "cash",
-      "flows",
-      "discounted",
-      "today",
-      "program",
-      "level",
-      "financial"
-    ],
-    "content": "NPV is Net Present Value — future cash flows discounted to today's value. Used in program-level financial comparisons alongside lifetime net profit."
-  },
-  {
-    "id": "07-glossary--wacc-weighted-average-cost-of-capital",
-    "source": "07-Glossary.md",
-    "title": "WACC (Weighted Average Cost of Capital)",
-    "keywords": [
-      "wacc",
-      "weighted",
-      "average",
-      "cost",
-      "capital",
-      "rate",
-      "blended",
-      "company",
-      "pays",
-      "finance",
-      "itself",
-      "discount"
-    ],
-    "content": "WACC is the Weighted Average Cost of Capital — the blended rate a company pays to finance itself, used as the discount rate in NPV calculations."
-  },
-  {
-    "id": "07-glossary--gtm-go-to-market",
-    "source": "07-Glossary.md",
-    "title": "GTM (Go-To-Market)",
-    "keywords": [
-      "gtm",
-      "market",
-      "commercial",
-      "launch",
-      "strategy",
-      "product",
-      "positioning",
-      "pricing",
-      "channels",
-      "customer",
-      "targeting"
-    ],
-    "content": "GTM is Go-To-Market — the commercial launch strategy for a product: positioning, pricing, channels, and customer targeting."
-  },
-  {
-    "id": "07-glossary--icp-ideal-customer-profile",
-    "source": "07-Glossary.md",
-    "title": "ICP (Ideal Customer Profile)",
-    "keywords": [
-      "customer",
-      "icp",
-      "ideal",
-      "profile",
-      "archetype",
-      "gains",
-      "value",
-      "product",
-      "gtm",
-      "planning"
-    ],
-    "content": "ICP is the Ideal Customer Profile — the archetype of customer that gains the most value from the product; used in GTM planning."
-  },
-  {
-    "id": "07-glossary--pmf-product-market-fit",
-    "source": "07-Glossary.md",
-    "title": "PMF (Product-Market Fit)",
-    "keywords": [
-      "product",
-      "market",
-      "pmf",
-      "fit",
-      "point",
-      "where",
-      "satisfies",
-      "strong",
-      "demand",
-      "evidenced",
-      "retention",
-      "organic"
-    ],
-    "content": "PMF is Product-Market Fit — the point where a product satisfies strong market demand, evidenced by retention and organic pull."
-  },
-  {
-    "id": "07-glossary--fcl-founder-s-constitutional-law",
-    "source": "07-Glossary.md",
-    "title": "FCL (Founder's Constitutional Law)",
-    "keywords": [
-      "fcl",
-      "founder",
-      "constitutional",
-      "law",
-      "siliconomics",
-      "governing",
-      "document",
-      "docs",
-      "defines",
-      "platform",
-      "non",
-      "negotiable"
-    ],
-    "content": "FCL is Siliconomics' Founder's Constitutional Law — the governing document (docs/00-FCL_v1.md) that defines the platform's non-negotiable principles, including deterministic provenance: every number must trace to the engine and Formula Library."
-  },
-  {
-    "id": "07-glossary--oem-original-equipment-manufacturer",
-    "source": "07-Glossary.md",
-    "title": "OEM (Original Equipment Manufacturer)",
-    "keywords": [
-      "oem",
-      "original",
-      "equipment",
-      "manufacturer",
-      "company",
-      "builds",
-      "end",
-      "products",
-      "vehicles",
-      "servers",
-      "phones",
-      "incorporating"
-    ],
-    "content": "An OEM is a company that builds end products (vehicles, servers, phones) incorporating chips. OEM design wins anchor the target volume assumptions in a build."
-  },
-  {
-    "id": "07-glossary--iso-26262",
-    "source": "07-Glossary.md",
-    "title": "ISO 26262",
-    "keywords": [
-      "iso",
-      "standard",
-      "automotive",
-      "international",
-      "functional",
-      "safety",
-      "electronics",
-      "builds",
-      "like",
-      "manhattan",
-      "carry",
-      "audit"
-    ],
-    "content": "ISO 26262 is the international functional safety standard for automotive electronics. Automotive builds like Manhattan-X1 carry ISO 26262 as their audit standard, which constrains process choices and documentation rigor."
-  },
-  {
-    "id": "07-glossary--cfo-chief-financial-officer-and-persona-roles",
-    "source": "07-Glossary.md",
-    "title": "CFO (Chief Financial Officer) and Persona Roles",
-    "keywords": [
-      "cfo",
-      "roles",
-      "chief",
-      "financial",
-      "officer",
-      "persona",
-      "program",
-      "inputs",
-      "siliconomics",
-      "personas",
-      "map",
-      "architect"
-    ],
-    "content": "Siliconomics personas map to program roles: architect (engineering inputs), manufacturing (yield and fab inputs), finance/CFO (cost, ASP, NRE), program manager (schedule, volume), and executive (read-mostly decision view). Field ownership determines who may apply a proposed assumption change."
   },
   {
     "id": "07-go-to-market--1-positioning-one-sentence-use-everywhere",
@@ -4174,6 +3477,703 @@ export const CHIPPIE_KNOWLEDGE: KnowledgeSection[] = [
       "design"
     ],
     "content": "1. Draft the 25-account target list; book Chiplet Summit / OCP presence.\n2. **Priority 4 (docs refresh) — COMPLETE.** All 7 governing documents reconciled with shipped code.\n3. **Priority 5 — Reference-model editing/overlay.** The one product gap GTM exposes: reference models are read-only; partners must overlay private data. Scoped and ready for implementation.\n4. **Security posture one-pager** — prerequisite for Tier-1 conversations.\n5. Design-partner agreement term sheet outline; first teardown-post model; target-list scoring.\n\n---\n\n**Decisions embedded:** design-partner-led over self-serve-led (deal size and trust bar demand it); free 6-month partnership over discounted paid (speed of learning > early revenue); open methodology (data+workflow moat, not math moat)."
+  },
+  {
+    "id": "08-glossary--08-glossary-of-terms-acronyms",
+    "source": "08-Glossary.md",
+    "title": "08 — Glossary of Terms & Acronyms",
+    "keywords": [
+      "glossary",
+      "terms",
+      "acronyms",
+      "definitions",
+      "term",
+      "canonical",
+      "every",
+      "acronym",
+      "domain",
+      "across",
+      "siliconomics",
+      "platform"
+    ],
+    "content": "Canonical definitions for every acronym and domain term used across Siliconomics — the platform docs, the Formula Library, and the build workspace. Chippie cites these definitions verbatim when a persona asks what a term means."
+  },
+  {
+    "id": "08-glossary--osat-outsourced-semiconductor-assembly-and-test",
+    "source": "08-Glossary.md",
+    "title": "OSAT (Outsourced Semiconductor Assembly and Test)",
+    "keywords": [
+      "test",
+      "assembly",
+      "osat",
+      "outsourced",
+      "semiconductor",
+      "packaging",
+      "cost",
+      "stands",
+      "osats",
+      "third",
+      "party",
+      "companies"
+    ],
+    "content": "OSAT stands for Outsourced Semiconductor Assembly and Test. OSATs are third-party companies (e.g., ASE, Amkor, JCET) that take finished wafers from a foundry and perform packaging assembly and electrical test on behalf of the chip designer. In Siliconomics, the per-unit packaging assembly cost (C_pkg) and tester time cost rate (R_test) in the Packaging & Test Cost formula come from OSAT price schedules."
+  },
+  {
+    "id": "08-glossary--foundry",
+    "source": "08-Glossary.md",
+    "title": "Foundry",
+    "keywords": [
+      "foundry",
+      "wafer",
+      "semiconductor",
+      "fabrication",
+      "plant",
+      "operator",
+      "tsmc",
+      "samsung",
+      "globalfoundries",
+      "manufactures",
+      "wafers",
+      "fabless"
+    ],
+    "content": "A foundry is a semiconductor fabrication plant operator (e.g., TSMC, Samsung Foundry, GlobalFoundries) that manufactures wafers for fabless chip designers. The wafer cost input in every Siliconomics build reflects the foundry's price per processed wafer at the selected process node."
+  },
+  {
+    "id": "08-glossary--asp-average-selling-price",
+    "source": "08-Glossary.md",
+    "title": "ASP (Average Selling Price)",
+    "keywords": [
+      "asp",
+      "average",
+      "selling",
+      "price",
+      "margin",
+      "expected",
+      "unit",
+      "revenue",
+      "finished",
+      "chip",
+      "siliconomics",
+      "drives"
+    ],
+    "content": "ASP is the Average Selling Price — the expected per-unit revenue for the finished chip. In Siliconomics, ASP drives gross margin, operating margin, break-even volume, and lifetime net profit."
+  },
+  {
+    "id": "08-glossary--nre-non-recurring-engineering",
+    "source": "08-Glossary.md",
+    "title": "NRE (Non-Recurring Engineering)",
+    "keywords": [
+      "nre",
+      "non",
+      "recurring",
+      "engineering",
+      "cost",
+      "volume",
+      "stands",
+      "one",
+      "time",
+      "development",
+      "chip",
+      "program"
+    ],
+    "content": "NRE stands for Non-Recurring Engineering — the one-time development cost of a chip program: design, verification, mask sets, tooling, and software. NRE is amortized across lifetime volume; it is the fixed-cost side of the break-even volume calculation."
+  },
+  {
+    "id": "08-glossary--roi-return-on-investment",
+    "source": "08-Glossary.md",
+    "title": "ROI (Return on Investment)",
+    "keywords": [
+      "investment",
+      "roi",
+      "return",
+      "lifetime",
+      "net",
+      "profit",
+      "nre",
+      "divided",
+      "total",
+      "program",
+      "primarily",
+      "expressed"
+    ],
+    "content": "ROI is Return on Investment: lifetime net profit divided by total program investment (primarily NRE), expressed as a percentage. In Siliconomics it is computed by the deterministic engine from lifetime net profit and NRE."
+  },
+  {
+    "id": "08-glossary--tdp-thermal-design-power",
+    "source": "08-Glossary.md",
+    "title": "TDP (Thermal Design Power)",
+    "keywords": [
+      "power",
+      "thermal",
+      "tdp",
+      "design",
+      "sustained",
+      "watts",
+      "chip",
+      "cooling",
+      "solution",
+      "dissipate",
+      "together",
+      "die"
+    ],
+    "content": "TDP is Thermal Design Power — the sustained power (in watts) the chip's cooling solution must dissipate. Together with die area it defines power density (W/mm²), a key thermal feasibility signal."
+  },
+  {
+    "id": "08-glossary--dpw-dies-per-wafer",
+    "source": "08-Glossary.md",
+    "title": "DPW (Dies Per Wafer)",
+    "keywords": [
+      "wafer",
+      "dpw",
+      "dies",
+      "die",
+      "number",
+      "whole",
+      "candidates",
+      "geometrically",
+      "fit",
+      "computed",
+      "dimensions",
+      "diameter"
+    ],
+    "content": "DPW is Dies Per Wafer — the number of whole die candidates that geometrically fit on a wafer, computed from die dimensions and wafer diameter using the geometric packing standard. Net good dies per wafer = DPW × effective yield."
+  },
+  {
+    "id": "08-glossary--kgd-known-good-die",
+    "source": "08-Glossary.md",
+    "title": "KGD (Known Good Die)",
+    "keywords": [
+      "die",
+      "kgd",
+      "known",
+      "good",
+      "before",
+      "package",
+      "chiplet",
+      "applied",
+      "stands",
+      "passed",
+      "testing",
+      "committed"
+    ],
+    "content": "KGD stands for Known Good Die — a die that has passed testing before being committed to a package. KGD semantics matter for chiplet builds: die (sort) yield is applied per chiplet before assembly, and package/test yields are applied after."
+  },
+  {
+    "id": "08-glossary--defect-density-d0",
+    "source": "08-Glossary.md",
+    "title": "Defect Density (D0)",
+    "keywords": [
+      "defect",
+      "density",
+      "yield",
+      "die",
+      "average",
+      "number",
+      "manufacturing",
+      "defects",
+      "square",
+      "centimeter",
+      "wafer",
+      "area"
+    ],
+    "content": "Defect density (D0) is the average number of manufacturing defects per square centimeter of wafer area at a given process node. It is the dominant input to the Murphy die yield model: larger dies and higher D0 both reduce yield. Improving (lowering) D0 raises die yield."
+  },
+  {
+    "id": "08-glossary--yield-models-murphy-poisson-seeds",
+    "source": "08-Glossary.md",
+    "title": "Yield Models (Murphy, Poisson, Seeds)",
+    "keywords": [
+      "yield",
+      "models",
+      "murphy",
+      "poisson",
+      "seeds",
+      "defect",
+      "model",
+      "die",
+      "dies",
+      "translate",
+      "area",
+      "density"
+    ],
+    "content": "Die yield models translate die area and defect density into the fraction of defect-free dies. The Poisson model is pessimistic for large dies, the Seeds model optimistic, and the Murphy model — used by the Siliconomics engine — is the industry-standard intermediate that accounts for clustered defect distributions: Y = ((1 − e^(−A×D0)) / (A×D0))²."
+  },
+  {
+    "id": "08-glossary--wspm-wafer-starts-per-month",
+    "source": "08-Glossary.md",
+    "title": "WSPM (Wafer Starts Per Month)",
+    "keywords": [
+      "wspm",
+      "wafer",
+      "starts",
+      "month",
+      "monthly",
+      "number",
+      "wafers",
+      "program",
+      "begins",
+      "fabricating",
+      "caps",
+      "unit"
+    ],
+    "content": "WSPM is Wafer Starts Per Month — the number of wafers a program begins fabricating monthly. It caps monthly unit production: monthly units = WSPM × net good dies per wafer."
+  },
+  {
+    "id": "08-glossary--bom-bill-of-materials",
+    "source": "08-Glossary.md",
+    "title": "BOM (Bill of Materials)",
+    "keywords": [
+      "bom",
+      "bill",
+      "materials",
+      "itemized",
+      "list",
+      "components",
+      "costs",
+      "make",
+      "product",
+      "siliconomics",
+      "architecture",
+      "view"
+    ],
+    "content": "BOM is the Bill of Materials — the itemized list of components and costs that make up a product. In Siliconomics, the Architecture BOM view decomposes a build into dies, interposer, package, and test cost elements."
+  },
+  {
+    "id": "08-glossary--mpw-multi-project-wafer",
+    "source": "08-Glossary.md",
+    "title": "MPW (Multi-Project Wafer)",
+    "keywords": [
+      "wafer",
+      "mpw",
+      "multi",
+      "project",
+      "shared",
+      "run",
+      "where",
+      "multiple",
+      "designs",
+      "split",
+      "mask",
+      "costs"
+    ],
+    "content": "MPW is a Multi-Project Wafer — a shared wafer run where multiple designs split mask and wafer costs, used to cut prototyping NRE before committing to dedicated production masks."
+  },
+  {
+    "id": "08-glossary--tape-out",
+    "source": "08-Glossary.md",
+    "title": "Tape-Out",
+    "keywords": [
+      "tape",
+      "out",
+      "design",
+      "milestone",
+      "final",
+      "chip",
+      "database",
+      "released",
+      "foundry",
+      "mask",
+      "making",
+      "after"
+    ],
+    "content": "Tape-out is the milestone when the final chip design database is released to the foundry for mask making. After tape-out, design changes require new masks (a respin), which incurs significant NRE. Siliconomics flags builds approaching tape-out review."
+  },
+  {
+    "id": "08-glossary--process-node",
+    "source": "08-Glossary.md",
+    "title": "Process Node",
+    "keywords": [
+      "process",
+      "node",
+      "higher",
+      "density",
+      "7nm",
+      "5nm",
+      "3nm",
+      "names",
+      "foundry",
+      "manufacturing",
+      "generation",
+      "smaller"
+    ],
+    "content": "The process node (e.g., 7nm, 5nm, 3nm) names a foundry manufacturing generation. Smaller nodes offer higher transistor density and better power efficiency but carry higher wafer cost, higher initial defect density, and higher NRE."
+  },
+  {
+    "id": "08-glossary--chiplet",
+    "source": "08-Glossary.md",
+    "title": "Chiplet",
+    "keywords": [
+      "chiplet",
+      "yield",
+      "die",
+      "dies",
+      "small",
+      "functional",
+      "designed",
+      "combined",
+      "other",
+      "one",
+      "package",
+      "opposed"
+    ],
+    "content": "A chiplet is a small functional die designed to be combined with other dies in one package, as opposed to a monolithic (single-die) design. Chiplet topologies improve yield on large systems (smaller dies yield better) at the price of packaging complexity, interposer cost, and assembly yield loss."
+  },
+  {
+    "id": "08-glossary--interposer",
+    "source": "08-Glossary.md",
+    "title": "Interposer",
+    "keywords": [
+      "interposer",
+      "silicon",
+      "organic",
+      "substrate",
+      "routes",
+      "signals",
+      "chiplets",
+      "advanced",
+      "package",
+      "area",
+      "cost",
+      "explicit"
+    ],
+    "content": "An interposer is a silicon or organic substrate that routes signals between chiplets in an advanced package. Its area and cost are explicit inputs for chiplet-topology builds in Siliconomics."
+  },
+  {
+    "id": "08-glossary--cowos-chip-on-wafer-on-substrate",
+    "source": "08-Glossary.md",
+    "title": "CoWoS (Chip-on-Wafer-on-Substrate)",
+    "keywords": [
+      "cowos",
+      "substrate",
+      "chip",
+      "wafer",
+      "advanced",
+      "packaging",
+      "cost",
+      "tsmc",
+      "technology",
+      "mounts",
+      "chiplets",
+      "silicon"
+    ],
+    "content": "CoWoS is TSMC's 2.5D advanced packaging technology that mounts chiplets on a silicon interposer, then on a substrate. It is a common choice for HPC/AI chips; its assembly cost appears in advanced packaging cost inputs."
+  },
+  {
+    "id": "08-glossary--emib-embedded-multi-die-interconnect-bridge",
+    "source": "08-Glossary.md",
+    "title": "EMIB (Embedded Multi-die Interconnect Bridge)",
+    "keywords": [
+      "emib",
+      "embedded",
+      "multi",
+      "die",
+      "interconnect",
+      "bridge",
+      "packaging",
+      "full",
+      "interposer",
+      "intel",
+      "approach",
+      "uses"
+    ],
+    "content": "EMIB is Intel's 2.5D packaging approach that uses small embedded silicon bridges instead of a full interposer to connect adjacent dies, generally lowering packaging cost versus full-interposer solutions."
+  },
+  {
+    "id": "08-glossary--soc-system-on-chip",
+    "source": "08-Glossary.md",
+    "title": "SoC (System on Chip)",
+    "keywords": [
+      "soc",
+      "system",
+      "chip",
+      "integrates",
+      "major",
+      "functions",
+      "compute",
+      "cores",
+      "memory",
+      "controllers",
+      "accelerators",
+      "single"
+    ],
+    "content": "An SoC integrates the major functions of a system — compute cores, memory controllers, I/O, accelerators — on a single die. Manhattan-X1 (ADAS SoC) is an SoC build."
+  },
+  {
+    "id": "08-glossary--asic-application-specific-integrated-circuit",
+    "source": "08-Glossary.md",
+    "title": "ASIC (Application-Specific Integrated Circuit)",
+    "keywords": [
+      "asic",
+      "application",
+      "specific",
+      "integrated",
+      "circuit",
+      "chip",
+      "designed",
+      "one",
+      "rather",
+      "general",
+      "purpose",
+      "archetype"
+    ],
+    "content": "An ASIC is a chip designed for one specific application rather than general-purpose use. The archetype registry includes ASIC reference profiles."
+  },
+  {
+    "id": "08-glossary--fpga-field-programmable-gate-array",
+    "source": "08-Glossary.md",
+    "title": "FPGA (Field-Programmable Gate Array)",
+    "keywords": [
+      "fpga",
+      "field",
+      "programmable",
+      "gate",
+      "array",
+      "reprogrammable",
+      "logic",
+      "device",
+      "configured",
+      "after",
+      "manufacturing",
+      "fpgas"
+    ],
+    "content": "An FPGA is a reprogrammable logic device configured after manufacturing. FPGAs trade higher unit cost and power for zero mask NRE and field flexibility."
+  },
+  {
+    "id": "08-glossary--sram-static-random-access-memory",
+    "source": "08-Glossary.md",
+    "title": "SRAM (Static Random-Access Memory)",
+    "keywords": [
+      "sram",
+      "memory",
+      "static",
+      "random",
+      "access",
+      "die",
+      "fast",
+      "caches",
+      "density",
+      "scaling",
+      "slowed",
+      "advanced"
+    ],
+    "content": "SRAM is the fast on-die memory used for caches. SRAM density scaling has slowed at advanced nodes, which shifts die area economics for cache-heavy designs."
+  },
+  {
+    "id": "08-glossary--eda-electronic-design-automation",
+    "source": "08-Glossary.md",
+    "title": "EDA (Electronic Design Automation)",
+    "keywords": [
+      "eda",
+      "design",
+      "electronic",
+      "automation",
+      "refers",
+      "software",
+      "tools",
+      "synopsys",
+      "cadence",
+      "verify",
+      "chips",
+      "licenses"
+    ],
+    "content": "EDA refers to the software tools (e.g., Synopsys, Cadence) used to design and verify chips. EDA licenses are a major component of NRE."
+  },
+  {
+    "id": "08-glossary--sia-semiconductor-industry-association",
+    "source": "08-Glossary.md",
+    "title": "SIA (Semiconductor Industry Association)",
+    "keywords": [
+      "sia",
+      "industry",
+      "semiconductor",
+      "association",
+      "formula",
+      "trade",
+      "body",
+      "siliconomics",
+      "standards",
+      "reference",
+      "blueprints",
+      "modeling"
+    ],
+    "content": "SIA is the Semiconductor Industry Association, the U.S. industry trade body. Siliconomics formula standards reference SIA industry blueprints for modeling conventions (e.g., Murphy-SIA formula versions)."
+  },
+  {
+    "id": "08-glossary--npv-net-present-value",
+    "source": "08-Glossary.md",
+    "title": "NPV (Net Present Value)",
+    "keywords": [
+      "net",
+      "value",
+      "npv",
+      "present",
+      "future",
+      "cash",
+      "flows",
+      "discounted",
+      "today",
+      "program",
+      "level",
+      "financial"
+    ],
+    "content": "NPV is Net Present Value — future cash flows discounted to today's value. Used in program-level financial comparisons alongside lifetime net profit."
+  },
+  {
+    "id": "08-glossary--wacc-weighted-average-cost-of-capital",
+    "source": "08-Glossary.md",
+    "title": "WACC (Weighted Average Cost of Capital)",
+    "keywords": [
+      "wacc",
+      "weighted",
+      "average",
+      "cost",
+      "capital",
+      "rate",
+      "blended",
+      "company",
+      "pays",
+      "finance",
+      "itself",
+      "discount"
+    ],
+    "content": "WACC is the Weighted Average Cost of Capital — the blended rate a company pays to finance itself, used as the discount rate in NPV calculations."
+  },
+  {
+    "id": "08-glossary--gtm-go-to-market",
+    "source": "08-Glossary.md",
+    "title": "GTM (Go-To-Market)",
+    "keywords": [
+      "gtm",
+      "market",
+      "commercial",
+      "launch",
+      "strategy",
+      "product",
+      "positioning",
+      "pricing",
+      "channels",
+      "customer",
+      "targeting"
+    ],
+    "content": "GTM is Go-To-Market — the commercial launch strategy for a product: positioning, pricing, channels, and customer targeting."
+  },
+  {
+    "id": "08-glossary--icp-ideal-customer-profile",
+    "source": "08-Glossary.md",
+    "title": "ICP (Ideal Customer Profile)",
+    "keywords": [
+      "customer",
+      "icp",
+      "ideal",
+      "profile",
+      "archetype",
+      "gains",
+      "value",
+      "product",
+      "gtm",
+      "planning"
+    ],
+    "content": "ICP is the Ideal Customer Profile — the archetype of customer that gains the most value from the product; used in GTM planning."
+  },
+  {
+    "id": "08-glossary--pmf-product-market-fit",
+    "source": "08-Glossary.md",
+    "title": "PMF (Product-Market Fit)",
+    "keywords": [
+      "product",
+      "market",
+      "pmf",
+      "fit",
+      "point",
+      "where",
+      "satisfies",
+      "strong",
+      "demand",
+      "evidenced",
+      "retention",
+      "organic"
+    ],
+    "content": "PMF is Product-Market Fit — the point where a product satisfies strong market demand, evidenced by retention and organic pull."
+  },
+  {
+    "id": "08-glossary--fcl-founder-s-constitutional-law",
+    "source": "08-Glossary.md",
+    "title": "FCL (Founder's Constitutional Law)",
+    "keywords": [
+      "fcl",
+      "founder",
+      "constitutional",
+      "law",
+      "siliconomics",
+      "governing",
+      "document",
+      "docs",
+      "defines",
+      "platform",
+      "non",
+      "negotiable"
+    ],
+    "content": "FCL is Siliconomics' Founder's Constitutional Law — the governing document (docs/00-FCL_v1.md) that defines the platform's non-negotiable principles, including deterministic provenance: every number must trace to the engine and Formula Library."
+  },
+  {
+    "id": "08-glossary--oem-original-equipment-manufacturer",
+    "source": "08-Glossary.md",
+    "title": "OEM (Original Equipment Manufacturer)",
+    "keywords": [
+      "oem",
+      "original",
+      "equipment",
+      "manufacturer",
+      "company",
+      "builds",
+      "end",
+      "products",
+      "vehicles",
+      "servers",
+      "phones",
+      "incorporating"
+    ],
+    "content": "An OEM is a company that builds end products (vehicles, servers, phones) incorporating chips. OEM design wins anchor the target volume assumptions in a build."
+  },
+  {
+    "id": "08-glossary--iso-26262",
+    "source": "08-Glossary.md",
+    "title": "ISO 26262",
+    "keywords": [
+      "iso",
+      "standard",
+      "automotive",
+      "international",
+      "functional",
+      "safety",
+      "electronics",
+      "builds",
+      "like",
+      "manhattan",
+      "carry",
+      "audit"
+    ],
+    "content": "ISO 26262 is the international functional safety standard for automotive electronics. Automotive builds like Manhattan-X1 carry ISO 26262 as their audit standard, which constrains process choices and documentation rigor."
+  },
+  {
+    "id": "08-glossary--cfo-chief-financial-officer-and-persona-roles",
+    "source": "08-Glossary.md",
+    "title": "CFO (Chief Financial Officer) and Persona Roles",
+    "keywords": [
+      "cfo",
+      "roles",
+      "chief",
+      "financial",
+      "officer",
+      "persona",
+      "program",
+      "inputs",
+      "siliconomics",
+      "personas",
+      "map",
+      "architect"
+    ],
+    "content": "Siliconomics personas map to program roles: architect (engineering inputs), manufacturing (yield and fab inputs), finance/CFO (cost, ASP, NRE), program manager (schedule, volume), and executive (read-mostly decision view). Field ownership determines who may apply a proposed assumption change."
   },
   {
     "id": "readme--governing-documents",

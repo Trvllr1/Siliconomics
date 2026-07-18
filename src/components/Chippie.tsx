@@ -12,15 +12,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Build, Decision, PersonaType } from '../types';
 import { ComputedBuildMetrics } from '../utils/mathEngine';
 import type { ChippieMessage, ChippieResponse } from '../utils/chippieProtocol';
-import { executeClientTool, type ChippieToolActivity } from '../utils/chippieTools';
-import { Send, Bot, User, Loader2, Sparkles, AlertCircle, RefreshCw, Wrench } from 'lucide-react';
+import { executeClientTool, type ChippieToolActivity, type ChippieProposal } from '../utils/chippieTools';
+import { Send, Bot, User, Loader2, Sparkles, AlertCircle, RefreshCw, Wrench, GitBranch, Check, Copy } from 'lucide-react';
 
 interface ChippieProps {
   activeBuild: Build;
   computedMetrics: ComputedBuildMetrics;
   activePersona: PersonaType;
+  builds?: Build[];
   decisions?: Decision[];
   onNavigate?: (tab: string) => void;
+  /** Applies a Chippie proposal as a NEW Draft branch of the active build.
+   * Never mutates the active build — human-approved, versioned edit only. */
+  onApplyProposal?: (proposal: ChippieProposal) => void;
 }
 
 interface DisplayMessage {
@@ -28,10 +32,14 @@ interface DisplayMessage {
   sender: 'user' | 'assistant' | 'tools';
   text: string;
   activities?: ChippieToolActivity[];
+  proposals?: ChippieProposal[];
   timestamp: string;
 }
 
 const MAX_TOOL_ROUNDS = 5;
+
+// Founder-only GTM advisory (drafts require founder sign-off; Chippie never sends).
+const FOUNDER_MODE = import.meta.env.VITE_FOUNDER_MODE === 'true';
 
 // Simple custom markdown renderer to format structured responses safely and beautifully
 function RenderCustomMarkdown({ text }: { text: string }) {
@@ -103,13 +111,41 @@ function nowStamp(): string {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function Chippie({ activeBuild, computedMetrics, activePersona, decisions, onNavigate }: ChippieProps) {
+export default function Chippie({ activeBuild, computedMetrics, activePersona, builds, decisions, onNavigate, onApplyProposal }: ChippieProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusLine, setStatusLine] = useState('Thinking...');
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
+  const [appliedProposals, setAppliedProposals] = useState<Set<string>>(new Set());
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyConversation = async () => {
+    const lines: string[] = [
+      `# Chippie conversation — ${activeBuild.name} ${activeBuild.version}`,
+      `_Persona: ${activePersona} · Exported: ${new Date().toISOString()}_`,
+      '',
+    ];
+    for (const m of messages) {
+      if (m.sender === 'tools') {
+        const chips = (m.activities ?? []).map((a) => a.summary).join('; ');
+        if (chips) lines.push(`> 🔧 ${chips}`, '');
+        for (const p of m.proposals ?? []) {
+          lines.push(`> 📋 Proposal: ${p.field} ${p.currentValue} → ${p.proposedValue} (owner: ${p.owner}) — ${p.rationale}`, '');
+        }
+        continue;
+      }
+      lines.push(`**${m.sender === 'user' ? 'You' : 'Chippie'}** (${m.timestamp}):`, '', m.text, '');
+    }
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Could not access the clipboard.');
+    }
+  };
 
   // OpenAI-format transcript (no system message — server owns it)
   const transcriptRef = useRef<ChippieMessage[]>([]);
@@ -120,6 +156,12 @@ export default function Chippie({ activeBuild, computedMetrics, activePersona, d
     'What if defect density improves 20%?',
     'Where does most of our unit cost come from?',
     'Generate the audit PDF for this build',
+    ...(FOUNDER_MODE
+      ? [
+          'Draft a teardown post about this build',
+          'Draft an outreach email for a design partner',
+        ]
+      : []),
   ];
 
   // Reset conversation when the active build changes
@@ -156,6 +198,7 @@ Reviewing **${activeBuild.name}** as **${activePersona}**. Ask me to explain a m
           buildName: activeBuild.name,
           buildVersion: activeBuild.version,
           persona: activePersona,
+          ...(FOUNDER_MODE ? { founderMode: true } : {}),
         },
       }),
     });
@@ -212,23 +255,31 @@ Reviewing **${activeBuild.name}** as **${activePersona}**. Ask me to explain a m
         // Execute client tools, include any server results piggybacked this round
         const toolMessages: ChippieMessage[] = [...(data.serverResults ?? [])];
         const activities: ChippieToolActivity[] = [];
+        const proposals: ChippieProposal[] = [];
         for (const call of data.toolCalls) {
           setStatusLine(`Running ${call.function.name.replace(/_/g, ' ')}...`);
           const { content, activity } = await executeClientTool(call, {
             activeBuild,
             computedMetrics,
             activePersona,
+            builds,
             decisions,
             onNavigate,
           });
           toolMessages.push({ role: 'tool', tool_call_id: call.id, content });
           activities.push(activity);
+          if (call.function.name === 'propose_assumption') {
+            try {
+              const parsed = JSON.parse(content) as { proposal?: ChippieProposal };
+              if (parsed.proposal) proposals.push(parsed.proposal);
+            } catch { /* malformed tool output — no card */ }
+          }
         }
 
         transcriptRef.current = [...transcriptRef.current, ...toolMessages];
         setMessages((prev) => [
           ...prev,
-          { id: Math.random().toString(), sender: 'tools', text: '', activities, timestamp: nowStamp() },
+          { id: Math.random().toString(), sender: 'tools', text: '', activities, proposals: proposals.length > 0 ? proposals : undefined, timestamp: nowStamp() },
         ]);
         setStatusLine('Synthesizing answer...');
       }
@@ -248,15 +299,26 @@ Reviewing **${activeBuild.name}** as **${activePersona}**. Ask me to explain a m
           <Sparkles className="w-4 h-4 text-art-rust fill-art-rust/20 animate-pulse" />
           <span className="text-xs font-serif font-bold uppercase tracking-wider text-art-ink">Chippie</span>
         </div>
-        <span
-          className={`text-[10px] px-2 py-0.5 rounded-full font-mono border ${
-            isDemo
-              ? 'bg-art-cream text-art-ink/60 border-art-ink/20'
-              : 'bg-art-rust/20 text-art-rust border-art-rust/30'
-          }`}
-        >
-          {isDemo ? 'Demo Mode' : 'Engine-Grounded'}
-        </span>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleCopyConversation}
+            disabled={messages.length <= 1}
+            title="Copy conversation as Markdown"
+            className="inline-flex items-center space-x-1 text-[9px] font-mono text-art-ink/50 hover:text-art-ink border border-art-ink/10 hover:border-art-ink/25 rounded-full px-2 py-0.5 transition duration-150 disabled:opacity-40 cursor-pointer"
+          >
+            {copied ? <Check className="w-2.5 h-2.5 text-green-600" /> : <Copy className="w-2.5 h-2.5" />}
+            <span>{copied ? 'Copied' : 'Export'}</span>
+          </button>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full font-mono border ${
+              isDemo
+                ? 'bg-art-cream text-art-ink/60 border-art-ink/20'
+                : 'bg-art-rust/20 text-art-rust border-art-rust/30'
+            }`}
+          >
+            {isDemo ? 'Demo Mode' : 'Engine-Grounded'}
+          </span>
+        </div>
       </div>
 
       {/* Messages */}
@@ -264,16 +326,54 @@ Reviewing **${activeBuild.name}** as **${activePersona}**. Ask me to explain a m
         {messages.map((msg) => {
           if (msg.sender === 'tools') {
             return (
-              <div key={msg.id} className="flex flex-wrap gap-1.5 pl-9">
-                {(msg.activities ?? []).map((a, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center space-x-1 text-[9px] font-mono bg-art-ink/5 text-art-ink/60 border border-art-ink/10 rounded-full px-2 py-0.5"
-                  >
-                    <Wrench className="w-2.5 h-2.5 text-art-rust" />
-                    <span>{a.summary}</span>
-                  </span>
-                ))}
+              <div key={msg.id} className="space-y-2 pl-9">
+                <div className="flex flex-wrap gap-1.5">
+                  {(msg.activities ?? []).map((a, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center space-x-1 text-[9px] font-mono bg-art-ink/5 text-art-ink/60 border border-art-ink/10 rounded-full px-2 py-0.5"
+                    >
+                      <Wrench className="w-2.5 h-2.5 text-art-rust" />
+                      <span>{a.summary}</span>
+                    </span>
+                  ))}
+                </div>
+                {(msg.proposals ?? []).map((p, i) => {
+                  const key = `${msg.id}-${i}`;
+                  const applied = appliedProposals.has(key);
+                  return (
+                    <div key={key} className="max-w-[85%] bg-white border-2 border-art-rust/25 rounded-xl p-3 shadow-sm space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-art-rust">Assumption Proposal</span>
+                        <span className="text-[9px] font-mono text-art-ink/40">owner: {p.owner}</span>
+                      </div>
+                      <p className="text-xs font-bold text-art-ink font-mono">
+                        {p.field}: {p.currentValue} → {p.proposedValue}
+                      </p>
+                      <p className="text-[11px] text-art-ink/70 leading-snug">{p.rationale}</p>
+                      {p.sources && <p className="text-[9px] font-mono text-art-ink/40">Sources: {p.sources}</p>}
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[9px] text-art-ink/40 italic">Creates a new Draft branch — never edits this build.</span>
+                        <button
+                          onClick={() => {
+                            if (applied || !onApplyProposal) return;
+                            onApplyProposal(p);
+                            setAppliedProposals((prev) => new Set(prev).add(key));
+                          }}
+                          disabled={applied || !onApplyProposal}
+                          className={`inline-flex items-center space-x-1 text-[10px] font-semibold rounded-lg px-2.5 py-1 border transition duration-150 shadow-sm ${
+                            applied
+                              ? 'bg-art-cream text-art-ink/40 border-art-ink/10 cursor-default'
+                              : 'bg-art-rust text-white border-art-rust hover:bg-art-rust/90 cursor-pointer'
+                          }`}
+                        >
+                          {applied ? <Check className="w-3 h-3" /> : <GitBranch className="w-3 h-3" />}
+                          <span>{applied ? 'Draft branch created' : 'Apply as Draft Branch'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           }

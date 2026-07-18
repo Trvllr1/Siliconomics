@@ -93,7 +93,7 @@ Compare any number of completed Builds across:
 - Packaging, Power, Performance
 - Manufacturing Risk
 
-AI-powered comparison analysis available via Gemini proxy (`api/gemini-compare.ts`). Comparisons operate exclusively on immutable Build objects.
+AI-powered comparison analysis available via the Chippie briefing proxy (`api/chippie-brief.ts`). Comparisons operate exclusively on immutable Build objects.
 
 ---
 
@@ -262,9 +262,9 @@ Comments attach to Builds (and optionally to specific metric elements via `eleme
 
 # AI Advisor — SHIPPED
 
-**File:** `src/components/AiAdvisor.tsx`
+**File:** `src/components/Chippie.tsx`
 
-**API proxy:** `api/gemini-analyze.ts`
+**API proxy:** `api/chippie-brief.ts`
 
 The AI Advisor was shipped as part of the MVP rather than a future addition. It follows the constitutional architecture:
 

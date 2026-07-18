@@ -267,17 +267,18 @@ export default function DecisionCenterView({ decisions, builds, alerts, onAcknow
     setAiError(null);
     setAiBriefing(null);
     try {
-      const res = await fetch('/api/gemini/analyze', {
+      const res = await fetch('/api/chippie-brief', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          kind: 'analyze',
           build: buildA,
           computed: { snapshot: analysis.snapA },
         }),
       });
       if (!res.ok) throw new Error(`Server responded with ${res.status}`);
       const data = await res.json();
-      setAiBriefing(data.analysis);
+      setAiBriefing(data.content);
     } catch (err: any) {
       setAiError(err.message || 'Failed to generate AI briefing');
     } finally {

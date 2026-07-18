@@ -86,7 +86,7 @@ Implemented as a **Vite + React + TypeScript SPA**, deployed on Vercel.
 | DesignBoard | `DesignBoard.tsx` | Primary design-editing surface for the DesignModel; freeze-gated when build is immutable |
 | BuildView | `BuildView.tsx` | Five-section collapsible workspace with input knobs + metric cards; includes Program Timeline section |
 | ChartsView | `ChartsView.tsx` | Six charts: Murphy yield curve, cost stack, D0 sensitivity, quarterly revenue/margin, cumulative cash flow, yield-ramp |
-| AI Advisor | `AiAdvisor.tsx` | Constitutional AI assistant — consumes Builds, never computes |
+| AI Advisor | `Chippie.tsx` | Constitutional AI assistant — consumes Builds, never computes |
 | ComparisonView | `ComparisonView.tsx` | Side-by-side Build comparison with AI analysis |
 | DecisionCenterView | `DecisionCenterView.tsx` | Executive review, decision recording, approval workflow |
 | MeetingMode | `MeetingMode.tsx` | Full-screen presentation mode for executive reviews |
@@ -127,7 +127,7 @@ Frozen builds (status ≥ TechnicalReview) reject PATCH requests with 409 Confli
 - `api/decisions.ts` — Append-only decision recording.
 - `api/comments.ts` — Build-anchored CRUD.
 - `api/snapshots.ts` — GET snapshot by build ID.
-- `api/gemini-analyze.ts`, `api/gemini-compare.ts` — Serverless Gemini proxy endpoints (replacing the retired Express `server.ts`).
+- `api/chippie.ts`, `api/chippie-brief.ts` — Serverless NVIDIA NIM proxy endpoints for Chippie chat and one-shot briefings (shared core in `api/_lib/chippieCore.ts`).
 
 ## Demo Mode (no Clerk / no Postgres)
 
@@ -208,7 +208,7 @@ Implemented via the `CalculationTrace` interface on every `MetricCardData`.
 
 # Scenario Comparison
 
-Users compare multiple immutable Builds via `ComparisonView.tsx`. Comparison covers cost, yield, die count, packaging, NRE, ROI, break-even, and commercial impact. AI-powered comparison available via Gemini proxy (`api/gemini-compare.ts`).
+Users compare multiple immutable Builds via `ComparisonView.tsx`. Comparison covers cost, yield, die count, packaging, NRE, ROI, break-even, and commercial impact. AI-powered comparison available via the Chippie briefing proxy (`api/chippie-brief.ts`).
 
 ---
 
@@ -225,7 +225,7 @@ All financial values use double-precision floating point with explicit rounding 
 **Environment variables:**
 - `VITE_CLERK_PUBLISHABLE_KEY` — Clerk frontend API key (optional; demo mode when absent).
 - `DATABASE_URL` — Neon Postgres connection string (optional for demo).
-- `GEMINI_API_KEY` — Google Gemini API key (optional; AI Advisor uses local mode when absent).
+- `NIM_API_KEY` — NVIDIA NIM API key (optional; Chippie uses demo mode when absent). `CHIPPIE_BASE_URL` / `CHIPPIE_MODEL` override the endpoint and model.
 - `CLERK_SECRET_KEY` — Clerk backend secret (required for API auth).
 - `CLERK_PUBLISHABLE_KEY` — Clerk frontend API key (server-side reference).
 
@@ -273,7 +273,7 @@ The following technologies were considered but deliberately deferred. Each entry
 | MPW shuttle economics | Shipped | MPW toggle replaces NRE + volume |
 | Time-dimension modeling (P3) | Shipped | `TimeModel`, 20-quarter projections, D0 learning, ASP erosion, ramp, respin |
 | DataVintage / reference data freshness | Shipped | `DataVintage` on each Build |
-| AI Advisor (constitutional) | Shipped | `AiAdvisor.tsx`, Gemini proxy |
+| AI Advisor (constitutional) | Shipped | `Chippie.tsx`, NVIDIA NIM proxy |
 | Decision recording | Shipped | `DecisionCenterView.tsx` |
 | Meeting Mode | Shipped | `MeetingMode.tsx` |
 | Executive Briefing | Shipped | `ExecutiveBriefing.tsx` |

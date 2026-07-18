@@ -536,7 +536,7 @@ Forecasting
 
 Supply Chain Analysis
 
-The AI Advisor (`AiAdvisor.tsx`) is shipped and operational. It follows the constitutional architecture: it consumes completed Builds, generates narrative from snapshot metrics, and never performs arithmetic or replaces the deterministic engine. Backed by a Gemini API proxy (`api/gemini-analyze.ts`) with a fallback local analysis mode when the API key is absent.
+The AI Advisor (Chippie, `Chippie.tsx`) is shipped and operational. It follows the constitutional architecture: it consumes completed Builds, cites metrics from the deterministic engine via tool calls, and never performs arithmetic or replaces the engine. Backed by NVIDIA NIM open models via a serverless proxy (`api/chippie.ts`, one-shot briefings via `api/chippie-brief.ts`) with a demo fallback mode when the API key is absent.
 
 These systems consume Builds.
 

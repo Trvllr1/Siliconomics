@@ -6,11 +6,14 @@
 import { CHIPPIE_KNOWLEDGE, type KnowledgeSection } from '../../src/data/chippieKnowledge.js';
 import {
   CHIPPIE_TOOL_DEFINITIONS,
+  CHIPPIE_GTM_TOOL_DEFINITION,
+  GTM_ASSET_KINDS,
   isServerTool,
   type ChippieMessage,
   type ChippieRequest,
   type ChippieResponse,
   type ChippieToolCall,
+  type GtmAssetKind,
 } from '../../src/utils/chippieProtocol.js';
 
 const MAX_SERVER_TOOL_ROUNDS = 3;
@@ -45,7 +48,17 @@ AFTER A TOOL RETURNS:
 - Answer the user's question directly using the numbers from the tool result. NEVER describe the JSON, the function call, or the mechanics of the tool ("this response is a JSON object...", "the output of the function..."). The user only sees your prose — speak to them, not about the data format.
 - For scenarios: state each key metric as "X (was Y)" with direction, then one sentence of takeaway.
 
-TOOLS: Use search_docs for methodology/governance questions AND for any term, acronym, or definition you are not certain about (the docs include a full glossary — search it BEFORE saying you don't know); get_active_build_metrics for current numbers; explain_metric for formula derivations; run_scenario for what-ifs; generate_report to produce audit documents; navigate to move the user around the app; propose_assumption to suggest input changes.`;
+TOOLS: Use search_docs for methodology/governance questions AND for any term, acronym, or definition you are not certain about (the docs include a full glossary — search it BEFORE saying you don't know); get_active_build_metrics for current numbers; explain_metric for formula derivations; run_scenario for what-ifs; compare_builds to contrast two builds side-by-side; get_sensitivity_drivers to rank which parameters matter most for a metric; query_decisions for recorded executive decisions and follow-ups; generate_report to produce audit documents; navigate to move the user around the app; propose_assumption to suggest input changes.${
+    context?.founderMode
+      ? `
+
+FOUNDER MODE (GTM advisory) — the user is the founder:
+- You may also help draft go-to-market assets: teardown posts, design-partner outreach emails, partner briefs, and objection responses.
+- ALWAYS call draft_gtm_asset first to fetch the GTM grounding pack (positioning, ICP tiers, pricing, objection table) — never improvise positioning or pricing.
+- Every GTM draft MUST begin with the literal line "DRAFT — requires founder sign-off" and stay consistent with the grounding pack.
+- You draft only. You cannot send, post, or publish anything.`
+      : ''
+  }`;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,7 +98,7 @@ export function searchDocs(query: string, limit = 3): KnowledgeSection[] {
     .map((s) => s.section);
 }
 
-function executeServerTool(call: ChippieToolCall): string {
+function executeServerTool(call: ChippieToolCall, founderMode = false): string {
   try {
     if (call.function.name === 'search_docs') {
       const args = JSON.parse(call.function.arguments || '{}') as { query?: string };
@@ -97,10 +110,68 @@ function executeServerTool(call: ChippieToolCall): string {
         results: results.map((r) => ({ source: r.source, title: r.title, content: r.content })),
       });
     }
+    if (call.function.name === 'draft_gtm_asset') {
+      if (!founderMode) {
+        return JSON.stringify({ error: 'draft_gtm_asset is only available in founder mode.' });
+      }
+      const args = JSON.parse(call.function.arguments || '{}') as { kind?: string; topic?: string };
+      return draftGtmAsset(args.kind, args.topic);
+    }
     return JSON.stringify({ error: `Unknown server tool: ${call.function.name}` });
   } catch (e) {
     return JSON.stringify({ error: `Tool execution failed: ${e instanceof Error ? e.message : String(e)}` });
   }
+}
+
+// ---------------------------------------------------------------------------
+// draft_gtm_asset — founder-only GTM grounding pack (docs/07-Go-To-Market.md).
+// Returns grounding sections + format instructions; the model writes the
+// draft, always prefixed "DRAFT — requires founder sign-off". Never sends.
+// ---------------------------------------------------------------------------
+
+const GTM_KIND_META: Record<GtmAssetKind, { sectionIdHints: string[]; instructions: string }> = {
+  teardown_post: {
+    sectionIdHints: ['positioning', 'content-engine', 'icp'],
+    instructions:
+      'Write a LinkedIn/blog teardown post: hook (a surprising silicon-economics number), 3-5 short analytical paragraphs grounded in deterministic modeling, and a soft close pointing to Siliconomics. Educational tone, zero hype, no hard sell.',
+  },
+  outreach_email: {
+    sectionIdHints: ['icp', 'design-partner', 'positioning'],
+    instructions:
+      'Write a cold outreach email to a design-partner prospect: subject line, under 150 words, one specific pain point from the ICP tier, one concrete capability, one low-friction ask (20-minute call). No buzzwords.',
+  },
+  partner_brief: {
+    sectionIdHints: ['design-partner', 'pricing', 'positioning'],
+    instructions:
+      'Write a one-page design partner brief: what the program is, what partners get, what we ask of them, pricing posture, and success criteria. Use ### section headers.',
+  },
+  objection_response: {
+    sectionIdHints: ['objections', 'data-compliance', 'positioning'],
+    instructions:
+      'Write a crisp response to the stated objection: acknowledge the concern honestly, counter with facts from the objection table and compliance stance, end with a proof point. Under 200 words.',
+  },
+};
+
+function draftGtmAsset(kind: string | undefined, topic: string | undefined): string {
+  if (!kind || !(GTM_ASSET_KINDS as readonly string[]).includes(kind)) {
+    return JSON.stringify({ error: `"kind" must be one of: ${GTM_ASSET_KINDS.join(', ')}.` });
+  }
+  const meta = GTM_KIND_META[kind as GtmAssetKind];
+  const gtmSections = CHIPPIE_KNOWLEDGE.filter((s) => s.source === '07-Go-To-Market.md');
+  const matched = gtmSections.filter((s) => meta.sectionIdHints.some((h) => s.id.includes(h)));
+  const grounding = (matched.length > 0 ? matched : gtmSections).slice(0, 4);
+  return JSON.stringify({
+    kind,
+    topic: topic ?? null,
+    instructions: meta.instructions,
+    hardRules: [
+      'The draft MUST begin with the literal line: "DRAFT — requires founder sign-off".',
+      'Stay strictly consistent with the grounding sections — never invent positioning, pricing, or claims.',
+      'You draft only; you cannot send, post, or publish.',
+    ],
+    grounding: grounding.map((s) => ({ title: s.title, content: s.content })),
+    provenance: 'docs/07-Go-To-Market.md via compiled knowledge pack.',
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -129,7 +200,13 @@ const NIM_RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function callNim(config: NimConfig, messages: ChippieMessage[]): Promise<ChippieMessage> {
+async function callNim(
+  config: NimConfig,
+  messages: ChippieMessage[],
+  opts: { tools?: boolean | readonly unknown[]; temperature?: number } = {},
+): Promise<ChippieMessage> {
+  const { tools = true, temperature = 0 } = opts;
+  const toolDefs = tools === true ? CHIPPIE_TOOL_DEFINITIONS : tools;
   let lastError: Error = new Error('NIM request failed');
 
   for (let attempt = 1; attempt <= NIM_MAX_ATTEMPTS; attempt++) {
@@ -144,9 +221,10 @@ async function callNim(config: NimConfig, messages: ChippieMessage[]): Promise<C
         body: JSON.stringify({
           model: config.model,
           messages,
-          tools: CHIPPIE_TOOL_DEFINITIONS,
-          tool_choice: 'auto',
-          temperature: 0, // greedy decoding — tool-call arguments must be deterministic (0.2 let an 8B flip a deltaPercent sign)
+          ...(toolDefs ? { tools: toolDefs, tool_choice: 'auto' } : {}),
+          // Greedy decoding by default — tool-call arguments must be deterministic
+          // (0.2 let an 8B flip a deltaPercent sign).
+          temperature,
           max_tokens: 1024,
         }),
         signal: AbortSignal.timeout(NIM_ATTEMPT_TIMEOUT_MS),
@@ -239,6 +317,9 @@ export async function handleChippieRequest(
     ...transcript,
   ];
 
+  const founderMode = req.context?.founderMode === true;
+  const toolSet = founderMode ? [...CHIPPIE_TOOL_DEFINITIONS, CHIPPIE_GTM_TOOL_DEFINITION] : true;
+
   // Small models drift after tool results and start narrating the JSON.
   // Inject a just-in-time reminder whenever the next turn synthesizes from a tool result.
   const SYNTHESIS_REMINDER: ChippieMessage = {
@@ -251,7 +332,7 @@ export async function handleChippieRequest(
 
   try {
     for (let round = 0; round <= MAX_SERVER_TOOL_ROUNDS; round += 1) {
-      const assistant = await callNim(config, withReminder(messages));
+      const assistant = await callNim(config, withReminder(messages), { tools: toolSet });
       const toolCalls = assistant.tool_calls ?? [];
 
       if (toolCalls.length === 0) {
@@ -267,7 +348,7 @@ export async function handleChippieRequest(
         const serverResults: ChippieMessage[] = serverCalls.map((call) => ({
           role: 'tool',
           tool_call_id: call.id,
-          content: executeServerTool(call),
+          content: executeServerTool(call, founderMode),
         }));
         return {
           status: 200,
@@ -285,7 +366,7 @@ export async function handleChippieRequest(
       // Only server tools — execute and loop.
       messages.push(assistant);
       for (const call of serverCalls) {
-        messages.push({ role: 'tool', tool_call_id: call.id, content: executeServerTool(call) });
+        messages.push({ role: 'tool', tool_call_id: call.id, content: executeServerTool(call, founderMode) });
       }
     }
     return {
@@ -299,5 +380,173 @@ export async function handleChippieRequest(
     const msg = e instanceof Error ? e.message : String(e);
     console.error('[chippie] upstream error:', msg);
     return { status: 502, body: { error: `Chippie backend error: ${msg}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// One-shot briefings — narrative generation for ComparisonView and
+// DecisionCenterView (replaces the retired Gemini proxies). No tool loop:
+// deterministic engine metrics arrive in the payload and are embedded in the
+// prompt PRE-FORMATTED, so the model quotes figures verbatim.
+// ---------------------------------------------------------------------------
+
+interface BriefingBuild {
+  name?: string;
+  version?: string;
+  portfolio?: string;
+  designModel?: Record<string, unknown>;
+}
+interface BriefingComputed {
+  snapshot?: Record<string, unknown>;
+}
+
+const asNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const fmt = (v: unknown, digits = 2, suffix = ''): string => {
+  const n = asNum(v);
+  return n === null ? 'n/a' : `${n.toFixed(digits)}${suffix}`;
+};
+const pct = (v: unknown): string => fmt(v, 2, '%');
+const usd = (v: unknown): string => {
+  const n = asNum(v);
+  return n === null ? 'n/a' : `$${n.toFixed(2)}`;
+};
+const yieldPct = (v: unknown): string => {
+  const n = asNum(v);
+  return n === null ? 'n/a' : `${(n * 100).toFixed(2)}%`;
+};
+
+const BRIEFING_SYSTEM = `You are a world-class principal semiconductor economist and chip architect advising a Fortune 100 board of directors. You write board-ready markdown briefings.
+HARD RULE: every numeric figure you state must be quoted EXACTLY as it appears in the data provided — never recompute, re-round, or invent numbers. No emojis.`;
+
+function buildDescription(build: BriefingBuild, computed: BriefingComputed, label?: string): string {
+  const dm = build.designModel ?? {};
+  const snap = computed.snapshot ?? {};
+  return `${label ? `${label}: ` : ''}${build.name ?? 'Unnamed build'} (${build.version ?? 'unversioned'})
+- Process Node: ${dm.processNode ?? 'n/a'} | Topology: ${dm.topology ?? 'n/a'} (${dm.chipletCount ?? 'n/a'} chiplet(s))
+- Die Area: ${fmt(dm.dieArea, 1, ' mm²')} | Transistors: ${fmt(dm.transistorCount, 1, 'B')} | TDP: ${fmt(dm.tdp, 0, ' W')}
+- Defect Density (D0): ${fmt(dm.defectDensity, 3, ' defects/cm²')} | Wafer Cost: ${usd(dm.waferCost)}
+- Packaging Yield: ${pct(dm.packagingYield)} | Test Yield: ${pct(dm.testYield)}
+- NRE: ${fmt(dm.nreCost, 1, ' $M')} | ASP: ${usd(dm.asp)} | Target Volume: ${fmt(dm.targetVolume, 1, ' M units')}
+Engine outputs (deterministic):
+- Die Yield: ${yieldPct(snap.dieYield)} | Dies Per Wafer: ${fmt(snap.dpw, 0)}
+- Cost per Good Die: ${usd(snap.grossCostPerGoodDie)} | Fully Loaded Cost: ${usd(snap.fullyLoadedCostPerDie)}
+- Gross Margin: ${pct(snap.grossMargin)} | Operating Margin: ${pct(snap.operatingMargin)}
+- Break-Even Volume: ${fmt(snap.breakEvenVolumeMillion, 2, ' M units')} | Lifetime Net Profit: ${fmt(snap.lifetimeNetProfitMillion, 1, ' $M')} | ROI: ${pct(snap.roi)}`;
+}
+
+function demoAnalyze(build: BriefingBuild, computed: BriefingComputed): string {
+  const dm = build.designModel ?? {};
+  const snap = computed.snapshot ?? {};
+  return `### **Executive Briefing**
+The **${build.name ?? 'active'}** build on **${dm.processNode ?? 'the selected node'}** posts a die yield of **${yieldPct(snap.dieYield)}** and a gross margin of **${pct(snap.grossMargin)}**, breaking even at **${fmt(snap.breakEvenVolumeMillion, 2)} million units**.
+
+### **Technical Architecture Analysis**
+- **Node & Topology**: ${dm.processNode ?? 'n/a'}, ${dm.topology ?? 'n/a'} topology across ${fmt(dm.dieArea, 1)} mm².
+- **Power**: TDP ${fmt(dm.tdp, 0)} W at power density ${fmt(snap.tdpPowerDensity, 3)} W/mm².
+
+### **Manufacturing & Risk Report**
+- **Defect Density (D0)**: ${fmt(dm.defectDensity, 3)} defects/cm².
+- **Assembly**: packaging yield ${pct(dm.packagingYield)}, test yield ${pct(dm.testYield)}.
+
+### **Financial Sensitivity Summary**
+- **Break-Even**: amortizing ${fmt(dm.nreCost, 1)} $M NRE requires ${fmt(snap.breakEvenVolumeMillion, 2)} million units at ASP ${usd(dm.asp)}.
+- **Unit Economics**: cost per good die ${usd(snap.grossCostPerGoodDie)}, ROI ${pct(snap.roi)}.
+
+*Demo mode — connect a model backend for narrative analysis. All figures above come from the deterministic engine.*`;
+}
+
+function demoCompare(a: BriefingBuild, ca: BriefingComputed, b: BriefingBuild, cb: BriefingComputed): string {
+  const sa = ca.snapshot ?? {};
+  const sb = cb.snapshot ?? {};
+  return `### **Executive Trade-Off Summary**
+**${a.name ?? 'Build A'}** posts gross margin **${pct(sa.grossMargin)}** and ROI **${pct(sa.roi)}**; **${b.name ?? 'Build B'}** posts gross margin **${pct(sb.grossMargin)}** and ROI **${pct(sb.roi)}**.
+
+### **Architectural Trade-Offs**
+- ${a.name ?? 'Build A'}: ${a.designModel?.processNode ?? 'n/a'}, ${a.designModel?.topology ?? 'n/a'} | ${b.name ?? 'Build B'}: ${b.designModel?.processNode ?? 'n/a'}, ${b.designModel?.topology ?? 'n/a'}
+
+### **Operational Risks**
+- Wafer cost: ${usd(a.designModel?.waferCost)} vs ${usd(b.designModel?.waferCost)} | D0: ${fmt(a.designModel?.defectDensity, 3)} vs ${fmt(b.designModel?.defectDensity, 3)} defects/cm²
+
+### **Strategic Recommendation**
+Lifetime net profit: **${fmt(sa.lifetimeNetProfitMillion, 1)} $M** vs **${fmt(sb.lifetimeNetProfitMillion, 1)} $M**. Review the deterministic comparison grid for the full evidence base.
+
+*Demo mode — connect a model backend for narrative analysis. All figures above come from the deterministic engine.*`;
+}
+
+export interface ChippieBriefingResponse {
+  content: string;
+  isDemo: boolean;
+}
+
+export async function handleChippieBriefing(
+  body: unknown,
+  env: Record<string, string | undefined> = process.env,
+): Promise<{ status: number; body: ChippieBriefingResponse | { error: string } }> {
+  const req = body as
+    | {
+        kind?: string;
+        build?: BriefingBuild;
+        computed?: BriefingComputed;
+        buildA?: BriefingBuild;
+        computedA?: BriefingComputed;
+        buildB?: BriefingBuild;
+        computedB?: BriefingComputed;
+      }
+    | null;
+
+  let prompt: string;
+  let demo: string;
+
+  if (req?.kind === 'analyze' && req.build && req.computed) {
+    prompt = `Analyze this silicon program build and its deterministic engine outputs.
+
+${buildDescription(req.build, req.computed)}
+
+Generate a board-ready executive report in clean markdown with EXACTLY these H3 sections:
+1. ### **Executive Briefing** (3 concise sentences on yield vs. margin, ROI, commercial viability)
+2. ### **Technical Architecture Analysis** (node choice, topology trade-offs, power density)
+3. ### **Manufacturing & Risk Report** (D0, assembly and test yields, yield-curve risks)
+4. ### **Financial Sensitivity Summary** (NRE amortization, break-even volume, ASP sensitivity)
+
+Quote every figure exactly as given above.`;
+    demo = demoAnalyze(req.build, req.computed);
+  } else if (req?.kind === 'compare' && req.buildA && req.computedA && req.buildB && req.computedB) {
+    prompt = `Compare these two silicon program builds side-by-side using their deterministic engine outputs.
+
+${buildDescription(req.buildA, req.computedA, 'BUILD A')}
+
+${buildDescription(req.buildB, req.computedB, 'BUILD B')}
+
+Generate a side-by-side analysis in clean markdown with EXACTLY these H3 sections:
+1. ### **Executive Trade-Off Summary** (3 sentences comparing margins, ROI, profit differentials)
+2. ### **Architectural Trade-Offs** (node choices, density, monolithic vs chiplet)
+3. ### **Operational Risks** (wafer costs, yields, defect densities)
+4. ### **Strategic Recommendation** (which build to fund, backed by risk-adjusted figures)
+
+Quote every figure exactly as given above.`;
+    demo = demoCompare(req.buildA, req.computedA, req.buildB, req.computedB);
+  } else {
+    return { status: 400, body: { error: 'Briefing request must be {kind:"analyze",build,computed} or {kind:"compare",buildA,computedA,buildB,computedB}.' } };
+  }
+
+  const config = getNimConfig(env);
+  if (!config) {
+    return { status: 200, body: { content: demo, isDemo: true } };
+  }
+
+  try {
+    const message = await callNim(
+      config,
+      [
+        { role: 'system', content: BRIEFING_SYSTEM },
+        { role: 'user', content: prompt },
+      ],
+      { tools: false, temperature: 0.2 },
+    );
+    return { status: 200, body: { content: message.content ?? 'No response generated.', isDemo: false } };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[chippie-brief] upstream error:', msg);
+    return { status: 502, body: { error: `Chippie briefing error: ${msg}` } };
   }
 }

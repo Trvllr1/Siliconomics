@@ -1,4 +1,4 @@
-# 07 — Glossary of Terms & Acronyms
+# 08 — Glossary of Terms & Acronyms
 
 Canonical definitions for every acronym and domain term used across Siliconomics — the platform docs, the Formula Library, and the build workspace. Chippie cites these definitions verbatim when a persona asks what a term means.
 

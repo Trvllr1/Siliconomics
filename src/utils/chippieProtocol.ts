@@ -25,6 +25,8 @@ export interface ChippieRequest {
     buildName?: string;
     buildVersion?: string;
     persona?: string;
+    /** Enables the founder-only GTM advisory toolset (gated by VITE_FOUNDER_MODE). */
+    founderMode?: boolean;
   };
 }
 
@@ -58,7 +60,7 @@ export const CHIPPIE_NAV_TABS = [
 ] as const;
 
 /** Tools executed server-side inside the API function. */
-export const SERVER_TOOL_NAMES = ['search_docs'] as const;
+export const SERVER_TOOL_NAMES = ['search_docs', 'draft_gtm_asset'] as const;
 
 /** Tools executed in the browser (they need live app state / the math engine). */
 export const CLIENT_TOOL_NAMES = [
@@ -68,6 +70,9 @@ export const CLIENT_TOOL_NAMES = [
   'generate_report',
   'navigate',
   'propose_assumption',
+  'compare_builds',
+  'get_sensitivity_drivers',
+  'query_decisions',
 ] as const;
 
 export type ServerToolName = (typeof SERVER_TOOL_NAMES)[number];
@@ -197,4 +202,85 @@ export const CHIPPIE_TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'compare_builds',
+      description:
+        'Compare two builds in the workspace side-by-side: deterministic engine metrics for both plus a business-impact analysis (engineering, manufacturing, financial, program). Use when asked to compare builds, weigh alternatives, or contrast the active build with another. Omit buildA to use the active build.',
+      parameters: {
+        type: 'object',
+        properties: {
+          buildA: { type: 'string', description: 'Name (or partial name) of the baseline build. Omit to use the active build.' },
+          buildB: { type: 'string', description: 'Name (or partial name) of the build to compare against.' },
+        },
+        required: ['buildB'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_sensitivity_drivers',
+      description:
+        'Rank which design parameters (defect density, wafer cost, ASP, die area, NRE, packaging/test yield, volume, packaging cost) most affect a chosen metric for the active build, by sweeping each ±20% through the deterministic engine. Use for "what matters most", "biggest risk/lever", or sensitivity questions.',
+      parameters: {
+        type: 'object',
+        properties: {
+          metric: {
+            type: 'string',
+            enum: ['grossMargin', 'roi', 'grossCostPerGoodDie', 'breakEvenVolumeMillion', 'lifetimeNetProfitMillion'],
+            description: 'Metric to rank drivers for. Defaults to grossMargin.',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_decisions',
+      description:
+        'List recorded executive decisions (outcome, approver, rationale, follow-up actions) from the Decision Center. Use for questions about what was decided, by whom, why, or outstanding follow-ups.',
+      parameters: {
+        type: 'object',
+        properties: {
+          scope: { type: 'string', enum: ['active_build', 'all'], description: 'Limit to decisions involving the active build, or all decisions. Defaults to all.' },
+          outcome: {
+            type: 'string',
+            enum: ['Proceed', 'Proceed with Risk', 'Requires Investigation', 'Hold', 'Reject'],
+            description: 'Optional filter by decision outcome.',
+          },
+        },
+      },
+    },
+  },
 ] as const;
+
+/** GTM asset kinds Chippie can draft in founder mode. */
+export const GTM_ASSET_KINDS = ['teardown_post', 'outreach_email', 'partner_brief', 'objection_response'] as const;
+export type GtmAssetKind = (typeof GTM_ASSET_KINDS)[number];
+
+/** Founder-only tool definition — advertised to the model ONLY when the
+ * request context carries founderMode (gated client-side by VITE_FOUNDER_MODE
+ * and enforced server-side in executeServerTool). */
+export const CHIPPIE_GTM_TOOL_DEFINITION = {
+  type: 'function',
+  function: {
+    name: 'draft_gtm_asset',
+    description:
+      'FOUNDER ONLY. Fetch the go-to-market grounding pack (positioning, ICP tiers, design partner program, pricing, objection handling) plus format instructions for drafting a GTM asset. Call this BEFORE drafting any teardown post, outreach email, partner brief, or objection response. All drafts require founder sign-off before sending.',
+    parameters: {
+      type: 'object',
+      properties: {
+        kind: {
+          type: 'string',
+          enum: [...GTM_ASSET_KINDS],
+          description: 'Type of GTM asset to draft.',
+        },
+        topic: { type: 'string', description: 'Optional topic or target, e.g. "chiplet cost teardown" or "Tier-1 AI accelerator startup".' },
+      },
+      required: ['kind'],
+    },
+  },
+} as const;

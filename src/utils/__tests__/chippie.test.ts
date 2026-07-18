@@ -2,13 +2,14 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { CHIPPIE_KNOWLEDGE } from '../../data/chippieKnowledge';
 import {
   CHIPPIE_TOOL_DEFINITIONS,
+  CHIPPIE_GTM_TOOL_DEFINITION,
   CLIENT_TOOL_NAMES,
   SERVER_TOOL_NAMES,
   isClientTool,
   isServerTool,
 } from '../chippieProtocol';
 import { executeClientTool, type ChippieToolContext } from '../chippieTools';
-import { searchDocs, getNimConfig, handleChippieRequest } from '../../../api/_lib/chippieCore';
+import { searchDocs, getNimConfig, handleChippieRequest, handleChippieBriefing } from '../../../api/_lib/chippieCore';
 import { computeBuildMetrics } from '../mathEngine';
 import { DEFAULT_BUILDS } from '../../data/defaultBuilds';
 import type { ChippieToolCall } from '../chippieProtocol';
@@ -67,11 +68,17 @@ describe('chippieKnowledge pack', () => {
 
 describe('chippieProtocol', () => {
   it('every tool definition maps to exactly one executor side', () => {
-    for (const def of CHIPPIE_TOOL_DEFINITIONS) {
+    const allDefs = [...CHIPPIE_TOOL_DEFINITIONS, CHIPPIE_GTM_TOOL_DEFINITION];
+    for (const def of allDefs) {
       const name = def.function.name;
       expect(isServerTool(name) !== isClientTool(name)).toBe(true);
     }
-    expect(CHIPPIE_TOOL_DEFINITIONS.length).toBe(SERVER_TOOL_NAMES.length + CLIENT_TOOL_NAMES.length);
+    expect(allDefs.length).toBe(SERVER_TOOL_NAMES.length + CLIENT_TOOL_NAMES.length);
+  });
+
+  it('the GTM tool is NOT in the default tool definitions', () => {
+    expect(CHIPPIE_TOOL_DEFINITIONS.some((d) => d.function.name === 'draft_gtm_asset')).toBe(false);
+    expect(isServerTool('draft_gtm_asset')).toBe(true);
   });
 });
 
@@ -210,6 +217,93 @@ describe('executeClientTool', () => {
     const { content, activity } = await executeClientTool(call('does_not_exist'), ctx());
     expect(JSON.parse(content).error).toContain('Unknown client tool');
     expect(activity.summary).toContain('Unknown tool');
+  });
+
+  it('compare_builds compares the active build against a named build', async () => {
+    const { content, activity } = await executeClientTool(
+      call('compare_builds', { buildB: 'Manhattan-X2' }),
+      ctx({ builds: DEFAULT_BUILDS }),
+    );
+    const parsed = JSON.parse(content);
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.buildA.name).toBe(x1.name);
+    expect(parsed.buildB.name).toContain('Manhattan-X2');
+    expect(parsed.metrics.length).toBeGreaterThan(5);
+    const row = parsed.metrics.find((m: { metric: string }) => m.metric === 'Gross Margin');
+    expect(row[x1.name]).toMatch(/%$/);
+    expect(parsed.businessImpacts.length).toBeGreaterThan(0);
+    expect(activity.summary).toContain('Compared');
+  });
+
+  it('compare_builds resolves mangled model-supplied names (live 8B quirk)', async () => {
+    // Observed live: the model sent buildA "Manhattan-X1 (v2.4)" — name + version mashup.
+    const { content } = await executeClientTool(
+      call('compare_builds', { buildA: 'Manhattan-X1 (v2.4)', buildB: 'Manhattan-X2 (v0.9b)' }),
+      ctx({ builds: DEFAULT_BUILDS }),
+    );
+    const parsed = JSON.parse(content);
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.buildA.name).toContain('Manhattan-X1');
+    expect(parsed.buildB.name).toContain('Manhattan-X2');
+  });
+
+  it('compare_builds errors with available builds listed on a bad name', async () => {
+    const { content } = await executeClientTool(
+      call('compare_builds', { buildB: 'nonexistent-build-zzz' }),
+      ctx({ builds: DEFAULT_BUILDS }),
+    );
+    const parsed = JSON.parse(content);
+    expect(parsed.error).toContain('No build found');
+    expect(parsed.error).toContain('Manhattan-X2');
+  });
+
+  it('compare_builds rejects comparing a build to itself', async () => {
+    const { content } = await executeClientTool(
+      call('compare_builds', { buildB: 'Manhattan-X1' }),
+      ctx({ builds: DEFAULT_BUILDS }),
+    );
+    expect(JSON.parse(content).error).toContain('same build');
+  });
+
+  it('get_sensitivity_drivers ranks parameters with formatted impact ranges', async () => {
+    const { content } = await executeClientTool(call('get_sensitivity_drivers', { metric: 'grossMargin' }), ctx());
+    const parsed = JSON.parse(content);
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.metric).toBe('Gross Margin');
+    expect(parsed.drivers.length).toBe(9);
+    expect(parsed.drivers[0].rank).toBe(1);
+    expect(parsed.drivers[0].impactRange).toMatch(/%$/);
+    // Ranking must be descending by impact
+    const impacts = parsed.drivers.map((d: { impactRange: string }) => parseFloat(d.impactRange));
+    expect(impacts[0]).toBeGreaterThanOrEqual(impacts[impacts.length - 1]);
+    expect(parsed.provenance).toContain('Deterministic');
+  });
+
+  it('get_sensitivity_drivers defaults to grossMargin and rejects unknown metrics', async () => {
+    const { content: defaulted } = await executeClientTool(call('get_sensitivity_drivers'), ctx());
+    expect(JSON.parse(defaulted).metric).toBe('Gross Margin');
+    const { content: bad } = await executeClientTool(call('get_sensitivity_drivers', { metric: 'vibes' }), ctx());
+    expect(JSON.parse(bad).error).toContain('Unknown metric');
+  });
+
+  it('query_decisions filters by scope and outcome', async () => {
+    const decisions = [
+      { id: 'd1', buildIds: [x1.id], outcome: 'Proceed' as const, approver: 'CEO', rationale: 'Strong ROI', followUpActions: ['Kick off tapeout'], timestamp: '2026-01-01' },
+      { id: 'd2', buildIds: ['manhattan-x2'], outcome: 'Hold' as const, approver: 'CFO', rationale: 'Margin risk', followUpActions: [], timestamp: '2026-01-02' },
+    ];
+    const c = ctx({ decisions, builds: DEFAULT_BUILDS });
+
+    const { content: all } = await executeClientTool(call('query_decisions'), c);
+    expect(JSON.parse(all).matching).toBe(2);
+
+    const { content: scoped } = await executeClientTool(call('query_decisions', { scope: 'active_build' }), c);
+    const scopedParsed = JSON.parse(scoped);
+    expect(scopedParsed.matching).toBe(1);
+    expect(scopedParsed.decisions[0].outcome).toBe('Proceed');
+    expect(scopedParsed.decisions[0].builds[0]).toContain('Manhattan-X1');
+
+    const { content: held } = await executeClientTool(call('query_decisions', { outcome: 'Hold' }), c);
+    expect(JSON.parse(held).decisions[0].approver).toBe('CFO');
   });
 });
 
@@ -369,5 +463,173 @@ describe('getNimConfig', () => {
     const cfg = getNimConfig({ NIM_API_KEY: 'nvapi-x' })!;
     expect(cfg.baseUrl).toBe('https://integrate.api.nvidia.com/v1');
     expect(cfg.model).toBe('meta/llama-3.1-8b-instruct');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Founder mode (GTM advisory)
+// ---------------------------------------------------------------------------
+
+describe('founder mode', () => {
+  const textCompletion = (content: string) => ({
+    ok: true,
+    json: async () => ({ choices: [{ message: { role: 'assistant', content } }] }),
+  });
+
+  it('advertises draft_gtm_asset ONLY when founderMode is set', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(textCompletion('ok'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await handleChippieRequest(
+      { messages: [{ role: 'user', content: 'hi' }], context: { founderMode: true } },
+      { NIM_API_KEY: 'nvapi-test' },
+    );
+    const founderPayload = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
+    expect(founderPayload.tools.some((t: { function: { name: string } }) => t.function.name === 'draft_gtm_asset')).toBe(true);
+    expect(founderPayload.messages[0].content).toContain('FOUNDER MODE');
+
+    await handleChippieRequest(
+      { messages: [{ role: 'user', content: 'hi' }] },
+      { NIM_API_KEY: 'nvapi-test' },
+    );
+    const normalPayload = JSON.parse(fetchMock.mock.calls[1]![1].body as string);
+    expect(normalPayload.tools.some((t: { function: { name: string } }) => t.function.name === 'draft_gtm_asset')).toBe(false);
+    expect(normalPayload.messages[0].content).not.toContain('FOUNDER MODE');
+  });
+
+  it('executes draft_gtm_asset server-side with grounding and hard rules', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  { id: 'g1', type: 'function', function: { name: 'draft_gtm_asset', arguments: '{"kind":"outreach_email"}' } },
+                ],
+              },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce(textCompletion('DRAFT — requires founder sign-off\n\nSubject: ...'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { body } = await handleChippieRequest(
+      { messages: [{ role: 'user', content: 'draft an outreach email' }], context: { founderMode: true } },
+      { NIM_API_KEY: 'nvapi-test' },
+    );
+    // Tool executed server-side, result fed back in round 2
+    const secondPayload = JSON.parse(fetchMock.mock.calls[1]![1].body as string);
+    const toolMsg = secondPayload.messages.find((m: { role: string }) => m.role === 'tool');
+    const toolResult = JSON.parse(toolMsg.content);
+    expect(toolResult.kind).toBe('outreach_email');
+    expect(toolResult.grounding.length).toBeGreaterThan(0);
+    expect(toolResult.hardRules.join(' ')).toContain('founder sign-off');
+    expect(toolResult.provenance).toContain('07-Go-To-Market');
+    expect((body as { message: { content: string } }).message.content).toContain('DRAFT');
+  });
+
+  it('refuses draft_gtm_asset when founderMode is not set', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  { id: 'g2', type: 'function', function: { name: 'draft_gtm_asset', arguments: '{"kind":"teardown_post"}' } },
+                ],
+              },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce(textCompletion('understood'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await handleChippieRequest(
+      { messages: [{ role: 'user', content: 'draft a post' }] },
+      { NIM_API_KEY: 'nvapi-test' },
+    );
+    const secondPayload = JSON.parse(fetchMock.mock.calls[1]![1].body as string);
+    const toolMsg = secondPayload.messages.find((m: { role: string }) => m.role === 'tool');
+    expect(JSON.parse(toolMsg.content).error).toContain('founder mode');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// One-shot briefings (/api/chippie-brief)
+// ---------------------------------------------------------------------------
+
+describe('handleChippieBriefing', () => {
+  const x1Computed = { snapshot: computeBuildMetrics(x1).snapshot as unknown as Record<string, unknown> };
+
+  it('rejects malformed payloads with 400', async () => {
+    expect((await handleChippieBriefing({}, {})).status).toBe(400);
+    expect((await handleChippieBriefing({ kind: 'analyze' }, {})).status).toBe(400);
+    expect((await handleChippieBriefing({ kind: 'compare', buildA: x1 }, {})).status).toBe(400);
+  });
+
+  it('returns a deterministic demo analysis without a NIM key', async () => {
+    const { status, body } = await handleChippieBriefing({ kind: 'analyze', build: x1, computed: x1Computed }, {});
+    expect(status).toBe(200);
+    const resp = body as { content: string; isDemo: boolean };
+    expect(resp.isDemo).toBe(true);
+    expect(resp.content).toContain('### **Executive Briefing**');
+    expect(resp.content).toContain('### **Financial Sensitivity Summary**');
+  });
+
+  it('returns a deterministic demo comparison without a NIM key', async () => {
+    const x2 = DEFAULT_BUILDS.find((b) => b.id === 'manhattan-x2')!;
+    const { status, body } = await handleChippieBriefing(
+      {
+        kind: 'compare',
+        buildA: x1,
+        computedA: { snapshot: computeBuildMetrics(x1).snapshot },
+        buildB: x2,
+        computedB: { snapshot: computeBuildMetrics(x2).snapshot },
+      },
+      {},
+    );
+    expect(status).toBe(200);
+    const resp = body as { content: string; isDemo: boolean };
+    expect(resp.isDemo).toBe(true);
+    expect(resp.content).toContain('### **Executive Trade-Off Summary**');
+    expect(resp.content).toContain('### **Strategic Recommendation**');
+  });
+
+  it('calls NIM without tools at temperature 0.2 and returns the narrative', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { role: 'assistant', content: '### Executive Briefing\nNarrative.' } }] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { status, body } = await handleChippieBriefing(
+      { kind: 'analyze', build: x1, computed: x1Computed },
+      { NIM_API_KEY: 'nvapi-test' },
+    );
+    expect(status).toBe(200);
+    expect((body as { content: string }).content).toContain('Narrative');
+    const payload = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
+    expect(payload.tools).toBeUndefined();
+    expect(payload.temperature).toBe(0.2);
+  });
+
+  it('surfaces upstream failure as 502', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => 'denied' }));
+    const { status } = await handleChippieBriefing(
+      { kind: 'analyze', build: x1, computed: x1Computed },
+      { NIM_API_KEY: 'nvapi-test' },
+    );
+    expect(status).toBe(502);
   });
 });

@@ -28,7 +28,7 @@ export default function TrustModal({ isOpen, onClose }: TrustModalProps) {
     {
       icon: <ShieldCheck className="w-5 h-5 text-green-600" />,
       title: 'AI Advisor Data Flow',
-      content: 'The AI Advisor is opt-in per click. When you invoke an analysis, the active Build\'s parameters and computed metrics are sent to Google\'s Gemini API via our proxy for natural-language processing. No build data is used for model training. Analysis never runs automatically.',
+      content: 'Chippie, the embedded advisor, is opt-in per message. When you ask a question or invoke an analysis, the active Build\'s parameters and computed metrics are sent to NVIDIA-hosted open models via our proxy for natural-language processing. No build data is used for model training. Analysis never runs automatically, and every number Chippie cites comes from the deterministic engine.',
     },
   ];
 

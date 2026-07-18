@@ -2,5 +2,5 @@
   "name": "Siliconomics Manhattan",
   "description": "Executive decision-making workspace for multi-billion dollar semiconductor program architecture and financials.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }

@@ -5,6 +5,8 @@
 
 import type { Build, Decision, PersonaType, Snapshot } from '../types';
 import { computeBuildMetrics, type ComputedBuildMetrics } from './mathEngine';
+import { computeBusinessImpact } from './BusinessImpact';
+import { computeSensitivity, getTopSensitivities, type SensitivityPoint } from './SensitivityAnalysis';
 import { DEFAULT_FORMULA_LIBRARY } from '../data/defaultFormulaLibrary';
 import { FIELD_OWNER } from '../data/personaConfig';
 import type { ChippieToolCall } from './chippieProtocol';
@@ -13,6 +15,7 @@ export interface ChippieToolContext {
   activeBuild: Build;
   computedMetrics: ComputedBuildMetrics | null;
   activePersona: PersonaType;
+  builds?: Build[];
   decisions?: Decision[];
   onNavigate?: (tab: string) => void;
 }
@@ -21,6 +24,17 @@ export interface ChippieToolContext {
 export interface ChippieToolActivity {
   name: string;
   summary: string;
+}
+
+/** Structured assumption proposal surfaced by propose_assumption. The chat UI
+ * renders this as a card with a human-approval "Apply as Draft Branch" action. */
+export interface ChippieProposal {
+  field: string;
+  currentValue: number;
+  proposedValue: number;
+  owner: string;
+  rationale: string;
+  sources: string | null;
 }
 
 export interface ChippieToolResult {
@@ -294,13 +308,15 @@ function navigate(call: ChippieToolCall, ctx: ChippieToolContext): string {
 }
 
 function proposeAssumption(call: ChippieToolCall, ctx: ChippieToolContext): string {
-  const { field: rawField, proposedValue, rationale, sources } = parseArgs<{
+  const { field: rawField, proposedValue: rawProposed, rationale, sources } = parseArgs<{
     field?: string;
-    proposedValue?: number;
+    proposedValue?: number | string;
     rationale?: string;
     sources?: string;
   }>(call);
-  if (!rawField || typeof proposedValue !== 'number' || !rationale) {
+  // Small models frequently send numbers as strings — coerce before validating.
+  const proposedValue = typeof rawProposed === 'string' ? Number(rawProposed) : rawProposed;
+  if (!rawField || typeof proposedValue !== 'number' || !Number.isFinite(proposedValue) || !rationale) {
     return err('propose_assumption requires "field", numeric "proposedValue", and "rationale".');
   }
   const dm = ctx.activeBuild.designModel as unknown as Record<string, unknown>;
@@ -337,6 +353,149 @@ function proposeAssumption(call: ChippieToolCall, ctx: ChippieToolContext): stri
 // ---------------------------------------------------------------------------
 // Dispatcher
 // ---------------------------------------------------------------------------
+
+function resolveBuildByName(query: string, builds: Build[]): Build | null {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const target = norm(query);
+  if (!target) return null;
+  const exact = builds.find((b) => norm(b.name) === target);
+  if (exact) return exact;
+  const contains = builds.find((b) => norm(b.name).includes(target) || target.includes(norm(b.name)));
+  if (contains) return contains;
+  // Token scoring — models often send mangled names like "Manhattan-X1 (v2.4)".
+  const tokens = query.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 2);
+  let best: { build: Build; score: number } | null = null;
+  for (const b of builds) {
+    const hay = norm(`${b.name} ${b.version}`);
+    const score = tokens.reduce((acc, t) => (hay.includes(t) ? acc + t.length : acc), 0);
+    if (score >= 2 && (!best || score > best.score)) best = { build: b, score };
+  }
+  return best?.build ?? null;
+}
+
+function compareBuilds(call: ChippieToolCall, ctx: ChippieToolContext): string {
+  const { buildA: nameA, buildB: nameB } = parseArgs<{ buildA?: string; buildB?: string }>(call);
+  const builds = ctx.builds ?? [];
+  if (!nameB) return err('Missing "buildB" argument — the name of the build to compare against.');
+
+  const buildA = nameA ? resolveBuildByName(nameA, builds) ?? (resolveBuildByName(nameA, [ctx.activeBuild]) ? ctx.activeBuild : null) : ctx.activeBuild;
+  const buildB = resolveBuildByName(nameB, builds);
+  const available = builds.map((b) => `${b.name} (${b.version})`).join('; ');
+  if (!buildA) return err(`No build found matching "${nameA}". Available builds: ${available}`);
+  if (!buildB) return err(`No build found matching "${nameB}". Available builds: ${available}`);
+  if (buildA.id === buildB.id) return err('buildA and buildB resolve to the same build — pick two different builds.');
+
+  let snapA: Snapshot;
+  let snapB: Snapshot;
+  try {
+    snapA = computeBuildMetrics(buildA).snapshot;
+    snapB = computeBuildMetrics(buildB).snapshot;
+  } catch (e) {
+    return err(`Engine rejected comparison: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  const metrics = KEY_METRICS.map((m) => {
+    const a = snapA[m.key];
+    const b = snapB[m.key];
+    if (typeof a !== 'number' || typeof b !== 'number') return null;
+    return {
+      metric: m.label,
+      [buildA.name]: formatMetric(a, m.unit),
+      [buildB.name]: formatMetric(b, m.unit),
+      delta: formatMetric(b - a, m.unit),
+    };
+  }).filter(Boolean);
+
+  const impacts = computeBusinessImpact(buildA, snapA, buildB, snapB).map((i) => ({
+    category: i.category,
+    severity: i.severity,
+    metric: i.metric,
+    delta: i.delta,
+    narrative: i.narrative,
+  }));
+
+  return JSON.stringify({
+    buildA: { name: buildA.name, version: buildA.version, status: buildA.status },
+    buildB: { name: buildB.name, version: buildB.version, status: buildB.status },
+    metrics,
+    businessImpacts: impacts,
+    provenance: 'Deterministic engine (computeBuildMetrics) + business impact analyzer. Deltas are buildB minus buildA.',
+  });
+}
+
+const SENSITIVITY_METRICS: Record<string, { key: keyof Omit<SensitivityPoint, 'variation' | 'label'>; label: string; unit: string }> = {
+  grossMargin: { key: 'grossMargin', label: 'Gross Margin', unit: '%' },
+  roi: { key: 'roi', label: 'ROI', unit: '%' },
+  grossCostPerGoodDie: { key: 'grossCostPerGoodDie', label: 'Cost per Good Die', unit: 'USD' },
+  breakEvenVolumeMillion: { key: 'breakEvenVolumeMillion', label: 'Break-Even Volume', unit: 'M units' },
+  lifetimeNetProfitMillion: { key: 'lifetimeNetProfitMillion', label: 'Lifetime Net Profit', unit: '$M' },
+};
+
+function getSensitivityDrivers(call: ChippieToolCall, ctx: ChippieToolContext): string {
+  const { metric } = parseArgs<{ metric?: string }>(call);
+  const target = SENSITIVITY_METRICS[metric ?? 'grossMargin'];
+  if (!target) return err(`Unknown metric "${metric}". Choose one of: ${Object.keys(SENSITIVITY_METRICS).join(', ')}.`);
+  if (!ctx.computedMetrics) return err('No computed metrics available for the active build.');
+
+  let results;
+  try {
+    results = computeSensitivity(ctx.activeBuild, ctx.computedMetrics.snapshot);
+  } catch (e) {
+    return err(`Sensitivity sweep failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const ranked = getTopSensitivities(results, target.key);
+
+  const drivers = ranked.map((r, i) => {
+    const full = results.find((x) => x.paramName === r.paramName);
+    const swing = full
+      ? {
+          atMinus20pct: formatMetric(full.points.find((p) => p.variation === -20)![target.key], target.unit),
+          atPlus20pct: formatMetric(full.points.find((p) => p.variation === 20)![target.key], target.unit),
+        }
+      : undefined;
+    return {
+      rank: i + 1,
+      parameter: r.paramLabel,
+      field: r.paramName,
+      baselineValue: full?.baseline,
+      impactRange: formatMetric(r.impact, target.unit),
+      ...swing,
+    };
+  });
+
+  return JSON.stringify({
+    build: { name: ctx.activeBuild.name, version: ctx.activeBuild.version },
+    metric: target.label,
+    method: 'Each parameter swept ±20% (6 points) through the deterministic engine; impactRange = max minus min of the metric across the sweep.',
+    drivers,
+    provenance: 'Deterministic sensitivity engine (computeSensitivity). Nothing was saved.',
+  });
+}
+
+function queryDecisions(call: ChippieToolCall, ctx: ChippieToolContext): string {
+  const { scope, outcome } = parseArgs<{ scope?: string; outcome?: string }>(call);
+  const all = ctx.decisions ?? [];
+  const builds = ctx.builds ?? [];
+  const buildName = (id: string) => builds.find((b) => b.id === id)?.name ?? id;
+
+  let filtered = scope === 'active_build' ? all.filter((d) => d.buildIds.includes(ctx.activeBuild.id)) : all;
+  if (outcome) filtered = filtered.filter((d) => d.outcome === outcome);
+
+  return JSON.stringify({
+    totalRecorded: all.length,
+    matching: filtered.length,
+    filters: { scope: scope ?? 'all', outcome: outcome ?? null },
+    decisions: filtered.map((d) => ({
+      outcome: d.outcome,
+      builds: d.buildIds.map(buildName),
+      approver: d.approver,
+      rationale: d.rationale,
+      followUpActions: d.followUpActions,
+      timestamp: d.timestamp,
+    })),
+    provenance: 'Decision Center records for this workspace.',
+  });
+}
 
 export async function executeClientTool(call: ChippieToolCall, ctx: ChippieToolContext): Promise<ChippieToolResult> {
   const name = call.function.name;
@@ -377,6 +536,24 @@ export async function executeClientTool(call: ChippieToolCall, ctx: ChippieToolC
         content = proposeAssumption(call, ctx);
         summary = 'Assumption proposal drafted';
         break;
+      case 'compare_builds': {
+        content = compareBuilds(call, ctx);
+        const parsed = JSON.parse(content) as { buildA?: { name?: string }; buildB?: { name?: string } };
+        summary = parsed.buildA?.name && parsed.buildB?.name ? `Compared ${parsed.buildA.name} vs ${parsed.buildB.name}` : 'Build comparison';
+        break;
+      }
+      case 'get_sensitivity_drivers': {
+        content = getSensitivityDrivers(call, ctx);
+        const parsed = JSON.parse(content) as { metric?: string };
+        summary = parsed.metric ? `Sensitivity drivers for ${parsed.metric}` : 'Sensitivity analysis';
+        break;
+      }
+      case 'query_decisions': {
+        content = queryDecisions(call, ctx);
+        const parsed = JSON.parse(content) as { matching?: number };
+        summary = typeof parsed.matching === 'number' ? `Found ${parsed.matching} decision(s)` : 'Decision log query';
+        break;
+      }
       default:
         content = err(`Unknown client tool: ${name}`);
         summary = `Unknown tool: ${name}`;
