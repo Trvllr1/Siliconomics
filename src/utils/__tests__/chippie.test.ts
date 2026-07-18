@@ -155,6 +155,21 @@ describe('executeClientTool', () => {
     expect(JSON.parse(content).error).toContain('needs a finite');
   });
 
+  it('run_scenario handles double-encoded changes array and string numbers (Llama quirk)', async () => {
+    // Exact shape observed from meta/llama-3.1-70b-instruct: changes is a JSON *string*.
+    const { content } = await executeClientTool(
+      call('run_scenario', {
+        changes: '[{"field": "defectDensity", "deltaPercent": "-20"}]',
+        label: '20% defect density improvement',
+      }),
+      ctx(),
+    );
+    const parsed = JSON.parse(content);
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.changes[0].field).toBe('defectDensity');
+    expect(parsed.changes[0].to).toBeCloseTo(x1.designModel.defectDensity * 0.8);
+  });
+
   it('navigate calls onNavigate with the tab', async () => {
     const onNavigate = vi.fn();
     const { content } = await executeClientTool(call('navigate', { tab: 'reports' }), ctx({ onNavigate }));

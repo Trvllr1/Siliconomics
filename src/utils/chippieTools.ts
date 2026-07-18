@@ -142,11 +142,34 @@ function numericFieldList(dm: Record<string, unknown>): string {
     .join(', ');
 }
 
+// Some models (e.g. Llama) double-encode nested arrays/objects in tool
+// arguments, sending `changes` as a JSON string instead of an array.
+function coerceArray<T>(value: unknown): T[] | null {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? (parsed as T[]) : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+// Models may also send numbers as strings ("-20").
+function coerceNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) return Number(value);
+  return null;
+}
+
 function runScenario(call: ChippieToolCall, ctx: ChippieToolContext): string {
-  const { changes, label } = parseArgs<{
-    changes?: { field: string; value?: number; deltaPercent?: number }[];
+  const { changes: rawChanges, label } = parseArgs<{
+    changes?: unknown;
     label?: string;
   }>(call);
+  const changes = coerceArray<{ field?: string; value?: number; deltaPercent?: number }>(rawChanges);
   if (!changes || changes.length === 0) return err('Missing "changes" array.');
 
   const { activeBuild, activePersona } = ctx;
@@ -157,16 +180,21 @@ function runScenario(call: ChippieToolCall, ctx: ChippieToolContext): string {
   const scenarioDm = scenarioBuild.designModel as unknown as Record<string, unknown>;
 
   for (const c of changes) {
+    if (typeof c !== 'object' || c === null || typeof c.field !== 'string') {
+      return err('Each change must be an object with a string "field".');
+    }
     const field = resolveDesignField(c.field, dm);
     if (!field) {
       return err(`Field "${c.field}" is not a numeric design model field. Numeric fields include: ${numericFieldList(dm)}`);
     }
     const current = dm[field] as number;
+    const value = coerceNumber(c.value);
+    const deltaPercent = coerceNumber(c.deltaPercent);
     let next: number;
-    if (typeof c.value === 'number' && Number.isFinite(c.value)) {
-      next = c.value;
-    } else if (typeof c.deltaPercent === 'number' && Number.isFinite(c.deltaPercent)) {
-      next = current * (1 + c.deltaPercent / 100);
+    if (value !== null) {
+      next = value;
+    } else if (deltaPercent !== null) {
+      next = current * (1 + deltaPercent / 100);
     } else {
       return err(`Change for "${c.field}" needs a finite "value" (absolute) or "deltaPercent" (relative, e.g. -20 for a 20% reduction).`);
     }
