@@ -126,8 +126,27 @@ function explainMetric(call: ChippieToolCall): string {
   });
 }
 
+// Resolve a model-supplied field name ("defect density", "defect_density",
+// "DefectDensity") to the actual numeric designModel key.
+function resolveDesignField(name: string, dm: Record<string, unknown>): string | null {
+  const numericKeys = Object.keys(dm).filter((k) => typeof dm[k] === 'number');
+  if (numericKeys.includes(name)) return name;
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const target = norm(name);
+  return numericKeys.find((k) => norm(k) === target) ?? null;
+}
+
+function numericFieldList(dm: Record<string, unknown>): string {
+  return Object.keys(dm)
+    .filter((k) => typeof dm[k] === 'number')
+    .join(', ');
+}
+
 function runScenario(call: ChippieToolCall, ctx: ChippieToolContext): string {
-  const { changes, label } = parseArgs<{ changes?: { field: string; value: number }[]; label?: string }>(call);
+  const { changes, label } = parseArgs<{
+    changes?: { field: string; value?: number; deltaPercent?: number }[];
+    label?: string;
+  }>(call);
   if (!changes || changes.length === 0) return err('Missing "changes" array.');
 
   const { activeBuild, activePersona } = ctx;
@@ -138,15 +157,21 @@ function runScenario(call: ChippieToolCall, ctx: ChippieToolContext): string {
   const scenarioDm = scenarioBuild.designModel as unknown as Record<string, unknown>;
 
   for (const c of changes) {
-    const current = dm[c.field];
-    if (typeof current !== 'number') {
-      return err(`Field "${c.field}" is not a numeric design model field. Numeric fields include: ${Object.keys(dm).filter((k) => typeof dm[k] === 'number').join(', ')}`);
+    const field = resolveDesignField(c.field, dm);
+    if (!field) {
+      return err(`Field "${c.field}" is not a numeric design model field. Numeric fields include: ${numericFieldList(dm)}`);
     }
-    if (typeof c.value !== 'number' || !Number.isFinite(c.value)) {
-      return err(`Value for "${c.field}" must be a finite number.`);
+    const current = dm[field] as number;
+    let next: number;
+    if (typeof c.value === 'number' && Number.isFinite(c.value)) {
+      next = c.value;
+    } else if (typeof c.deltaPercent === 'number' && Number.isFinite(c.deltaPercent)) {
+      next = current * (1 + c.deltaPercent / 100);
+    } else {
+      return err(`Change for "${c.field}" needs a finite "value" (absolute) or "deltaPercent" (relative, e.g. -20 for a 20% reduction).`);
     }
-    scenarioDm[c.field] = c.value;
-    applied.push({ field: c.field, from: current, to: c.value, owner: FIELD_OWNER[c.field] ?? 'unassigned' });
+    scenarioDm[field] = next;
+    applied.push({ field, from: current, to: next, owner: FIELD_OWNER[field] ?? 'unassigned' });
   }
 
   let baseline: Snapshot;
@@ -219,20 +244,21 @@ function navigate(call: ChippieToolCall, ctx: ChippieToolContext): string {
 }
 
 function proposeAssumption(call: ChippieToolCall, ctx: ChippieToolContext): string {
-  const { field, proposedValue, rationale, sources } = parseArgs<{
+  const { field: rawField, proposedValue, rationale, sources } = parseArgs<{
     field?: string;
     proposedValue?: number;
     rationale?: string;
     sources?: string;
   }>(call);
-  if (!field || typeof proposedValue !== 'number' || !rationale) {
+  if (!rawField || typeof proposedValue !== 'number' || !rationale) {
     return err('propose_assumption requires "field", numeric "proposedValue", and "rationale".');
   }
   const dm = ctx.activeBuild.designModel as unknown as Record<string, unknown>;
-  const current = dm[field];
-  if (typeof current !== 'number') {
-    return err(`Field "${field}" is not a numeric design model field.`);
+  const field = resolveDesignField(rawField, dm);
+  if (!field) {
+    return err(`Field "${rawField}" is not a numeric design model field. Numeric fields include: ${numericFieldList(dm)}`);
   }
+  const current = dm[field] as number;
 
   // Impact preview via a scenario run (read-only).
   const impactJson = runScenario(

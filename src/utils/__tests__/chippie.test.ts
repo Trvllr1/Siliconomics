@@ -134,6 +134,27 @@ describe('executeClientTool', () => {
     expect(JSON.parse(content).error).toContain('not a numeric');
   });
 
+  it('run_scenario resolves fuzzy field names and deltaPercent changes', async () => {
+    const { content } = await executeClientTool(
+      call('run_scenario', { changes: [{ field: 'defect density', deltaPercent: -20 }] }),
+      ctx(),
+    );
+    const parsed = JSON.parse(content);
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.changes[0].field).toBe('defectDensity');
+    expect(parsed.changes[0].to).toBeCloseTo(x1.designModel.defectDensity * 0.8);
+    const yieldRow = parsed.comparison.find((c: { metric: string }) => c.metric === 'Die Yield');
+    expect(yieldRow.scenario).toBeGreaterThan(yieldRow.baseline);
+  });
+
+  it('run_scenario rejects a change with neither value nor deltaPercent', async () => {
+    const { content } = await executeClientTool(
+      call('run_scenario', { changes: [{ field: 'defectDensity' }] }),
+      ctx(),
+    );
+    expect(JSON.parse(content).error).toContain('needs a finite');
+  });
+
   it('navigate calls onNavigate with the tab', async () => {
     const onNavigate = vi.fn();
     const { content } = await executeClientTool(call('navigate', { tab: 'reports' }), ctx({ onNavigate }));

@@ -133,14 +133,15 @@ export const CHIPPIE_TOOL_DEFINITIONS = [
         properties: {
           changes: {
             type: 'array',
-            description: 'Design model fields to change.',
+            description: 'Design model fields to change. Each change needs "value" (absolute) OR "deltaPercent" (relative).',
             items: {
               type: 'object',
               properties: {
                 field: { type: 'string', description: 'DesignModel field name, e.g. "dieArea", "defectDensity", "asp", "targetVolume", "nreCost", "waferCost".' },
-                value: { type: 'number', description: 'New value for the field.' },
+                value: { type: 'number', description: 'New absolute value for the field. Omit if using deltaPercent.' },
+                deltaPercent: { type: 'number', description: 'Relative change in percent, applied as current * (1 + deltaPercent/100). A 20% improvement in defect density means deltaPercent: -20 (lower is better). Omit if using value.' },
               },
-              required: ['field', 'value'],
+              required: ['field'],
             },
           },
           label: { type: 'string', description: 'Short human-readable scenario label.' },
