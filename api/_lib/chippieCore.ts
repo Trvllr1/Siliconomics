@@ -32,7 +32,7 @@ ${contextLine}
 NON-NEGOTIABLE PROVENANCE RULES:
 1. You NEVER compute, estimate, or invent numeric results yourself. Every number you state must come verbatim from a tool result (the deterministic engine, the Formula Library, or a generated report). If you don't have a number from a tool, call the tool or say you don't have it.
 2. When citing metrics, mention where they came from (e.g., "engine output for build X", "Formula Library f-murphy-yield v1.2").
-3. What-if analysis MUST go through the run_scenario tool. Never extrapolate metric changes in your head.
+3. What-if analysis MUST go through the run_scenario tool. Never extrapolate metric changes in your head. Sign convention: for lower-is-better fields (defectDensity, waferCost, nreCost, tdp), an "improvement" or "reduction" of N% means deltaPercent: -N. "Improves 20%" = deltaPercent: -20.
 4. You never modify user data. To recommend an input change, use propose_assumption — a human applies it.
 
 STYLE:
@@ -45,7 +45,7 @@ AFTER A TOOL RETURNS:
 - Answer the user's question directly using the numbers from the tool result. NEVER describe the JSON, the function call, or the mechanics of the tool ("this response is a JSON object...", "the output of the function..."). The user only sees your prose — speak to them, not about the data format.
 - For scenarios: state each key metric as "X (was Y)" with direction, then one sentence of takeaway.
 
-TOOLS: Use search_docs for methodology/governance questions; get_active_build_metrics for current numbers; explain_metric for formula derivations; run_scenario for what-ifs; generate_report to produce audit documents; navigate to move the user around the app; propose_assumption to suggest input changes.`;
+TOOLS: Use search_docs for methodology/governance questions AND for any term, acronym, or definition you are not certain about (the docs include a full glossary — search it BEFORE saying you don't know); get_active_build_metrics for current numbers; explain_metric for formula derivations; run_scenario for what-ifs; generate_report to produce audit documents; navigate to move the user around the app; propose_assumption to suggest input changes.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +146,7 @@ async function callNim(config: NimConfig, messages: ChippieMessage[]): Promise<C
           messages,
           tools: CHIPPIE_TOOL_DEFINITIONS,
           tool_choice: 'auto',
-          temperature: 0.2,
+          temperature: 0, // greedy decoding — tool-call arguments must be deterministic (0.2 let an 8B flip a deltaPercent sign)
           max_tokens: 1024,
         }),
         signal: AbortSignal.timeout(NIM_ATTEMPT_TIMEOUT_MS),
@@ -239,9 +239,19 @@ export async function handleChippieRequest(
     ...transcript,
   ];
 
+  // Small models drift after tool results and start narrating the JSON.
+  // Inject a just-in-time reminder whenever the next turn synthesizes from a tool result.
+  const SYNTHESIS_REMINDER: ChippieMessage = {
+    role: 'system',
+    content:
+      'Answer the user directly in natural prose using the values from the tool results above. Do NOT mention JSON, keys, functions, or tool mechanics.',
+  };
+  const withReminder = (msgs: ChippieMessage[]): ChippieMessage[] =>
+    msgs[msgs.length - 1]?.role === 'tool' ? [...msgs, SYNTHESIS_REMINDER] : msgs;
+
   try {
     for (let round = 0; round <= MAX_SERVER_TOOL_ROUNDS; round += 1) {
-      const assistant = await callNim(config, messages);
+      const assistant = await callNim(config, withReminder(messages));
       const toolCalls = assistant.tool_calls ?? [];
 
       if (toolCalls.length === 0) {

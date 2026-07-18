@@ -47,11 +47,26 @@ const KEY_METRICS: { key: keyof Snapshot; label: string; unit: string }[] = [
   { key: 'tdpPowerDensity', label: 'Power Density', unit: 'W/mm²' },
 ];
 
-function snapshotSummary(snapshot: Snapshot): Record<string, { value: number; unit: string }> {
-  const out: Record<string, { value: number; unit: string }> = {};
+// Deterministic display formatting. Raw floats invite models to re-round (and
+// misplace decimals — an 8B once turned 769.9% ROI into 76.99%). Tool results
+// carry pre-formatted strings the model can quote verbatim.
+function formatMetric(value: number, unit: string): string {
+  const num = Math.abs(value) >= 100 ? value.toFixed(1) : Math.abs(value) >= 1 ? value.toFixed(2) : value.toFixed(4);
+  switch (unit) {
+    case '%': return `${num}%`;
+    case 'USD': return `$${num}`;
+    case '$M': return `$${num}M`;
+    case 'M units': return `${num} M units`;
+    case 'dies': return `${value.toFixed(0)} dies`;
+    default: return `${num} ${unit}`;
+  }
+}
+
+function snapshotSummary(snapshot: Snapshot): Record<string, { value: number; unit: string; display: string }> {
+  const out: Record<string, { value: number; unit: string; display: string }> = {};
   for (const m of KEY_METRICS) {
     const v = snapshot[m.key];
-    if (typeof v === 'number') out[m.label] = { value: v, unit: m.unit };
+    if (typeof v === 'number') out[m.label] = { value: v, unit: m.unit, display: formatMetric(v, m.unit) };
   }
   return out;
 }
@@ -215,7 +230,14 @@ function runScenario(call: ChippieToolCall, ctx: ChippieToolContext): string {
     const b = baseline[m.key];
     const s = scenario[m.key];
     if (typeof b !== 'number' || typeof s !== 'number') return null;
-    return { metric: m.label, unit: m.unit, baseline: b, scenario: s, delta: s - b };
+    return {
+      metric: m.label,
+      unit: m.unit,
+      baseline: formatMetric(b, m.unit),
+      scenario: formatMetric(s, m.unit),
+      delta: formatMetric(s - b, m.unit),
+      direction: s === b ? 'no change' : s > b ? 'up' : 'down',
+    };
   }).filter(Boolean);
 
   const outsideScope = applied.filter((a) => a.owner !== activePersona && a.owner !== 'unassigned');

@@ -113,7 +113,8 @@ describe('executeClientTool', () => {
     expect(parsed.error).toBeUndefined();
     expect(parsed.label).toBe('D0 -20%');
     const yieldRow = parsed.comparison.find((c: { metric: string }) => c.metric === 'Die Yield');
-    expect(yieldRow.scenario).toBeGreaterThan(yieldRow.baseline);
+    expect(parseFloat(yieldRow.scenario)).toBeGreaterThan(parseFloat(yieldRow.baseline));
+    expect(yieldRow.direction).toBe('up');
     expect(JSON.stringify(x1.designModel)).toBe(before); // no mutation
   });
 
@@ -144,7 +145,21 @@ describe('executeClientTool', () => {
     expect(parsed.changes[0].field).toBe('defectDensity');
     expect(parsed.changes[0].to).toBeCloseTo(x1.designModel.defectDensity * 0.8);
     const yieldRow = parsed.comparison.find((c: { metric: string }) => c.metric === 'Die Yield');
-    expect(yieldRow.scenario).toBeGreaterThan(yieldRow.baseline);
+    expect(parseFloat(yieldRow.scenario)).toBeGreaterThan(parseFloat(yieldRow.baseline));
+  });
+
+  it('run_scenario emits pre-formatted display values so models cannot misplace decimals', async () => {
+    const { content } = await executeClientTool(
+      call('run_scenario', { changes: [{ field: 'defectDensity', deltaPercent: -20 }] }),
+      ctx(),
+    );
+    const parsed = JSON.parse(content);
+    const roiRow = parsed.comparison.find((c: { metric: string }) => c.metric === 'ROI');
+    // ROI ~769.9% baseline: must be a formatted percent string, one decimal, not a raw float
+    expect(roiRow.baseline).toMatch(/^\d+\.\d%$/);
+    expect(parseFloat(roiRow.baseline)).toBeGreaterThan(700);
+    const costRow = parsed.comparison.find((c: { metric: string }) => c.metric === 'Cost per Good Die');
+    expect(costRow.baseline).toMatch(/^\$\d+\.\d+$/);
   });
 
   it('run_scenario rejects a change with neither value nor deltaPercent', async () => {
