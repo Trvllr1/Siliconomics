@@ -22,7 +22,7 @@ import DesignBoard from './components/DesignBoard';
 import MetricsLab from './components/MetricsLab';
 import ComparisonView from './components/ComparisonView';
 import ExplainabilityPanel from './components/ExplainabilityPanel';
-import AiAdvisor from './components/AiAdvisor';
+import Chippie from './components/Chippie';
 import DecisionCenterView from './components/DecisionCenterView';
 import ReportsView from './components/ReportsView';
 import PortfolioView from './components/PortfolioView';
@@ -1271,7 +1271,7 @@ export default function App() {
               }`}
             >
               <Sparkles className="w-4 h-4 animate-pulse text-art-rust" />
-              <span>AI Advisor</span>
+              <span>Chippie</span>
             </button>
           </div>
 
@@ -1286,9 +1286,12 @@ export default function App() {
                 dataVintage={activeBuild.dataVintage}
               />
             ) : (
-              <AiAdvisor 
+              <Chippie 
                 activeBuild={activeBuild} 
                 computedMetrics={computedMetrics} 
+                activePersona={activePersona}
+                decisions={decisions}
+                onNavigate={setActiveTab}
               />
             )}
           </div>

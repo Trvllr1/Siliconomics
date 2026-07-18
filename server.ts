@@ -8,8 +8,10 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import { handleChippieRequest } from './api/_lib/chippieCore';
 
 dotenv.config();
+dotenv.config({ path: '.env.local' }); // NIM_API_KEY / CHIPPIE_* live here in local dev
 
 const app = express();
 app.use(express.json());
@@ -42,6 +44,12 @@ function getAiClient(): GoogleGenAI | null {
 // 1. API Route: Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// 1b. API Route: Chippie (NVIDIA NIM-backed advisor) — mirrors api/chippie.ts
+app.post('/api/chippie', async (req, res) => {
+  const { status, body } = await handleChippieRequest(req.body);
+  res.status(status).json(body);
 });
 
 // 2. API Route: Gemini Build Analysis

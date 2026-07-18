@@ -233,7 +233,7 @@ function createEngine(meta: DocMeta) {
       const drawRow = (cells: string[], isHeader: boolean, zebra: boolean) => {
         doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
         doc.setFontSize(isHeader ? size - 0.5 : size);
-        const wrapped = cells.map((c, i) => doc.splitTextToSize(String(c ?? ''), cols[i] - pad * 2));
+        const wrapped = cells.map((c, i) => doc.splitTextToSize(String(c ?? ''), cols[i]! - pad * 2));
         const rowH = Math.max(...wrapped.map((w) => w.length), 1) * (size + 2.5) + pad * 2 - 1;
         if (y + rowH > BOTTOM) {
           doc.addPage();
@@ -242,20 +242,21 @@ function createEngine(meta: DocMeta) {
         }
         let x = MARGIN;
         for (let i = 0; i < cells.length; i++) {
+          const colW = cols[i]!;
           if (isHeader) {
             doc.setFillColor(...INK);
-            doc.rect(x, y, cols[i], rowH, 'F');
+            doc.rect(x, y, colW, rowH, 'F');
           } else if (zebra) {
             doc.setFillColor(...FILL);
-            doc.rect(x, y, cols[i], rowH, 'F');
+            doc.rect(x, y, colW, rowH, 'F');
           }
           doc.setDrawColor(...RULE);
           doc.setLineWidth(0.4);
-          doc.rect(x, y, cols[i], rowH, 'S');
+          doc.rect(x, y, colW, rowH, 'S');
           doc.setTextColor(...(isHeader ? ([255, 255, 255] as Rgb) : INK));
-          const textX = aligns[i] === 'r' ? x + cols[i] - pad : x + pad;
+          const textX = aligns[i] === 'r' ? x + colW - pad : x + pad;
           doc.text(wrapped[i], textX, y + pad + size - 1, { align: aligns[i] === 'r' ? 'right' : 'left' });
-          x += cols[i];
+          x += colW;
         }
         y += rowH;
       };
@@ -281,11 +282,12 @@ function createEngine(meta: DocMeta) {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(size - 0.5);
         headers.forEach((h, i) => {
+          const colW = cols[i]!;
           doc.setFillColor(...INK);
-          doc.rect(x, y, cols[i], rowH, 'F');
+          doc.rect(x, y, colW, rowH, 'F');
           doc.setTextColor(255, 255, 255);
           doc.text(h, x + pad, y + 11.5);
-          x += cols[i];
+          x += colW;
         });
         y += rowH;
       };
@@ -303,31 +305,33 @@ function createEngine(meta: DocMeta) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(size);
         cells.forEach((c, i) => {
+          const colW = cols[i]!;
           if (idx % 2 === 1) {
             doc.setFillColor(...FILL);
-            doc.rect(x, y, cols[i], rowH, 'F');
+            doc.rect(x, y, colW, rowH, 'F');
           }
           doc.setDrawColor(...RULE);
           doc.setLineWidth(0.4);
-          doc.rect(x, y, cols[i], rowH, 'S');
+          doc.rect(x, y, colW, rowH, 'S');
           doc.setTextColor(...INK);
           const alignRight = i === 2 || i === 3;
           doc.text(
-            doc.splitTextToSize(c, cols[i] - pad * 2)[0] ?? '',
-            alignRight ? x + cols[i] - pad : x + pad,
+            doc.splitTextToSize(c, colW - pad * 2)[0] ?? '',
+            alignRight ? x + colW - pad : x + pad,
             y + 11.5,
             { align: alignRight ? 'right' : 'left' }
           );
-          x += cols[i];
+          x += colW;
         });
         // Share bar cell
+        const barColW = cols[4]!;
         if (idx % 2 === 1) {
           doc.setFillColor(...FILL);
-          doc.rect(x, y, cols[4], rowH, 'F');
+          doc.rect(x, y, barColW, rowH, 'F');
         }
         doc.setDrawColor(...RULE);
-        doc.rect(x, y, cols[4], rowH, 'S');
-        const barW = Math.max((r.pct / maxPct) * (cols[4] - pad * 2), 1.5);
+        doc.rect(x, y, barColW, rowH, 'S');
+        const barW = Math.max((r.pct / maxPct) * (barColW - pad * 2), 1.5);
         doc.setFillColor(...TEAL);
         doc.rect(x + pad, y + 5, barW, rowH - 10, 'F');
         y += rowH;

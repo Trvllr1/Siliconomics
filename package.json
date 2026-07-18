@@ -12,6 +12,7 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
+    "chippie:knowledge": "node scripts/generateChippieKnowledge.mjs",
     "lint": "eslint . && tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "db:generate": "drizzle-kit generate",
