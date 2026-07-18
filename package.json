@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:server": "tsx server.ts",
     "dev:api": "npx vercel dev",
     "build": "vite build",
     "start": "npx vercel --prod",

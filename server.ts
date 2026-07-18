@@ -227,6 +227,7 @@ Keep it rigorous and professional. Use numbers to back up all strategic claims.`
 // 4. Vite Dev Server Setup or Production Static Serving
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    process.env.VITE_EMBEDDED = 'true'; // disable /api proxy in vite.config.ts (express handles /api here)
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

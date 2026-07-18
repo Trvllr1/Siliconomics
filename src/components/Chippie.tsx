@@ -159,9 +159,19 @@ Reviewing **${activeBuild.name}** as **${activePersona}**. Ask me to explain a m
         },
       }),
     });
-    const data = (await response.json()) as ChippieResponse & { error?: string };
-    if (!response.ok) {
-      throw new Error(data?.error || `Chippie request failed (${response.status}).`);
+    const raw = await response.text();
+    const data = ((): (ChippieResponse & { error?: string }) | null => {
+      try {
+        return raw ? (JSON.parse(raw) as ChippieResponse & { error?: string }) : null;
+      } catch {
+        return null;
+      }
+    })();
+    if (!response.ok || !data) {
+      throw new Error(
+        data?.error ||
+          `Chippie API unreachable (${response.status}). In local dev, start the API with \`npm run dev:server\`.`,
+      );
     }
     return data;
   };
