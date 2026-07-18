@@ -24,7 +24,12 @@ export interface AuthUser {
   persona: PersonaType;
 }
 
-export function useAuthUser(): AuthUser {
+/** Clerk hooks throw when rendered outside <ClerkProvider>, which main.tsx only
+ * mounts when a publishable key is configured. Select the hook implementation
+ * once at module load so demo mode never touches Clerk. */
+const CLERK_ENABLED = Boolean((import.meta as any).env?.VITE_CLERK_PUBLISHABLE_KEY);
+
+function useClerkAuthUser(): AuthUser {
   const { isSignedIn, isLoaded } = useClerkAuth();
   const { user } = useUser();
 
@@ -39,6 +44,12 @@ export function useAuthUser(): AuthUser {
     persona: (user.publicMetadata?.persona as PersonaType) || 'executive',
   };
 }
+
+function useDemoAuthUser(): AuthUser {
+  return DEMO_USER;
+}
+
+export const useAuthUser: () => AuthUser = CLERK_ENABLED ? useClerkAuthUser : useDemoAuthUser;
 
 export function getDemoUser(): AuthUser {
   return DEMO_USER;
