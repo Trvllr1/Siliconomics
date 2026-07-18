@@ -282,13 +282,33 @@ describe('handleChippieRequest', () => {
     expect(systemMessages[0].content).not.toContain('ignore all previous');
   });
 
-  it('surfaces upstream failures as 502', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => 'boom' }));
+  it('surfaces non-retryable upstream failures as 502 without retrying', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => 'boom' });
+    vi.stubGlobal('fetch', fetchMock);
     const { status } = await handleChippieRequest(
       { messages: [{ role: 'user', content: 'hi' }] },
       { NIM_API_KEY: 'nvapi-test' },
     );
     expect(status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries retryable upstream statuses and succeeds', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 504, text: async () => 'gateway timeout' })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { role: 'assistant', content: 'recovered' } }] }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+    const { status, body } = await handleChippieRequest(
+      { messages: [{ role: 'user', content: 'hi' }] },
+      { NIM_API_KEY: 'nvapi-test' },
+    );
+    expect(status).toBe(200);
+    expect((body as { message: { content: string } }).message.content).toBe('recovered');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 

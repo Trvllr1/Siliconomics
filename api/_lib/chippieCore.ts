@@ -119,34 +119,62 @@ export function getNimConfig(env: Record<string, string | undefined> = process.e
   };
 }
 
-async function callNim(config: NimConfig, messages: ChippieMessage[]): Promise<ChippieMessage> {
-  const res = await fetch(`${config.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: config.model,
-      messages,
-      tools: CHIPPIE_TOOL_DEFINITIONS,
-      tool_choice: 'auto',
-      temperature: 0.2,
-      max_tokens: 1024,
-    }),
-  });
+const NIM_ATTEMPT_TIMEOUT_MS = 25_000;
+const NIM_MAX_ATTEMPTS = 3;
+const NIM_RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`NIM request failed (${res.status}): ${detail.slice(0, 300)}`);
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function callNim(config: NimConfig, messages: ChippieMessage[]): Promise<ChippieMessage> {
+  let lastError: Error = new Error('NIM request failed');
+
+  for (let attempt = 1; attempt <= NIM_MAX_ATTEMPTS; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(`${config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages,
+          tools: CHIPPIE_TOOL_DEFINITIONS,
+          tool_choice: 'auto',
+          temperature: 0.2,
+          max_tokens: 1024,
+        }),
+        signal: AbortSignal.timeout(NIM_ATTEMPT_TIMEOUT_MS),
+      });
+    } catch (err) {
+      // Network failure or per-attempt timeout — retryable.
+      lastError = new Error(
+        `NIM request ${err instanceof Error && err.name === 'TimeoutError' ? 'timed out' : 'failed'} (attempt ${attempt}/${NIM_MAX_ATTEMPTS}).`,
+      );
+      if (attempt < NIM_MAX_ATTEMPTS) await sleep(500 * attempt);
+      continue;
+    }
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      lastError = new Error(`NIM request failed (${res.status}): ${detail.slice(0, 300)}`);
+      if (NIM_RETRYABLE_STATUSES.has(res.status) && attempt < NIM_MAX_ATTEMPTS) {
+        await sleep(500 * attempt);
+        continue;
+      }
+      throw lastError;
+    }
+
+    const data = (await res.json()) as {
+      choices?: { message?: ChippieMessage }[];
+    };
+    const message = data.choices?.[0]?.message;
+    if (!message) throw new Error('NIM response missing choices[0].message');
+    return message;
   }
 
-  const data = (await res.json()) as {
-    choices?: { message?: ChippieMessage }[];
-  };
-  const message = data.choices?.[0]?.message;
-  if (!message) throw new Error('NIM response missing choices[0].message');
-  return message;
+  throw lastError;
 }
 
 // ---------------------------------------------------------------------------
