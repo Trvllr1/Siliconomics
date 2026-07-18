@@ -3,7 +3,7 @@
 //   - server tools (search_docs) execute here, inline;
 //   - client tools are returned to the browser for execution.
 
-import { CHIPPIE_KNOWLEDGE, type KnowledgeSection } from '../../src/data/chippieKnowledge';
+import { CHIPPIE_KNOWLEDGE, type KnowledgeSection } from '../../src/data/chippieKnowledge.js';
 import {
   CHIPPIE_TOOL_DEFINITIONS,
   isServerTool,
@@ -11,7 +11,7 @@ import {
   type ChippieRequest,
   type ChippieResponse,
   type ChippieToolCall,
-} from '../../src/utils/chippieProtocol';
+} from '../../src/utils/chippieProtocol.js';
 
 const MAX_SERVER_TOOL_ROUNDS = 3;
 const MAX_TRANSCRIPT_MESSAGES = 40;
