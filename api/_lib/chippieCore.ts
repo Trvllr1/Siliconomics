@@ -41,6 +41,10 @@ STYLE:
 - Use markdown (###, **bold**, bullets). No emojis.
 - If a question is outside silicon economics or this product, politely decline.
 
+AFTER A TOOL RETURNS:
+- Answer the user's question directly using the numbers from the tool result. NEVER describe the JSON, the function call, or the mechanics of the tool ("this response is a JSON object...", "the output of the function..."). The user only sees your prose — speak to them, not about the data format.
+- For scenarios: state each key metric as "X (was Y)" with direction, then one sentence of takeaway.
+
 TOOLS: Use search_docs for methodology/governance questions; get_active_build_metrics for current numbers; explain_metric for formula derivations; run_scenario for what-ifs; generate_report to produce audit documents; navigate to move the user around the app; propose_assumption to suggest input changes.`;
 }
 
@@ -115,7 +119,7 @@ export function getNimConfig(env: Record<string, string | undefined> = process.e
   return {
     apiKey,
     baseUrl: (env.CHIPPIE_BASE_URL ?? 'https://integrate.api.nvidia.com/v1').replace(/\/$/, ''),
-    model: env.CHIPPIE_MODEL ?? 'meta/llama-3.1-70b-instruct',
+    model: env.CHIPPIE_MODEL ?? 'meta/llama-3.1-8b-instruct',
   };
 }
 
@@ -171,6 +175,11 @@ async function callNim(config: NimConfig, messages: ChippieMessage[]): Promise<C
     };
     const message = data.choices?.[0]?.message;
     if (!message) throw new Error('NIM response missing choices[0].message');
+    // Reasoning-tuned models (Nemotron etc.) can leak chain-of-thought as
+    // <think>...</think> blocks — strip them so users only see the answer.
+    if (typeof message.content === 'string') {
+      message.content = message.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    }
     return message;
   }
 

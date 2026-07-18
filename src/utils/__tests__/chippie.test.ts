@@ -353,6 +353,6 @@ describe('getNimConfig', () => {
     expect(getNimConfig({})).toBeNull();
     const cfg = getNimConfig({ NIM_API_KEY: 'nvapi-x' })!;
     expect(cfg.baseUrl).toBe('https://integrate.api.nvidia.com/v1');
-    expect(cfg.model).toBe('meta/llama-3.1-70b-instruct');
+    expect(cfg.model).toBe('meta/llama-3.1-8b-instruct');
   });
 });
