@@ -3,6 +3,7 @@ import { CHIPPIE_KNOWLEDGE } from '../../data/chippieKnowledge';
 import {
   CHIPPIE_TOOL_DEFINITIONS,
   CHIPPIE_GTM_TOOL_DEFINITION,
+  CHIPPIE_WEBSEARCH_TOOL_DEFINITION,
   CLIENT_TOOL_NAMES,
   SERVER_TOOL_NAMES,
   isClientTool,
@@ -68,7 +69,7 @@ describe('chippieKnowledge pack', () => {
 
 describe('chippieProtocol', () => {
   it('every tool definition maps to exactly one executor side', () => {
-    const allDefs = [...CHIPPIE_TOOL_DEFINITIONS, CHIPPIE_GTM_TOOL_DEFINITION];
+    const allDefs = [...CHIPPIE_TOOL_DEFINITIONS, CHIPPIE_GTM_TOOL_DEFINITION, CHIPPIE_WEBSEARCH_TOOL_DEFINITION];
     for (const def of allDefs) {
       const name = def.function.name;
       expect(isServerTool(name) !== isClientTool(name)).toBe(true);
@@ -77,8 +78,13 @@ describe('chippieProtocol', () => {
   });
 
   it('the GTM tool is NOT in the default tool definitions', () => {
-    expect(CHIPPIE_TOOL_DEFINITIONS.some((d) => d.function.name === 'draft_gtm_asset')).toBe(false);
+    expect(CHIPPIE_TOOL_DEFINITIONS.some((d) => (d.function.name as string) === 'draft_gtm_asset')).toBe(false);
     expect(isServerTool('draft_gtm_asset')).toBe(true);
+  });
+
+  it('the web_search tool is NOT in the default tool definitions (gated by TAVILY_API_KEY)', () => {
+    expect(CHIPPIE_TOOL_DEFINITIONS.some((d) => (d.function.name as string) === 'web_search')).toBe(false);
+    expect(isServerTool('web_search')).toBe(true);
   });
 });
 
@@ -563,6 +569,163 @@ describe('founder mode', () => {
     const secondPayload = JSON.parse(fetchMock.mock.calls[1]![1].body as string);
     const toolMsg = secondPayload.messages.find((m: { role: string }) => m.role === 'tool');
     expect(JSON.parse(toolMsg.content).error).toContain('founder mode');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// web_search gating (Tavily)
+// ---------------------------------------------------------------------------
+
+describe('web_search gating', () => {
+  const textCompletion = (content: string) => ({
+    ok: true,
+    json: async () => ({ choices: [{ message: { role: 'assistant', content } }] }),
+  });
+
+  it('advertises web_search ONLY when TAVILY_API_KEY is configured', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(textCompletion('ok'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await handleChippieRequest(
+      { messages: [{ role: 'user', content: 'hi' }] },
+      { NIM_API_KEY: 'nvapi-test', TAVILY_API_KEY: 'tvly-test' },
+    );
+    const keyedPayload = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
+    expect(keyedPayload.tools.some((t: { function: { name: string } }) => t.function.name === 'web_search')).toBe(true);
+    expect(keyedPayload.messages[0].content).toContain('WEB SEARCH RULES');
+
+    await handleChippieRequest({ messages: [{ role: 'user', content: 'hi' }] }, { NIM_API_KEY: 'nvapi-test' });
+    const plainPayload = JSON.parse(fetchMock.mock.calls[1]![1].body as string);
+    expect(plainPayload.tools.some((t: { function: { name: string } }) => t.function.name === 'web_search')).toBe(false);
+    expect(plainPayload.messages[0].content).not.toContain('WEB SEARCH RULES');
+  });
+
+  it('refuses web_search when TAVILY_API_KEY is not configured', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  { id: 'w1', type: 'function', function: { name: 'web_search', arguments: '{"query":"TSMC 3nm wafer price"}' } },
+                ],
+              },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce(textCompletion('understood'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await handleChippieRequest({ messages: [{ role: 'user', content: 'search the web' }] }, { NIM_API_KEY: 'nvapi-test' });
+    const secondPayload = JSON.parse(fetchMock.mock.calls[1]![1].body as string);
+    const toolMsg = secondPayload.messages.find((m: { role: string }) => m.role === 'tool');
+    expect(JSON.parse(toolMsg.content).error).toContain('not configured');
+    // The Tavily endpoint must never be hit without a key.
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('tavily.com'))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// web_search executor (Tavily)
+// ---------------------------------------------------------------------------
+
+describe('web_search executor', () => {
+  const ENV = { NIM_API_KEY: 'nvapi-test', TAVILY_API_KEY: 'tvly-test' };
+  const textCompletion = (content: string) => ({
+    ok: true,
+    json: async () => ({ choices: [{ message: { role: 'assistant', content } }] }),
+  });
+  const nimToolCall = (args: string) => ({
+    ok: true,
+    json: async () => ({
+      choices: [
+        {
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: [{ id: 'w1', type: 'function', function: { name: 'web_search', arguments: args } }],
+          },
+        },
+      ],
+    }),
+  });
+  const tavilyOk = {
+    ok: true,
+    json: async () => ({
+      results: [{ title: 'TrendForce', url: 'https://example.com/3nm-pricing', content: 'TSMC 3nm wafer pricing signals...' }],
+    }),
+  };
+
+  /** Run a full flow: NIM tool_call -> Tavily -> NIM final answer. Returns the fetch mock. */
+  async function runFlow(args: string, tavilyResponse: object) {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(nimToolCall(args))
+      .mockResolvedValueOnce(tavilyResponse)
+      .mockResolvedValueOnce(textCompletion('Here is what the web says.'));
+    vi.stubGlobal('fetch', fetchMock);
+    const { status, body } = await handleChippieRequest({ messages: [{ role: 'user', content: 'Any news on 3nm pricing?' }] }, ENV);
+    return { fetchMock, status, body };
+  }
+
+  it('executes web_search via Tavily and feeds cited results back to the model', async () => {
+    const { fetchMock, status, body } = await runFlow('{"query":"TSMC 3nm wafer price","maxResults":3}', tavilyOk);
+
+    expect(status).toBe(200);
+    expect((body as { message: { content: string } }).message.content).toContain('web says');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    // Tavily request shape: endpoint, bearer auth, query + max_results.
+    const [tavilyUrl, tavilyInit] = fetchMock.mock.calls[1] as [string, { headers: Record<string, string>; body: string }];
+    expect(tavilyUrl).toBe('https://api.tavily.com/search');
+    expect(tavilyInit.headers.Authorization).toBe('Bearer tvly-test');
+    const tavilyBody = JSON.parse(tavilyInit.body);
+    expect(tavilyBody).toMatchObject({ query: 'TSMC 3nm wafer price', max_results: 3, search_depth: 'basic' });
+
+    // Results fed back to NIM as a tool message with the UNVERIFIED provenance note.
+    const finalPayload = JSON.parse(fetchMock.mock.calls[2]![1].body as string);
+    const toolMsg = finalPayload.messages.find((m: { role: string }) => m.role === 'tool');
+    const toolResult = JSON.parse(toolMsg.content);
+    expect(toolResult.results[0].url).toBe('https://example.com/3nm-pricing');
+    expect(toolResult.note).toContain('UNVERIFIED');
+  });
+
+  it('parses string maxResults and clamps to the 1-8 range (default 5)', async () => {
+    const { fetchMock } = await runFlow('{"query":"x","maxResults":"99"}', tavilyOk);
+    expect(JSON.parse((fetchMock.mock.calls[1] as [string, { body: string }])[1].body).max_results).toBe(8);
+
+    const again = await runFlow('{"query":"x"}', tavilyOk);
+    expect(JSON.parse((again.fetchMock.mock.calls[1] as [string, { body: string }])[1].body).max_results).toBe(5);
+  });
+
+  it('surfaces Tavily failures as a tool error without crashing the loop', async () => {
+    const { fetchMock, status, body } = await runFlow('{"query":"x"}', { ok: false, status: 429, text: async () => 'rate limited' });
+
+    expect(status).toBe(200);
+    expect((body as { message: { content: string } }).message.content).toContain('web says');
+    const finalPayload = JSON.parse(fetchMock.mock.calls[2]![1].body as string);
+    const toolMsg = finalPayload.messages.find((m: { role: string }) => m.role === 'tool');
+    expect(JSON.parse(toolMsg.content).error).toContain('429');
+  });
+
+  it('rejects a missing query without calling Tavily', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(nimToolCall('{}'))
+      .mockResolvedValueOnce(textCompletion('I need a query.'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await handleChippieRequest({ messages: [{ role: 'user', content: 'search' }] }, ENV);
+    expect(fetchMock).toHaveBeenCalledTimes(2); // NIM only — Tavily never called
+    const finalPayload = JSON.parse(fetchMock.mock.calls[1]![1].body as string);
+    const toolMsg = finalPayload.messages.find((m: { role: string }) => m.role === 'tool');
+    expect(JSON.parse(toolMsg.content).error).toContain('requires a "query"');
   });
 });
 

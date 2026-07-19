@@ -59,8 +59,9 @@ export const CHIPPIE_NAV_TABS = [
   'formulas',
 ] as const;
 
-/** Tools executed server-side inside the API function. */
-export const SERVER_TOOL_NAMES = ['search_docs', 'draft_gtm_asset'] as const;
+/** Tools executed server-side inside the API function. web_search is only
+ * advertised when the server has a TAVILY_API_KEY configured. */
+export const SERVER_TOOL_NAMES = ['search_docs', 'draft_gtm_asset', 'web_search'] as const;
 
 /** Tools executed in the browser (they need live app state / the math engine). */
 export const CLIENT_TOOL_NAMES = [
@@ -281,6 +282,26 @@ export const CHIPPIE_GTM_TOOL_DEFINITION = {
         topic: { type: 'string', description: 'Optional topic or target, e.g. "chiplet cost teardown" or "Tier-1 AI accelerator startup".' },
       },
       required: ['kind'],
+    },
+  },
+} as const;
+
+/** Web search tool definition — advertised ONLY when the server has a
+ * TAVILY_API_KEY configured (checked in chippieCore). Results are external
+ * context: cited with URLs and never presented as engine numbers. */
+export const CHIPPIE_WEBSEARCH_TOOL_DEFINITION = {
+  type: 'function',
+  function: {
+    name: 'web_search',
+    description:
+      'Search the public web for external context: industry news, foundry announcements, competitor products, market pricing signals, or terminology not covered by the governance docs. Results are UNVERIFIED external sources — always cite the URL and never present web figures as deterministic engine outputs.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Web search query, e.g. "TSMC 3nm wafer price 2026".' },
+        maxResults: { type: 'number', description: 'Number of results to return (1-8). Defaults to 5.' },
+      },
+      required: ['query'],
     },
   },
 } as const;

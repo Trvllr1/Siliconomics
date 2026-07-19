@@ -7,6 +7,7 @@ import { CHIPPIE_KNOWLEDGE, type KnowledgeSection } from '../../src/data/chippie
 import {
   CHIPPIE_TOOL_DEFINITIONS,
   CHIPPIE_GTM_TOOL_DEFINITION,
+  CHIPPIE_WEBSEARCH_TOOL_DEFINITION,
   GTM_ASSET_KINDS,
   isServerTool,
   type ChippieMessage,
@@ -23,7 +24,7 @@ const MAX_TRANSCRIPT_MESSAGES = 40;
 // System prompt — Chippie's identity and the cite-only provenance rule.
 // ---------------------------------------------------------------------------
 
-function buildSystemPrompt(context?: ChippieRequest['context']): string {
+function buildSystemPrompt(context?: ChippieRequest['context'], webSearchEnabled = false): string {
   const contextLine = context?.buildName
     ? `Active build: "${context.buildName}" (${context.buildVersion ?? 'unversioned'}). Active persona: ${context.persona ?? 'unknown'}.`
     : 'No active build context provided.';
@@ -49,6 +50,16 @@ AFTER A TOOL RETURNS:
 - For scenarios: state each key metric as "X (was Y)" with direction, then one sentence of takeaway.
 
 TOOLS: Use search_docs for methodology/governance questions AND for any term, acronym, or definition you are not certain about (the docs include a full glossary — search it BEFORE saying you don't know); get_active_build_metrics for current numbers; explain_metric for formula derivations; run_scenario for what-ifs; compare_builds to contrast two builds side-by-side; get_sensitivity_drivers to rank which parameters matter most for a metric; query_decisions for recorded executive decisions and follow-ups; generate_report to produce audit documents; navigate to move the user around the app; propose_assumption to suggest input changes.${
+    webSearchEnabled
+      ? `
+
+WEB SEARCH RULES (web_search tool available):
+- Use web_search ONLY for external context: industry news, foundry/competitor announcements, market signals, or public terminology not in the docs.
+- Web results are UNVERIFIED. Every fact taken from the web MUST be cited with its source URL and clearly marked as web-sourced.
+- NEVER mix web figures with deterministic engine outputs. Engine numbers come from engine tools only; web numbers are context, never inputs to conclusions about this build's economics.
+- If a web figure suggests an assumption change, use propose_assumption with the URL in "sources" — never state it as fact.`
+      : ''
+  }${
     context?.founderMode
       ? `
 
@@ -98,7 +109,12 @@ export function searchDocs(query: string, limit = 3): KnowledgeSection[] {
     .map((s) => s.section);
 }
 
-function executeServerTool(call: ChippieToolCall, founderMode = false): string {
+interface ServerToolOptions {
+  founderMode?: boolean;
+  tavilyApiKey?: string;
+}
+
+async function executeServerTool(call: ChippieToolCall, opts: ServerToolOptions = {}): Promise<string> {
   try {
     if (call.function.name === 'search_docs') {
       const args = JSON.parse(call.function.arguments || '{}') as { query?: string };
@@ -111,16 +127,67 @@ function executeServerTool(call: ChippieToolCall, founderMode = false): string {
       });
     }
     if (call.function.name === 'draft_gtm_asset') {
-      if (!founderMode) {
+      if (!opts.founderMode) {
         return JSON.stringify({ error: 'draft_gtm_asset is only available in founder mode.' });
       }
       const args = JSON.parse(call.function.arguments || '{}') as { kind?: string; topic?: string };
       return draftGtmAsset(args.kind, args.topic);
     }
+    if (call.function.name === 'web_search') {
+      if (!opts.tavilyApiKey) {
+        return JSON.stringify({ error: 'web_search is not configured on this server.' });
+      }
+      const args = JSON.parse(call.function.arguments || '{}') as { query?: string; maxResults?: number | string };
+      return await webSearch(args.query, args.maxResults, opts.tavilyApiKey);
+    }
     return JSON.stringify({ error: `Unknown server tool: ${call.function.name}` });
   } catch (e) {
     return JSON.stringify({ error: `Tool execution failed: ${e instanceof Error ? e.message : String(e)}` });
   }
+}
+
+// ---------------------------------------------------------------------------
+// web_search — Tavily (LLM-optimized web search). Only advertised when
+// TAVILY_API_KEY is configured. Results are external, unverified context:
+// the system prompt requires URL citations and forbids mixing web figures
+// with engine outputs.
+// ---------------------------------------------------------------------------
+
+const TAVILY_TIMEOUT_MS = 10_000;
+
+async function webSearch(query: string | undefined, maxResults: number | string | undefined, apiKey: string): Promise<string> {
+  if (!query || typeof query !== 'string') {
+    return JSON.stringify({ error: 'web_search requires a "query" string.' });
+  }
+  // Small models send numbers as strings.
+  const parsed = typeof maxResults === 'string' ? Number(maxResults) : maxResults;
+  const limit = Math.min(8, Math.max(1, Number.isFinite(parsed as number) ? Math.round(parsed as number) : 5));
+
+  const res = await fetch('https://api.tavily.com/search', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ query, max_results: limit, search_depth: 'basic' }),
+    signal: AbortSignal.timeout(TAVILY_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    return JSON.stringify({ error: `Web search failed (${res.status}): ${detail.slice(0, 200)}` });
+  }
+  const data = (await res.json()) as {
+    results?: { title?: string; url?: string; content?: string }[];
+  };
+  const results = (data.results ?? []).slice(0, limit).map((r) => ({
+    title: r.title ?? 'Untitled',
+    url: r.url ?? '',
+    snippet: (r.content ?? '').slice(0, 500),
+  }));
+  return JSON.stringify({
+    results,
+    note: 'External web results — UNVERIFIED. Cite the URL for every fact used; never present these as engine outputs.',
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -312,13 +379,20 @@ export async function handleChippieRequest(
     return { status: 200, body: demoResponse() };
   }
 
-  const messages: ChippieMessage[] = [
-    { role: 'system', content: buildSystemPrompt(req.context) },
-    ...transcript,
+  const founderMode = req.context?.founderMode === true;
+  const tavilyApiKey = env.TAVILY_API_KEY;
+  const toolOpts: ServerToolOptions = { founderMode, tavilyApiKey };
+  const toolSet = [
+    ...CHIPPIE_TOOL_DEFINITIONS,
+    ...(founderMode ? [CHIPPIE_GTM_TOOL_DEFINITION] : []),
+    // Only advertise web_search when the server can actually execute it.
+    ...(tavilyApiKey ? [CHIPPIE_WEBSEARCH_TOOL_DEFINITION] : []),
   ];
 
-  const founderMode = req.context?.founderMode === true;
-  const toolSet = founderMode ? [...CHIPPIE_TOOL_DEFINITIONS, CHIPPIE_GTM_TOOL_DEFINITION] : true;
+  const messages: ChippieMessage[] = [
+    { role: 'system', content: buildSystemPrompt(req.context, Boolean(tavilyApiKey)) },
+    ...transcript,
+  ];
 
   // Small models drift after tool results and start narrating the JSON.
   // Inject a just-in-time reminder whenever the next turn synthesizes from a tool result.
@@ -345,11 +419,14 @@ export async function handleChippieRequest(
       if (clientCalls.length > 0) {
         // Hand the whole assistant message back; client executes its calls and
         // must also echo back results for any server calls we ran here.
-        const serverResults: ChippieMessage[] = serverCalls.map((call) => ({
-          role: 'tool',
-          tool_call_id: call.id,
-          content: executeServerTool(call, founderMode),
-        }));
+        const serverResults: ChippieMessage[] = [];
+        for (const call of serverCalls) {
+          serverResults.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: await executeServerTool(call, toolOpts),
+          });
+        }
         return {
           status: 200,
           body: {
@@ -366,7 +443,7 @@ export async function handleChippieRequest(
       // Only server tools — execute and loop.
       messages.push(assistant);
       for (const call of serverCalls) {
-        messages.push({ role: 'tool', tool_call_id: call.id, content: executeServerTool(call, founderMode) });
+        messages.push({ role: 'tool', tool_call_id: call.id, content: await executeServerTool(call, toolOpts) });
       }
     }
     return {

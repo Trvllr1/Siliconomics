@@ -18,6 +18,7 @@ Open http://localhost:5173. The app runs in **demo mode** by default — no data
 - **Node.js 22+**
 - Optional: `VITE_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` for auth + Neon persistence
 - Optional: `NIM_API_KEY` for Chippie, the embedded AI advisor (falls back to demo mode)
+- Optional: `TAVILY_API_KEY` for Chippie's `web_search` tool (not advertised to the model when absent; results are cited external context, never engine numbers)
 - Optional: `DATABASE_URL` for Neon Postgres (demo mode uses localStorage)
 
 ## Stack
