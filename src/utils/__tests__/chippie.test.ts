@@ -694,6 +694,7 @@ describe('web_search executor', () => {
     const toolResult = JSON.parse(toolMsg.content);
     expect(toolResult.results[0].url).toBe('https://example.com/3nm-pricing');
     expect(toolResult.note).toContain('UNVERIFIED');
+    expect(toolResult.note).toContain('Sources:');
   });
 
   it('parses string maxResults and clamps to the 1-8 range (default 5)', async () => {

@@ -57,7 +57,8 @@ WEB SEARCH RULES (web_search tool available):
 - Use web_search ONLY for external context: industry news, foundry/competitor announcements, market signals, or public terminology not in the docs.
 - Web results are UNVERIFIED. Every fact taken from the web MUST be cited with its source URL and clearly marked as web-sourced.
 - NEVER mix web figures with deterministic engine outputs. Engine numbers come from engine tools only; web numbers are context, never inputs to conclusions about this build's economics.
-- If a web figure suggests an assumption change, use propose_assumption with the URL in "sources" — never state it as fact.`
+- If a web figure suggests an assumption change, use propose_assumption with the URL in "sources" — never state it as fact.
+- Any answer that used web_search MUST end with a "Sources:" bullet list of the result URLs used.`
       : ''
   }${
     context?.founderMode
@@ -186,7 +187,7 @@ async function webSearch(query: string | undefined, maxResults: number | string 
   }));
   return JSON.stringify({
     results,
-    note: 'External web results — UNVERIFIED. Cite the URL for every fact used; never present these as engine outputs.',
+    note: 'External web results — UNVERIFIED. Cite the URL for every fact used; never present these as engine outputs. Your answer MUST end with a "Sources:" bullet list of the URLs used.',
   });
 }
 
