@@ -5,10 +5,15 @@
 
 import { CHIPPIE_KNOWLEDGE, type KnowledgeSection } from '../../src/data/chippieKnowledge.js';
 import {
+  CHIPPIE_PLAN_ANALYSIS_TOOL_DEFINITION,
+  CHIPPIE_READ_NOTES_TOOL_DEFINITION,
+  CHIPPIE_REVIEW_TOOL_DEFINITION,
   CHIPPIE_TOOL_DEFINITIONS,
   CHIPPIE_GTM_TOOL_DEFINITION,
   CHIPPIE_WEBSEARCH_TOOL_DEFINITION,
+  CHIPPIE_WRITE_NOTE_TOOL_DEFINITION,
   GTM_ASSET_KINDS,
+  SERVER_TOOL_NAMES,
   isServerTool,
   type ChippieMessage,
   type ChippieRequest,
@@ -49,7 +54,26 @@ AFTER A TOOL RETURNS:
 - Answer the user's question directly using the numbers from the tool result. NEVER describe the JSON, the function call, or the mechanics of the tool ("this response is a JSON object...", "the output of the function..."). The user only sees your prose — speak to them, not about the data format.
 - For scenarios: state each key metric as "X (was Y)" with direction, then one sentence of takeaway.
 
-TOOLS: Use search_docs for methodology/governance questions AND for any term, acronym, or definition you are not certain about (the docs include a full glossary — search it BEFORE saying you don't know); get_active_build_metrics for current numbers; explain_metric for formula derivations; run_scenario for what-ifs; compare_builds to contrast two builds side-by-side; get_sensitivity_drivers to rank which parameters matter most for a metric; query_decisions for recorded executive decisions and follow-ups; generate_report to produce audit documents; navigate to move the user around the app; propose_assumption to suggest input changes; web_search for real-time internet data (latest news, competitor products, market pricing signals, public terminology not in the docs).${
+SELF-REVIEW:
+- Before your final response to any quantitative question or any answer that used tools, call review_answer with your drafted answer. It returns a quality checklist. Review each point and refine if needed.
+- If the checklist flags an issue, fix it before speaking. If everything passes, respond with your draft as-is.
+
+WORKING MEMORY (write_note / read_notes tools available):
+- Use write_note to store intermediate reasoning, partial findings from tools, or questions to follow up on between rounds.
+- Use read_notes to recall stored notes in later rounds — especially important for multi-step analysis where context may exceed the message window.
+- Notes persist for the entire conversation turn. Write early, read often.
+
+PLAN-AND-EXECUTE (plan_analysis tool available):
+- For complex multi-step questions (anything requiring 3+ tool calls or combining web data with engine outputs), call plan_analysis with the user's question BEFORE any other tool.
+- plan_analysis returns a planning template. Write your execution plan to notes with key "plan". Then execute each step in order, reading the plan with read_notes after each step to stay on track.
+
+FEW-SHOT TOOL PATTERNS:
+- **Pattern A — metric lookup**: User: "What is the gross margin of Manhattan-X1?" → get_active_build_metrics → review_answer(draft) → final answer with numbers from the tool result.
+- **Pattern B — external research + docs**: User: "How does TSMC's 2026 3nm pricing compare to our Manhattan-X1 wafer cost?" → plan_analysis(question) → write_note(key="plan", value="...") → web_search("TSMC 3nm wafer price 2026") → search_docs("wafer cost build assumptions") → get_active_build_metrics → read_notes → review_answer(draft) → final answer with separate "Engine:" and "Sources:" sections.
+- **Pattern C — what-if with sensitivity**: User: "What drives Manhattan-X1 margin and can we improve it?" → get_sensitivity_drivers → run_scenario(changes=[{field:"defectDensity", deltaPercent:-20}]) → review_answer(draft) → final answer.
+- Follow these patterns exactly. Call the tools in the order shown. Never skip review_answer for answers that used tools or contain numbers.
+
+TOOLS: Use search_docs for methodology/governance questions AND for any term, acronym, or definition you are not certain about (the docs include a full glossary — search it BEFORE saying you don't know). After search_docs returns, scan the results for unfamiliar terms and search again — chain multiple searches to fully understand a topic; get_active_build_metrics for current numbers; explain_metric for formula derivations; run_scenario for what-ifs; compare_builds to contrast two builds side-by-side; get_sensitivity_drivers to rank which parameters matter most for a metric; query_decisions for recorded executive decisions and follow-ups; generate_report to produce audit documents; navigate to move the user around the app; propose_assumption to suggest input changes; web_search for real-time internet data (latest news, competitor products, market pricing signals, public terminology not in the docs).${
     webSearchEnabled
       ? `
 
@@ -59,7 +83,8 @@ WEB SEARCH RULES (web_search tool available):
 - Web results are UNVERIFIED. Every fact taken from the web MUST be cited with its source URL and clearly marked as web-sourced.
 - NEVER mix web figures with deterministic engine outputs. Engine numbers come from engine tools only; web numbers are context, never inputs to conclusions about this build's economics.
 - If a web figure suggests an assumption change, use propose_assumption with the URL in "sources" — never state it as fact.
-- Any answer that used web_search MUST end with a "Sources:" bullet list of the result URLs used.`
+- Any answer that used web_search MUST end with a "Sources:" bullet list of the result URLs used.
+- After web_search returns, scan results for industry terms or signals you don't fully understand and search again or cross-reference with search_docs before synthesizing.`
       : ''
   }${
     context?.founderMode
@@ -114,13 +139,83 @@ export function searchDocs(query: string, limit = 3): KnowledgeSection[] {
 interface ServerToolOptions {
   founderMode?: boolean;
   tavilyApiKey?: string;
+  notes?: Map<string, string>;
+}
+
+// ---------------------------------------------------------------------------
+// Defensive argument parsing — small models mangle JSON (double-encode,
+// send numbers as strings, swap field names).
+// ---------------------------------------------------------------------------
+
+/** Return the first value that is a string, or fallback. */
+function coerceString(val: unknown, fallback = ''): string {
+  if (typeof val === 'string' && val.length > 0) return val;
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  return fallback;
+}
+
+/** Parse a number from a value that may be a string ("-20"), a number, or
+ * absent. Returns null (not NaN) when the value cannot be parsed. */
+function coerceNumber(val: unknown): number | null {
+  if (typeof val === 'number' && Number.isFinite(val)) return val;
+  if (typeof val === 'string') {
+    const n = Number(val.trim());
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** If val is a JSON string, parse it; otherwise return val as-is. Handles
+ * double-encoding (the model wraps an object in a string inside the arg JSON). */
+function maybeUnwrap<T>(val: unknown): T {
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val) as T;
+    } catch { return val as T; }
+  }
+  return val as T;
+}
+
+// ---------------------------------------------------------------------------
+// Fuzzy tool-name aliasing — when the 8B model hallucinates a name like
+// "write_to_working_memory" instead of "write_note", route it to the
+// correct server handler.
+// ---------------------------------------------------------------------------
+
+const SERVER_TOOL_KEYWORDS: [string, string][] = SERVER_TOOL_NAMES.map(
+  (name) => [name.replace(/_/g, ' ').toLowerCase(), name],
+);
+
+function fuzzyMatchServerTool(calledName: string): string | undefined {
+  const called = calledName.replace(/[^a-z0-9]+/g, ' ').toLowerCase().trim();
+  if (!called) return undefined;
+
+  // 1. Exact match after normalization
+  for (const [key, name] of SERVER_TOOL_KEYWORDS) {
+    if (called === key) return name;
+  }
+
+  // 2. Known name is a subsequence of the called name
+  //    e.g. "write_to_working_memory" contains "write" and "note" tokens
+  const calledTokens = new Set(called.split(/\s+/).filter((t) => t.length > 2));
+  for (const [key, name] of SERVER_TOOL_KEYWORDS) {
+    const knownTokens = key.split(/\s+/);
+    // Score: how many known tokens also appear in the called tokens
+    const matchCount = knownTokens.filter((t) => calledTokens.has(t)).length;
+    // Match if at least 2 tokens overlap, or 1 when the known name is short
+    if (matchCount >= 2 || (matchCount === 1 && knownTokens.length <= 2 && calledTokens.size >= 1)) {
+      return name;
+    }
+  }
+
+  return undefined;
 }
 
 async function executeServerTool(call: ChippieToolCall, opts: ServerToolOptions = {}): Promise<string> {
   try {
     if (call.function.name === 'search_docs') {
-      const args = JSON.parse(call.function.arguments || '{}') as { query?: string };
-      const results = searchDocs(args.query ?? '');
+      const args = maybeUnwrap<{ query?: unknown }>(call.function.arguments || '{}');
+      const results = searchDocs(coerceString(args.query));
       if (results.length === 0) {
         return JSON.stringify({ results: [], note: 'No matching documentation sections found.' });
       }
@@ -132,15 +227,71 @@ async function executeServerTool(call: ChippieToolCall, opts: ServerToolOptions 
       if (!opts.founderMode) {
         return JSON.stringify({ error: 'draft_gtm_asset is only available in founder mode.' });
       }
-      const args = JSON.parse(call.function.arguments || '{}') as { kind?: string; topic?: string };
-      return draftGtmAsset(args.kind, args.topic);
+      const args = maybeUnwrap<{ kind?: unknown; topic?: unknown }>(call.function.arguments || '{}');
+      return draftGtmAsset(coerceString(args.kind), coerceString(args.topic));
+    }
+    if (call.function.name === 'review_answer') {
+      const args = maybeUnwrap<{ draft?: unknown }>(call.function.arguments || '{}');
+      return JSON.stringify({
+        instruction: 'Review the draft above against these criteria. Produce a revised version only if a criterion is not met.',
+        criteria: [
+          'Every numeric claim is backed by a tool result in this conversation — if you lack a number, say so instead of inventing one.',
+          'Web-sourced facts include the source URL and are clearly marked as external.',
+          'The answer is concise, executive-grade, and directly addresses the user\'s question.',
+          'No JSON, function names, or tool mechanics are described to the user.',
+        ],
+        action: 'If the draft passes all criteria, respond with it as-is. If any criterion fails, produce a corrected version now.',
+      });
+    }
+    if (call.function.name === 'write_note') {
+      const args = maybeUnwrap<{ key?: unknown; value?: unknown }>(call.function.arguments || '{}');
+      const key = coerceString(args.key);
+      const value = coerceString(args.value);
+      if (!key || !value) {
+        return JSON.stringify({ error: 'write_note requires both "key" and "value".' });
+      }
+      if (!opts.notes) opts.notes = new Map();
+      opts.notes.set(key, value);
+      return JSON.stringify({ stored: key, noteCount: opts.notes.size });
+    }
+    if (call.function.name === 'read_notes') {
+      if (!opts.notes || opts.notes.size === 0) {
+        return JSON.stringify({ notes: {}, noteCount: 0 });
+      }
+      const args = maybeUnwrap<{ keys?: unknown }>(call.function.arguments || '{}');
+      const keysStr = coerceString(args.keys);
+      if (keysStr) {
+        const selected = keysStr.split(',').map((k) => k.trim()).filter((k) => opts.notes!.has(k));
+        const result: Record<string, string> = {};
+        for (const k of selected) result[k] = opts.notes.get(k)!;
+        return JSON.stringify({ notes: result, noteCount: selected.length });
+      }
+      const all: Record<string, string> = {};
+      for (const [k, v] of opts.notes) all[k] = v;
+      return JSON.stringify({ notes: all, noteCount: opts.notes.size });
+    }
+    if (call.function.name === 'plan_analysis') {
+      const args = maybeUnwrap<{ question?: unknown }>(call.function.arguments || '{}');
+      return JSON.stringify({
+        instruction: 'Break the question above into 2-4 sub-questions. For each sub-question, list which tool(s) to call and in what order. Write the plan to notes with key "plan" using write_note. Then execute each step in order, reading the plan with read_notes after each step.',
+        question: coerceString(args.question),
+        template: `## Plan
+Step 1: [sub-question] → tool(s): [tool names]
+Step 2: [sub-question] → tool(s): [tool names]
+...`,
+      });
     }
     if (call.function.name === 'web_search') {
       if (!opts.tavilyApiKey) {
         return JSON.stringify({ error: 'web_search is not configured on this server.' });
       }
-      const args = JSON.parse(call.function.arguments || '{}') as { query?: string; maxResults?: number | string };
-      return await webSearch(args.query, args.maxResults, opts.tavilyApiKey);
+      const args = maybeUnwrap<{ query?: unknown; maxResults?: unknown }>(call.function.arguments || '{}');
+      return await webSearch(coerceString(args.query), args.maxResults as number | string | undefined, opts.tavilyApiKey);
+    }
+    // Fuzzy alias fallback — catch hallucinated names like "write_to_working_memory"
+    const aliased = fuzzyMatchServerTool(call.function.name);
+    if (aliased && aliased !== call.function.name) {
+      return executeServerTool({ ...call, function: { ...call.function, name: aliased } }, opts);
     }
     return JSON.stringify({ error: `Unknown server tool: ${call.function.name}` });
   } catch (e) {
@@ -383,9 +534,13 @@ export async function handleChippieRequest(
 
   const founderMode = req.context?.founderMode === true;
   const tavilyApiKey = env.TAVILY_API_KEY;
-  const toolOpts: ServerToolOptions = { founderMode, tavilyApiKey };
+  const toolOpts: ServerToolOptions = { founderMode, tavilyApiKey, notes: new Map() };
   const toolSet = [
     ...CHIPPIE_TOOL_DEFINITIONS,
+    CHIPPIE_REVIEW_TOOL_DEFINITION,
+    CHIPPIE_WRITE_NOTE_TOOL_DEFINITION,
+    CHIPPIE_READ_NOTES_TOOL_DEFINITION,
+    CHIPPIE_PLAN_ANALYSIS_TOOL_DEFINITION,
     ...(founderMode ? [CHIPPIE_GTM_TOOL_DEFINITION] : []),
     // Only advertise web_search when the server can actually execute it.
     ...(tavilyApiKey ? [CHIPPIE_WEBSEARCH_TOOL_DEFINITION] : []),

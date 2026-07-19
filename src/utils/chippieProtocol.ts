@@ -61,7 +61,7 @@ export const CHIPPIE_NAV_TABS = [
 
 /** Tools executed server-side inside the API function. web_search is only
  * advertised when the server has a TAVILY_API_KEY configured. */
-export const SERVER_TOOL_NAMES = ['search_docs', 'draft_gtm_asset', 'web_search'] as const;
+export const SERVER_TOOL_NAMES = ['search_docs', 'draft_gtm_asset', 'review_answer', 'write_note', 'read_notes', 'plan_analysis', 'web_search'] as const;
 
 /** Tools executed in the browser (they need live app state / the math engine). */
 export const CLIENT_TOOL_NAMES = [
@@ -302,6 +302,77 @@ export const CHIPPIE_WEBSEARCH_TOOL_DEFINITION = {
         maxResults: { type: 'number', description: 'Number of results to return (1-8). Defaults to 5.' },
       },
       required: ['query'],
+    },
+  },
+} as const;
+
+/** Self-review tool definition — always advertised. Lets the model critique
+ * its own draft answer before delivering it to the user, then refine it. */
+export const CHIPPIE_REVIEW_TOOL_DEFINITION = {
+  type: 'function',
+  function: {
+    name: 'review_answer',
+    description:
+      'Review a draft answer for quality, source accuracy, and completeness before delivering it to the user. Call this with your drafted answer BEFORE the final response for any quantitative answer or any answer that used tools. It returns a checklist — fix any issues found, then respond.',
+    parameters: {
+      type: 'object',
+      properties: {
+        draft: { type: 'string', description: 'Your full drafted answer text to review.' },
+      },
+      required: ['draft'],
+    },
+  },
+} as const;
+
+/** Scratchpad write — always advertised. Lets the model store intermediate
+ * reasoning, partial findings, or questions across tool rounds. */
+export const CHIPPIE_WRITE_NOTE_TOOL_DEFINITION = {
+  type: 'function',
+  function: {
+    name: 'write_note',
+    description:
+      'Store a structured note in working memory for recall across tool rounds. Use to track intermediate reasoning, assumptions, partial results from tools, or questions to follow up on. Notes persist for this entire conversation turn.',
+    parameters: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Short descriptive key, e.g. "foundry_price", "yield_concern", "plan_step_1". Use a key you can remember for read_notes later.' },
+        value: { type: 'string', description: 'The note content — one or two sentences capturing a finding, assumption, or plan item.' },
+      },
+      required: ['key', 'value'],
+    },
+  },
+} as const;
+
+/** Scratchpad read — always advertised. Lets the model recall stored notes. */
+export const CHIPPIE_READ_NOTES_TOOL_DEFINITION = {
+  type: 'function',
+  function: {
+    name: 'read_notes',
+    description:
+      'Read one or all notes from working memory. Call this to recall intermediate findings stored earlier with write_note. Essential for multi-step analysis where intermediate context might exceed the message window.',
+    parameters: {
+      type: 'object',
+      properties: {
+        keys: { type: 'string', description: 'Optional comma-separated list of note keys to read. If omitted, ALL notes are returned.' },
+      },
+    },
+  },
+} as const;
+
+/** Plan-analysis tool — always advertised. Lets the model decompose complex
+ * multi-step questions into an execution plan before calling other tools. */
+export const CHIPPIE_PLAN_ANALYSIS_TOOL_DEFINITION = {
+  type: 'function',
+  function: {
+    name: 'plan_analysis',
+    description:
+      'Decompose a complex multi-step question into sub-questions with ordered tool assignments. Call this FIRST for any question that requires 3+ tool calls or combines web data with engine outputs. It returns a planning template — write the resulting plan to notes with key "plan", then execute each step in order.',
+    parameters: {
+      type: 'object',
+      properties: {
+        question: { type: 'string', description: 'The full user question to decompose.' },
+      },
+      required: ['question'],
     },
   },
 } as const;

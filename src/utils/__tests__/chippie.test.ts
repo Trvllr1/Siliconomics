@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { CHIPPIE_KNOWLEDGE } from '../../data/chippieKnowledge';
 import {
+  CHIPPIE_PLAN_ANALYSIS_TOOL_DEFINITION,
+  CHIPPIE_READ_NOTES_TOOL_DEFINITION,
+  CHIPPIE_REVIEW_TOOL_DEFINITION,
   CHIPPIE_TOOL_DEFINITIONS,
   CHIPPIE_GTM_TOOL_DEFINITION,
   CHIPPIE_WEBSEARCH_TOOL_DEFINITION,
+  CHIPPIE_WRITE_NOTE_TOOL_DEFINITION,
   CLIENT_TOOL_NAMES,
   SERVER_TOOL_NAMES,
   isClientTool,
@@ -69,7 +73,7 @@ describe('chippieKnowledge pack', () => {
 
 describe('chippieProtocol', () => {
   it('every tool definition maps to exactly one executor side', () => {
-    const allDefs = [...CHIPPIE_TOOL_DEFINITIONS, CHIPPIE_GTM_TOOL_DEFINITION, CHIPPIE_WEBSEARCH_TOOL_DEFINITION];
+    const allDefs = [...CHIPPIE_TOOL_DEFINITIONS, CHIPPIE_REVIEW_TOOL_DEFINITION, CHIPPIE_WRITE_NOTE_TOOL_DEFINITION, CHIPPIE_READ_NOTES_TOOL_DEFINITION, CHIPPIE_PLAN_ANALYSIS_TOOL_DEFINITION, CHIPPIE_GTM_TOOL_DEFINITION, CHIPPIE_WEBSEARCH_TOOL_DEFINITION];
     for (const def of allDefs) {
       const name = def.function.name;
       expect(isServerTool(name) !== isClientTool(name)).toBe(true);
