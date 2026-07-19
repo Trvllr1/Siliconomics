@@ -33,6 +33,7 @@ import FormulaLibraryView from './components/FormulaLibraryView';
 import MeetingMode from './components/MeetingMode';
 import CommandPalette from './components/CommandPalette';
 import TrustModal from './components/TrustModal';
+import { createBlankBuild } from './data/archetypes';
 
 import {
   Monitor,
@@ -736,6 +737,15 @@ export default function App() {
     setContextTab('explain');
   };
 
+  // First-class "New Build" path (⌘K): blank Draft from neutral defaults,
+  // straight into the Build Workspace. handleCommitBuild stamps the vintage
+  // and selects it.
+  const handleNewBuild = (name?: string) => {
+    const finalName = name?.trim() || `Untitled Build ${builds.filter((b) => b.name.startsWith('Untitled Build')).length + 1}`;
+    handleCommitBuild(createBlankBuild(finalName, authUser.name));
+    setActiveTab('build');
+  };
+
   // Chippie proposal → new Draft branch of the active build (never mutates it).
   const handleApplyChippieProposal = (proposal: { field: string; proposedValue: number; rationale: string }) => {
     if (!activeBuild) return;
@@ -1349,6 +1359,7 @@ export default function App() {
         onNavigate={setActiveTab}
         onQuickCompare={handleQuickCompare}
         onOpenTrust={() => { setCommandPaletteOpen(false); setShowTrustDialog(true); }}
+        onNewBuild={handleNewBuild}
       />
       <TrustModal isOpen={showTrustDialog} onClose={() => setShowTrustDialog(false)} />
     </div>

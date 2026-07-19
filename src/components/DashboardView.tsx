@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { Build, PersonaType, ActivityLog } from '../types';
-import { Archetype, PRECONFIG_ARCHETYPES, convertArchetypeToBuild } from '../data/archetypes';
+import { Archetype, PRECONFIG_ARCHETYPES, convertArchetypeToBuild, createBlankBuild } from '../data/archetypes';
 import { computeBuildMetrics, round } from '../utils/mathEngine';
 import { 
   Shield, 
@@ -65,6 +65,10 @@ export default function DashboardView({
   onChangePersona,
 }: DashboardViewProps) {
   const [listMode, setListMode] = React.useState<'list' | 'tree'>('tree');
+
+  // Blank "New Build" creation form state
+  const [isNamingBuild, setIsNamingBuild] = useState(false);
+  const [newBuildName, setNewBuildName] = useState('Untitled Build');
   
   // Custom archetype creation form states
   const [isAddingCustomArch, setIsAddingCustomArch] = useState(false);
@@ -131,6 +135,18 @@ export default function DashboardView({
     onCommitBuild(newBuild);
     onSelectBuild(newBuild.id);
     onNavigate('build');
+  };
+
+  // First-class "New Build" path: blank Draft from neutral defaults, then straight
+  // to the Build Workspace where every parameter is configured.
+  const handleCreateBlankBuild = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newBuild = createBlankBuild(newBuildName.trim(), 'eagleximpact');
+    onCommitBuild(newBuild);
+    onSelectBuild(newBuild.id);
+    onNavigate('build');
+    setIsNamingBuild(false);
+    setNewBuildName('Untitled Build');
   };
 
   const allArchetypes = [...PRECONFIG_ARCHETYPES, ...customArchetypes];
@@ -314,8 +330,39 @@ export default function DashboardView({
                   </button>
                 </div>
                 <span className="text-[10px] font-mono text-art-ink/50 bg-white border border-art-ink/5 px-2 py-0.5 rounded-full">{builds.length} builds</span>
+                <button
+                  onClick={() => setIsNamingBuild(!isNamingBuild)}
+                  className="flex items-center space-x-1 px-2.5 py-1 text-[10px] font-bold text-white bg-art-rust hover:bg-art-rust/90 rounded font-mono transition-colors cursor-pointer select-none"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>{isNamingBuild ? 'Cancel' : 'New Build'}</span>
+                </button>
               </div>
             </div>
+
+            {/* Blank Build Creation Form */}
+            {isNamingBuild && (
+              <form onSubmit={handleCreateBlankBuild} className="p-4 bg-art-cream/15 border-b border-art-ink/10 flex items-end space-x-3">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-art-ink/60 uppercase font-mono mb-1">New Build Name</label>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newBuildName}
+                    onChange={(e) => setNewBuildName(e.target.value)}
+                    className="w-full px-2 py-1.5 border border-art-ink/15 rounded bg-white text-art-ink focus:outline-none focus:border-art-rust font-sans text-xs"
+                    required
+                  />
+                  <span className="text-[9px] text-art-ink/40 font-mono">Starts from a neutral default 5nm monolithic DesignModel — configure every parameter in the Build Workspace.</span>
+                </div>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 text-[10px] font-bold text-white bg-art-ink hover:bg-art-ink/90 rounded font-mono transition-colors cursor-pointer select-none"
+                >
+                  Create Build
+                </button>
+              </form>
+            )}
 
             {listMode === 'list' ? (
               <div className="divide-y divide-art-ink/5">

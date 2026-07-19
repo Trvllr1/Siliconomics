@@ -271,6 +271,56 @@ export const PRECONFIG_ARCHETYPES: Archetype[] = [
   }
 ];
 
+/**
+ * Create a blank Draft build from a neutral default DesignModel (5nm monolithic
+ * starting point, matching the custom-archetype form defaults). Every parameter
+ * is a placeholder to be reviewed in the Build Workspace — nothing here is a
+ * validated assumption. This is the first-class "New Build" path promised by
+ * docs/02-Product-Blueprint.md (creation not derived from an archetype or clone).
+ */
+export function createBlankBuild(name: string, creator: string): Build {
+  const newId = `build-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+  return {
+    id: newId,
+    name: name || 'Untitled Build',
+    description: 'Blank build — every parameter starts from a neutral default and must be configured for the program.',
+    creator: creator || 'eagleximpact',
+    organization: 'Custom Enterprise',
+    parentId: undefined,
+    status: 'Draft',
+    version: 'v1.0',
+    owner: `${creator || 'eagleximpact'} (Silicon Architect)`,
+    portfolio: 'Custom Projects',
+    createdDate: new Date().toISOString().split('T')[0] ?? '',
+    referenceModel: 'Blank Template',
+    formulaVersion: 'Murphy-SIA-v4.3',
+    designModel: {
+      processNode: '5nm',
+      dieArea: 250,
+      dieWidth: 15.8,
+      dieHeight: 15.8,
+      transistorCount: 20,
+      tdp: 65,
+      topology: 'monolithic',
+      chipletCount: 1,
+      ioDieArea: 0,
+      defectDensity: 0.08,
+      waferStartsPerMonth: 5000,
+      packagingCost: 12.5,
+      testTimeSeconds: 40,
+      testCostPerSecond: 0.15,
+      packagingYield: 99.0,
+      testYield: 98.5,
+      waferCost: 9500,
+      nreCost: 110,
+      asp: 250,
+      targetVolume: 3.0,
+      foundry: 'tsmc',
+      packagingType: 'standard',
+    },
+  };
+}
+
 export function convertArchetypeToBuild(archetype: Archetype, name: string, version: string, creator: string): Build {
   const newId = `build-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   return {

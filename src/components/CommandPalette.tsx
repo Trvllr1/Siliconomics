@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Build, PersonaType } from '../types';
-import { Search, Monitor, Cpu, Terminal, Zap, ArrowRight, User, ShieldCheck } from 'lucide-react';
+import { Search, Monitor, Cpu, Terminal, Zap, ArrowRight, User, ShieldCheck, Plus } from 'lucide-react';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -18,6 +18,7 @@ interface CommandPaletteProps {
   onNavigate: (tab: string) => void;
   onQuickCompare: (idA: string, idB: string) => void;
   onOpenTrust: () => void;
+  onNewBuild: () => void;
 }
 
 interface CommandItem {
@@ -40,6 +41,7 @@ export default function CommandPalette({
   onNavigate,
   onQuickCompare,
   onOpenTrust,
+  onNewBuild,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -129,7 +131,19 @@ export default function CommandPalette({
     });
   });
 
-  // 4. Advanced operations
+  // 4. Creation — first-class "New Build" path (blank DesignModel, from scratch)
+  commands.push({
+    id: 'op-new-build',
+    category: 'Create',
+    label: 'New Build from Scratch (blank DesignModel)',
+    action: () => {
+      onNewBuild();
+      onClose();
+    },
+    icon: <Plus className="w-4 h-4 text-art-rust" />
+  });
+
+  // 5. Advanced operations
   if (builds.length >= 2) {
     commands.push({
       id: 'op-compare-m1-m2',
