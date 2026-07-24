@@ -116,7 +116,7 @@ export interface CostContributor {
   description: string;
 }
 
-export type FoundryType = 'tsmc' | 'intel' | 'samsung';
+export type FoundryType = 'tsmc' | 'intel' | 'samsung' | 'globalfoundries';
 
 export type PackagingType = 'standard' | 'cowos-s' | 'cowos-r' | 'cowos-l' | 'emib';
 
@@ -243,6 +243,8 @@ export interface Build {
   designModel: DesignModel;
   dataVintage?: DataVintage;
   timeModel?: TimeModel;
+  frozenAt?: string | Date | null;
+  contentHash?: string | null;
 }
 
 export type BuildStatus = 'Draft' | 'TechnicalReview' | 'FinancialReview' | 'ProgramReview' | 'Approved' | 'Alert';

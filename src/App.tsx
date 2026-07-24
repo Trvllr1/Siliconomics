@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Build, PersonaType, MetricCardData, CalculationTrace, ActivityLog, Decision, Portfolio, ReferenceModel, FormulaEntry, Alert, Comment, STATUS_TRANSITIONS } from './types';
 import { DEFAULT_BUILDS } from './data/defaultBuilds';
 import { DEFAULT_REFERENCE_MODELS } from './data/defaultReferenceModels';
@@ -16,6 +16,7 @@ import { summarizeDatasetFreshness } from './utils/dataFreshness';
 import { decodeBuildFromHash, clearShareHash } from './utils/buildShare';
 import { PACKAGING_MODEL_PROVENANCE } from './data/packagingCostModel';
 import { useStorageAdapter } from './data/adapters/useAdapter';
+import type { SnapshotResponse } from './data/adapters/storageAdapter';
 import { useAuthUser } from './utils/auth';
 import DashboardView from './components/DashboardView';
 import DesignBoard from './components/DesignBoard';
@@ -199,8 +200,14 @@ export default function App() {
       if (!saved) return DEFAULT_BUILDS;
       const parsed = JSON.parse(saved);
       if (!Array.isArray(parsed)) return DEFAULT_BUILDS;
-      const valid = parsed.filter((b: any) => b && b.designModel);
-      return valid.length > 0 ? valid : DEFAULT_BUILDS;
+      // Exclude ephemeral shared builds — they're session-only and can accumulate corrupted data
+      const valid = parsed.filter((b: any) => b && b.designModel && !String(b.id).startsWith('shared-'));
+      if (valid.length === 0) return DEFAULT_BUILDS;
+      // Replace saved defaults with current defaults (they may have updated parameters),
+      // preserve any user-created builds, and add new defaults that don't exist yet.
+      const defaultIds = new Set(DEFAULT_BUILDS.map(d => d.id));
+      const userBuilds = valid.filter((b: any) => !defaultIds.has(b.id));
+      return [...DEFAULT_BUILDS, ...userBuilds];
     } catch {
       return DEFAULT_BUILDS;
     }
@@ -214,6 +221,8 @@ export default function App() {
       return null;
     }
   });
+  const [snapshots, setSnapshots] = useState<SnapshotResponse[]>([]);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
 
   // Non-blocking banner shown when localStorage writes fail (quota exceeded, private mode, etc.)
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
@@ -258,19 +267,44 @@ export default function App() {
   };
 
   const [portfolios, setPortfolios] = useState<Portfolio[]>(() => {
+    if (!isDemoMode) return [];
     try {
       const saved = localStorage.getItem('siliconomics_portfolios_v2');
-      return saved ? JSON.parse(saved) : defaultPortfolios();
+      if (!saved) return defaultPortfolios();
+      const parsed: Portfolio[] = JSON.parse(saved);
+      // Merge missing default portfolios and update existing ones with new build IDs
+      const defaults = defaultPortfolios();
+      const savedNames = new Set(parsed.map(p => p.name));
+      const missingPortfolios = defaults.filter(d => !savedNames.has(d.name));
+      // Also update existing portfolios with any new builds that belong to them
+      const updated = parsed.map(p => {
+        const matchingDefault = defaults.find(d => d.name === p.name);
+        if (!matchingDefault) return p;
+        const existingIds = new Set(p.buildIds);
+        const newBuildIds = matchingDefault.buildIds.filter(id => !existingIds.has(id));
+        return newBuildIds.length > 0 ? { ...p, buildIds: [...p.buildIds, ...newBuildIds] } : p;
+      });
+      return missingPortfolios.length > 0 ? [...updated, ...missingPortfolios] : updated;
     } catch {
       return defaultPortfolios();
     }
   });
+  const portfolioSaveQueue = useRef(Promise.resolve());
 
   useEffect(() => {
-    if (!persistToStorage('siliconomics_portfolios_v2', () => JSON.stringify(portfolios))) {
-      setStorageWarning('Your browser blocked saving portfolios — recent changes may be lost on reload.');
-    }
-  }, [portfolios]);
+    if (isDemoMode) return;
+    let cancelled = false;
+
+    void adapter.getPortfolios()
+      .then((savedPortfolios) => {
+        if (!cancelled) setPortfolios(savedPortfolios);
+      })
+      .catch((err: any) => {
+        if (!cancelled) setStorageWarning(`Failed to load portfolios: ${err.message}`);
+      });
+
+    return () => { cancelled = true; };
+  }, [adapter, isDemoMode]);
 
   const [referenceModels] = useState<ReferenceModel[]>(() => {
     try {
@@ -404,7 +438,9 @@ export default function App() {
 
   useEffect(() => {
     if (isDemoMode) {
-      if (!persistToStorage('siliconomics_builds_v2', () => JSON.stringify(builds))) {
+      // Persist only non-shared builds — shared builds are ephemeral (loaded from URL hash per session)
+      const persistable = builds.filter(b => !b.id.startsWith('shared-'));
+      if (!persistToStorage('siliconomics_builds_v2', () => JSON.stringify(persistable))) {
         setStorageWarning('Your browser blocked saving builds — recent changes may be lost on reload.');
         return;
       }
@@ -421,6 +457,47 @@ export default function App() {
   const [activeBuildId, setActiveBuildId] = useState<string>(DEFAULT_BUILDS[0]!.id);
   const [activeTab, setActiveTab] = useState<string>('dashboard'); // 'dashboard' | 'build' | 'compare' | 'decisions' | 'reports'
   const [activePersona, setActivePersona] = useState<PersonaType>('executive');
+
+  useEffect(() => {
+    if (isDemoMode) {
+      setSnapshots([]);
+      setSnapshotsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSnapshotsLoading(true);
+    void adapter.getSnapshots(activeBuildId)
+      .then((records) => {
+        if (!cancelled) setSnapshots(records);
+      })
+      .catch((err: any) => {
+        if (!cancelled) setStorageWarning(`Failed to load Build snapshots: ${err.message}`);
+      })
+      .finally(() => {
+        if (!cancelled) setSnapshotsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [activeBuildId, adapter, isDemoMode]);
+
+  useEffect(() => {
+    if (isDemoMode) return;
+    let cancelled = false;
+
+    void adapter.getComments(activeBuildId)
+      .then((loadedComments) => {
+        if (!cancelled) setComments(loadedComments);
+      })
+      .catch((err: any) => {
+        if (!cancelled) setStorageWarning(`Failed to load Build comments: ${err.message}`);
+      });
+
+    return () => { cancelled = true; };
+  }, [activeBuildId, adapter, isDemoMode]);
+
+  // Meeting mode state (declared before shared-build effect so it can auto-open)
+  const [meetingModeOpen, setMeetingModeOpen] = useState(false);
 
   // Load shared build from URL hash on mount (demo mode only)
   const [sharedBuildLoaded, setSharedBuildLoaded] = useState(false);
@@ -443,6 +520,7 @@ export default function App() {
         return [shared, ...prev];
       });
       setActiveBuildId(shared.id);
+      setMeetingModeOpen(true);
     }
     if (error) {
       console.warn('Siliconomics: shared build error:', error);
@@ -459,8 +537,7 @@ export default function App() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [showTrustDialog, setShowTrustDialog] = useState(false);
 
-  // Meeting mode state
-  const [meetingModeOpen, setMeetingModeOpen] = useState(false);
+  // (meetingModeOpen declared above shared-build effect)
   const [personaDropdownOpen, setPersonaDropdownOpen] = useState(false);
 
   const pc = PERSONA_CONFIG[activePersona];
@@ -516,17 +593,25 @@ export default function App() {
   });
 
   useEffect(() => {
+    if (!isDemoMode) return;
     localStorage.setItem('siliconomics_comments_v2', JSON.stringify(comments));
-  }, [comments]);
+  }, [comments, isDemoMode]);
 
   const [commentTarget, setCommentTarget] = useState<{ elementId: string; label: string } | null>(null);
 
   const handleAddComment = (buildId: string, elementId: string, content: string) => {
+    if (!isDemoMode) {
+      void adapter.addComment(buildId, elementId, content, authUser.name, activePersona, activeBuild.version)
+        .then((comment) => setComments((previous) => [...previous, comment]))
+        .catch((err: any) => setStorageWarning(`Failed to save comment: ${err.message}`));
+      return;
+    }
+
     const newComment: Comment = {
       id: `cmt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       buildId,
       elementId,
-      author: 'eagleximpact',
+      author: authUser.name,
       role: activePersona,
       content,
       timestamp: new Date().toISOString(),
@@ -584,16 +669,34 @@ export default function App() {
     setActivities((act) => [newLog, ...act]);
   };
 
+  const persistPortfolios = (next: Portfolio[]) => {
+    setPortfolios(next);
+    if (isDemoMode) {
+      if (!persistToStorage('siliconomics_portfolios_v2', () => JSON.stringify(next))) {
+        setStorageWarning('Your browser blocked saving portfolios — recent changes may be lost on reload.');
+      }
+      return;
+    }
+
+    portfolioSaveQueue.current = portfolioSaveQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        const savedPortfolios = await adapter.savePortfolios(next);
+        setPortfolios(savedPortfolios);
+      })
+      .catch((err: any) => setStorageWarning(`Failed to save portfolios: ${err.message}`));
+  };
+
   const handleCreatePortfolio = (p: Portfolio) => {
-    setPortfolios((prev) => [...prev, p]);
+    persistPortfolios([...portfolios, p]);
   };
 
   const handleDeletePortfolio = (id: string) => {
-    setPortfolios((prev) => prev.filter((p) => p.id !== id));
+    persistPortfolios(portfolios.filter((p) => p.id !== id));
   };
 
   const handleUpdatePortfolio = (p: Portfolio) => {
-    setPortfolios((prev) => prev.map((x) => (x.id === p.id ? p : x)));
+    persistPortfolios(portfolios.map((x) => (x.id === p.id ? p : x)));
   };
 
   // Keyboard shortcut listener (Ctrl+K or Cmd+K) for Command Palette
@@ -810,7 +913,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-art-cream flex flex-col font-sans text-art-ink antialiased overflow-x-hidden">
+    <div className="min-h-screen bg-art-cream flex flex-col font-sans text-art-ink antialiased overflow-x-clip">
 
       {storageWarning && (
         <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-[11px] px-4 py-1.5 flex items-center justify-between flex-shrink-0">
@@ -841,8 +944,12 @@ export default function App() {
       )}
 
       {/* Top micro navbar */}
-      <header className="h-11 bg-white border-b border-art-ink/10 flex items-center justify-between px-4 select-none z-10 flex-shrink-0">
-        <div className="flex items-center space-x-2">
+      <header className="sticky top-0 z-40 h-11 bg-white border-b border-art-ink/10 flex items-center justify-between px-4 select-none flex-shrink-0">
+        <a
+          href="/"
+          className="flex items-center space-x-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-art-rust focus-visible:ring-offset-2"
+          aria-label="Siliconomics homepage"
+        >
           <div className="w-5 h-5 rounded bg-art-rust flex items-center justify-center font-serif font-black text-xs text-white italic">
             S
           </div>
@@ -850,7 +957,7 @@ export default function App() {
           <span className="text-[9px] text-art-ink/70 bg-art-cream border border-art-ink/10 px-1 rounded font-mono">
             Manhattan v1.0
           </span>
-        </div>
+        </a>
 
         {/* Global search trigger */}
         <button
@@ -1129,11 +1236,11 @@ export default function App() {
           <div className="border-t border-art-ink/10 pt-4 space-y-2 text-xs">
             <div className="flex items-center space-x-2 bg-art-cream p-2 rounded border border-art-ink/10">
               <div className="w-7 h-7 rounded-full bg-art-rust flex items-center justify-center font-serif italic font-bold text-[10px] text-white">
-                EX
+                {authUser.name.slice(0, 2).toUpperCase()}
               </div>
               <div className="truncate">
-                <span className="font-bold text-art-ink block truncate leading-none">eagleximpact</span>
-                <span className="text-[9px] text-art-ink/50 font-mono">eagleximpact@gmail.com</span>
+                <span className="font-bold text-art-ink block truncate leading-none">{authUser.name}</span>
+                <span className="text-[9px] text-art-ink/50 font-mono">{authUser.email}</span>
               </div>
             </div>
             <div className="text-[9px] text-art-ink/40 font-mono text-center block">
@@ -1153,6 +1260,7 @@ export default function App() {
           {activeTab === 'dashboard' && (
             <DashboardView
               builds={builds}
+              activeBuildId={activeBuildId}
               activities={activities}
               customArchetypes={customArchetypes}
               onAddCustomArchetype={handleAddCustomArchetype}
@@ -1208,6 +1316,10 @@ export default function App() {
               onHoverMetric={setHoveredTrace}
               onClickMetric={handleSelectMetric}
               onNavigate={setActiveTab}
+              onOpenBuild={(buildId) => {
+                setActiveBuildId(buildId);
+                setActiveTab('build');
+              }}
             />
           )}
 
@@ -1260,6 +1372,8 @@ export default function App() {
               activeBuild={activeBuild}
               comments={comments}
               activePersona={activePersona}
+              snapshots={snapshots}
+              snapshotsLoading={snapshotsLoading}
               onStatusTransition={handleStatusTransition}
               onNavigateCompare={handleNavigateCompare}
             />
@@ -1343,6 +1457,7 @@ export default function App() {
           decisions={decisions}
           onClose={() => setMeetingModeOpen(false)}
           activeBuildId={activeBuildId}
+          decisionApproverName={authUser.name}
           onRecordDecision={handleRecordDecision}
         />
       )}

@@ -4,6 +4,7 @@
 //   - client tools are returned to the browser for execution.
 
 import { CHIPPIE_KNOWLEDGE, type KnowledgeSection } from '../../src/data/chippieKnowledge.js';
+import { tryDirectAnswer } from './chippieDirectAnswer.js';
 import {
   CHIPPIE_PLAN_ANALYSIS_TOOL_DEFINITION,
   CHIPPIE_READ_NOTES_TOOL_DEFINITION,
@@ -22,7 +23,7 @@ import {
   type GtmAssetKind,
 } from '../../src/utils/chippieProtocol.js';
 
-const MAX_SERVER_TOOL_ROUNDS = 3;
+const MAX_SERVER_TOOL_ROUNDS = 5;
 const MAX_TRANSCRIPT_MESSAGES = 40;
 
 // ---------------------------------------------------------------------------
@@ -54,26 +55,27 @@ AFTER A TOOL RETURNS:
 - Answer the user's question directly using the numbers from the tool result. NEVER describe the JSON, the function call, or the mechanics of the tool ("this response is a JSON object...", "the output of the function..."). The user only sees your prose — speak to them, not about the data format.
 - For scenarios: state each key metric as "X (was Y)" with direction, then one sentence of takeaway.
 
-SELF-REVIEW:
-- Before your final response to any quantitative question or any answer that used tools, call review_answer with your drafted answer. It returns a quality checklist. Review each point and refine if needed.
-- If the checklist flags an issue, fix it before speaking. If everything passes, respond with your draft as-is.
+DIRECT REASONING (no tools needed):
+- For follow-up questions about interpretation, strategic implications, positioning, or conceptual analysis — where all relevant data is already in the conversation — reason directly from the conversation context WITHOUT calling tools.
+- Examples: "Does this mean we occupy a narrow niche?", "What are the implications of this for our roadmap?", "Is it fair to say those are complements rather than competitors?"
+- You have the full conversation history. Use it. Think deeply, consider nuance, and synthesize a substantive response.
 
-WORKING MEMORY (write_note / read_notes tools available):
-- Use write_note to store intermediate reasoning, partial findings from tools, or questions to follow up on between rounds.
-- Use read_notes to recall stored notes in later rounds — especially important for multi-step analysis where context may exceed the message window.
-- Notes persist for the entire conversation turn. Write early, read often.
+TOOL USAGE:
+- Call tools to get data you need. Once you have data from tools, SYNTHESIZE immediately — do not call more tools unless you genuinely lack specific information for your answer.
+- Never call a tool just to "plan" or "review" — answer directly using the data you have.
+- For metric lookups: get_active_build_metrics → answer with the numbers.
+- For what-ifs: run_scenario → answer with baseline vs. scenario.
+- For research: web_search or search_docs → synthesize findings into your answer.
+- For comparisons: compare_builds → summarize the contrast.
+- Maximum 2-3 tool calls per question. If you find yourself calling more, stop and synthesize what you have.
 
-PLAN-AND-EXECUTE (plan_analysis tool available):
-- For complex multi-step questions (anything requiring 3+ tool calls or combining web data with engine outputs), call plan_analysis with the user's question BEFORE any other tool.
-- plan_analysis returns a planning template. Write your execution plan to notes with key "plan". Then execute each step in order, reading the plan with read_notes after each step to stay on track.
+MARKET INTELLIGENCE (available via search_docs):
+- You have access to curated industry benchmarks: foundry wafer pricing by node, yield norms, packaging costs (CoWoS, FCCSP, FCBGA, InFO), TAM/SAM by segment, ASP ranges, JEDEC standards, supply chain concentration, and cost structure benchmarks.
+- When a user asks "how does our X compare to industry?" or seeks market context, search_docs with market-related terms (e.g., "foundry pricing 5nm", "packaging cost CoWoS", "TAM automotive").
+- ALWAYS clearly separate engine data (deterministic, from this build) from market context (curated benchmarks, approximate). Format: "**Engine:** [your build value] | **Industry benchmark:** [range] (source, vintage Q2 2026)."
+- Market data is REFERENCE CONTEXT — it does not override engine computations. Never use benchmark figures as inputs to engine calculations.
 
-FEW-SHOT TOOL PATTERNS:
-- **Pattern A — metric lookup**: User: "What is the gross margin of Manhattan-X1?" → get_active_build_metrics → review_answer(draft) → final answer with numbers from the tool result.
-- **Pattern B — external research + docs**: User: "How does TSMC's 2026 3nm pricing compare to our Manhattan-X1 wafer cost?" → plan_analysis(question) → write_note(key="plan", value="...") → web_search("TSMC 3nm wafer price 2026") → search_docs("wafer cost build assumptions") → get_active_build_metrics → read_notes → review_answer(draft) → final answer with separate "Engine:" and "Sources:" sections.
-- **Pattern C — what-if with sensitivity**: User: "What drives Manhattan-X1 margin and can we improve it?" → get_sensitivity_drivers → run_scenario(changes=[{field:"defectDensity", deltaPercent:-20}]) → review_answer(draft) → final answer.
-- Follow these patterns exactly. Call the tools in the order shown. Never skip review_answer for answers that used tools or contain numbers.
-
-TOOLS: Use search_docs for methodology/governance questions AND for any term, acronym, or definition you are not certain about (the docs include a full glossary — search it BEFORE saying you don't know). After search_docs returns, scan the results for unfamiliar terms and search again — chain multiple searches to fully understand a topic; get_active_build_metrics for current numbers; explain_metric for formula derivations; run_scenario for what-ifs; compare_builds to contrast two builds side-by-side; get_sensitivity_drivers to rank which parameters matter most for a metric; query_decisions for recorded executive decisions and follow-ups; generate_report to produce audit documents; navigate to move the user around the app; propose_assumption to suggest input changes; web_search for real-time internet data (latest news, competitor products, market pricing signals, public terminology not in the docs).${
+TOOLS: Use search_docs for methodology/governance questions, industry benchmarks, market intelligence, AND for any term, acronym, or definition you are not certain about (the docs include a full glossary and a curated market intelligence corpus — search it BEFORE saying you don't know). After search_docs returns, scan the results for unfamiliar terms and search again — chain multiple searches to fully understand a topic; get_active_build_metrics for current numbers; explain_metric for formula derivations; run_scenario for what-ifs; compare_builds to contrast two builds side-by-side; get_sensitivity_drivers to rank which parameters matter most for a metric; query_decisions for recorded executive decisions and follow-ups; generate_report to produce audit documents; navigate to move the user around the app; propose_assumption to suggest input changes; web_search for real-time internet data (latest news, competitor products, market pricing signals, public terminology not in the docs).${
     webSearchEnabled
       ? `
 
@@ -92,8 +94,13 @@ WEB SEARCH RULES (web_search tool available):
 
 FOUNDER MODE (GTM advisory) — the user is the founder:
 - You may also help draft go-to-market assets: teardown posts, design-partner outreach emails, partner briefs, and objection responses.
-- ALWAYS call draft_gtm_asset first to fetch the GTM grounding pack (positioning, ICP tiers, pricing, objection table) — never improvise positioning or pricing.
-- Every GTM draft MUST begin with the literal line "DRAFT — requires founder sign-off" and stay consistent with the grounding pack.
+- MANDATORY SEQUENCE for any GTM draft that references a build:
+  1. Call get_active_build_metrics FIRST to get real numbers.
+  2. Call draft_gtm_asset to get the grounding pack and format instructions.
+  3. Write the draft using ONLY real metrics from step 1 — never invent figures.
+  4. Call review_answer to validate before responding.
+- The draft is about the BUILD'S silicon economics — it is NOT a pitch for Siliconomics as a product. Use the grounding pack for tone/positioning, but the substance must be the build's actual yield, cost, margin, and volume story.
+- Every GTM draft MUST begin with the literal line "DRAFT — requires founder sign-off".
 - You draft only. You cannot send, post, or publish anything.`
       : ''
   }`;
@@ -239,6 +246,8 @@ async function executeServerTool(call: ChippieToolCall, opts: ServerToolOptions 
           'Web-sourced facts include the source URL and are clearly marked as external.',
           'The answer is concise, executive-grade, and directly addresses the user\'s question.',
           'No JSON, function names, or tool mechanics are described to the user.',
+          'For GTM drafts: the post contains at least 3 specific numeric metrics from the engine (yield, margin, cost, ASP, volume, NRE, etc.) — NOT from training data, NOT invented, NOT vague qualitative statements like "high yield" without a number.',
+          'For GTM drafts: the draft is about the ACTIVE BUILD\'s economics, not about the Siliconomics platform itself. It must NOT read like a product pitch for Siliconomics.',
         ],
         action: 'If the draft passes all criteria, respond with it as-is. If any criterion fails, produce a corrected version now.',
       });
@@ -353,7 +362,7 @@ const GTM_KIND_META: Record<GtmAssetKind, { sectionIdHints: string[]; instructio
   teardown_post: {
     sectionIdHints: ['positioning', 'content-engine', 'icp'],
     instructions:
-      'Write a LinkedIn/blog teardown post: hook (a surprising silicon-economics number), 3-5 short analytical paragraphs grounded in deterministic modeling, and a soft close pointing to Siliconomics. Educational tone, zero hype, no hard sell.',
+      'Write a LinkedIn/blog teardown post: hook (a surprising silicon-economics number FROM THE ACTIVE BUILD), 3-5 short analytical paragraphs grounded in deterministic modeling using REAL metrics from get_active_build_metrics, and a soft close pointing to Siliconomics. Educational tone, zero hype, no hard sell. The post MUST cite at least 3 specific numeric values from the engine (yield, margin, cost, volume, NRE, etc.) — never use placeholder or invented numbers.',
   },
   outreach_email: {
     sectionIdHints: ['icp', 'design-partner', 'positioning'],
@@ -379,7 +388,9 @@ function draftGtmAsset(kind: string | undefined, topic: string | undefined): str
   const meta = GTM_KIND_META[kind as GtmAssetKind];
   const gtmSections = CHIPPIE_KNOWLEDGE.filter((s) => s.source === '07-Go-To-Market.md');
   const matched = gtmSections.filter((s) => meta.sectionIdHints.some((h) => s.id.includes(h)));
-  const grounding = (matched.length > 0 ? matched : gtmSections).slice(0, 4);
+  const grounding = (matched.length > 0 ? matched : gtmSections).slice(0, 3);
+  // Truncate content to keep context small for NIM free tier
+  const MAX_GROUNDING_CHARS = 400;
   return JSON.stringify({
     kind,
     topic: topic ?? null,
@@ -388,10 +399,37 @@ function draftGtmAsset(kind: string | undefined, topic: string | undefined): str
       'The draft MUST begin with the literal line: "DRAFT — requires founder sign-off".',
       'Stay strictly consistent with the grounding sections — never invent positioning, pricing, or claims.',
       'You draft only; you cannot send, post, or publish.',
+      'BEFORE writing the draft, you MUST have called get_active_build_metrics in this conversation. If you have not, STOP and call it now — then resume drafting with the real numbers.',
+      'Every numeric claim in the draft must come from the engine output (get_active_build_metrics or run_scenario). If you lack a specific number, say "[METRIC NEEDED]" — never invent one.',
+      'Do NOT describe what Siliconomics is or repeat positioning copy verbatim. The grounding informs your TONE and framing, but the CONTENT must be the build\'s actual silicon economics story.',
     ],
-    grounding: grounding.map((s) => ({ title: s.title, content: s.content })),
+    grounding: grounding.map((s) => ({ title: s.title, content: s.content.length > MAX_GROUNDING_CHARS ? s.content.slice(0, MAX_GROUNDING_CHARS) + '...' : s.content })),
     provenance: 'docs/07-Go-To-Market.md via compiled knowledge pack.',
   });
+}
+
+// ---------------------------------------------------------------------------
+// GTM pre-grounding — detect teardown/GTM intent and return inline context
+// so the model skips the draft_gtm_asset server call (saves one NIM round).
+// ---------------------------------------------------------------------------
+
+function detectGtmIntent(lastUserContent: string): GtmAssetKind | null {
+  const text = lastUserContent.toLowerCase();
+  if (/teardown/i.test(text)) return 'teardown_post';
+  if (/outreach\s*email/i.test(text)) return 'outreach_email';
+  if (/partner\s*brief/i.test(text)) return 'partner_brief';
+  if (/objection/i.test(text)) return 'objection_response';
+  return null;
+}
+
+function buildGtmInlineContext(kind: GtmAssetKind): string {
+  const meta = GTM_KIND_META[kind];
+  const gtmSections = CHIPPIE_KNOWLEDGE.filter((s) => s.source === '07-Go-To-Market.md');
+  const matched = gtmSections.filter((s) => meta.sectionIdHints.some((h) => s.id.includes(h)));
+  const grounding = (matched.length > 0 ? matched : gtmSections).slice(0, 2);
+  const MAX_CHARS = 300;
+  const groundingText = grounding.map((s) => `• ${s.title}: ${s.content.slice(0, MAX_CHARS)}`).join('\n');
+  return `\n\nGTM GROUNDING (pre-loaded for ${kind}):\nInstructions: ${meta.instructions}\nRules: Begin with "DRAFT — requires founder sign-off". Use ONLY real numbers from get_active_build_metrics. Never invent figures. The draft is about the BUILD's economics, not about Siliconomics.\n${groundingText}\n\nYou already have the grounding — do NOT call draft_gtm_asset. Call get_active_build_metrics NOW to get real numbers, then write the draft.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -414,22 +452,153 @@ export function getNimConfig(env: Record<string, string | undefined> = process.e
   };
 }
 
-const NIM_ATTEMPT_TIMEOUT_MS = 25_000;
+function getComplexModel(env: Record<string, string | undefined> = process.env): string {
+  return env.CHIPPIE_MODEL_COMPLEX ?? 'meta/llama-3.1-70b-instruct';
+}
+
+function getWebSearchConfig(env: Record<string, string | undefined> = process.env): NimConfig | null {
+  const apiKey = env.CHIPPIE_WEBSEARCH_API_KEY;
+  const baseUrl = env.CHIPPIE_WEBSEARCH_BASE_URL;
+  const model = env.CHIPPIE_WEBSEARCH_MODEL;
+  if (!apiKey || !baseUrl || !model) return null;
+  return { apiKey, baseUrl: baseUrl.replace(/\/$/, ''), model };
+}
+
+// ---------------------------------------------------------------------------
+// Complexity classifier — routes queries to the appropriate tier:
+//   simple    → 8B model, base tools
+//   complex   → 70B model, full tools
+//   websearch → dedicated websearch provider, minimal tools
+//   reasoning → 70B model, NO tools (pure synthesis from conversation context)
+// ---------------------------------------------------------------------------
+
+type QueryComplexity = 'simple' | 'complex' | 'websearch' | 'reasoning';
+
+// Data-seeking patterns — if ANY match, the question needs tools (not pure reasoning)
+const DATA_SEEKING_PATTERN = /what\s*(is|are|was|'s)\s*(the|our|my|this)|how\s*much|\bcost\b|\bprice\b|\byield\b|\bmargin\b|\brevenue\b|\bwafer\b|\bdie\b|\bvolume\b|break.?even|\bmetric|\bnumber|\bcalculate|\bscenario|what.?if|\bsensitivity|\bsearch\b|\blatest\b|\bcurrent\b|\bbenchmark|\blook\s*up|\bfetch|\bget\s+(the|my|our)|\brun\s+(a|the)|\bgenerate\s+(a|the)|\bshow\s+(me|the)|\bnavigate/i;
+
+function classifyComplexity(transcript: ChippieMessage[], founderMode: boolean): QueryComplexity {
+  const lastUser = [...transcript].reverse().find((m) => m.role === 'user');
+  if (!lastUser || typeof lastUser.content !== 'string') return 'simple';
+  const text = lastUser.content.toLowerCase();
+  const userCount = transcript.filter((m) => m.role === 'user').length;
+
+  // GTM/founder-mode drafts → always complex
+  if (founderMode && /draft|teardown|outreach|partner\s*brief|objection/i.test(text)) return 'complex';
+
+  // Web search / research requests → dedicated websearch provider (fast tool-calling)
+  if (/web.?search|search\s+the\s+web|latest\s+news|recent\s+announcement|competitive\s*(landscape|analysis|positioning)|market\s*research|competitor|industry\s*(analysis|overview|report)/i.test(text)) return 'websearch';
+
+  // Market/industry comparison requiring benchmarks + engine data → complex
+  if (/industry\s+(benchmark|average|norm|standard)|market\s+(size|tam|sam|comparison)|how\s+does\s+(our|my|this).*compare/i.test(text)) return 'complex';
+
+  // Multi-step analysis patterns → complex
+  if (/what\s+(drives|affects|impacts).*and.*(how|can|should)/i.test(text)) return 'complex';
+  if (/compare.*and.*recommend/i.test(text)) return 'complex';
+  if (/analyze|assessment|evaluate.*portfolio/i.test(text)) return 'complex';
+  if (/plan|strategy|roadmap|tradeoff/i.test(text)) return 'complex';
+
+  // Compound questions (multiple question marks or "and" joining verbs)
+  if ((text.match(/\?/g) ?? []).length >= 2) return 'complex';
+
+  // Deep conversations: check if the follow-up needs data or is pure reasoning
+  if (userCount > 4) {
+    // If the follow-up has data-seeking keywords → complex (needs tools)
+    if (DATA_SEEKING_PATTERN.test(text)) return 'complex';
+    // Pure synthesis / interpretation / follow-up → reasoning (no tools)
+    return 'reasoning';
+  }
+
+  // Everything else → simple (single-tool dispatch, metric lookups, navigation, what-ifs)
+  return 'simple';
+}
+
+// ---------------------------------------------------------------------------
+// Trimmed system prompt for 8B — keeps provenance rules and tool patterns
+// but drops GTM, web search, plan-and-execute, working memory, and self-review
+// sections that the 8B can't reliably follow anyway.
+// ---------------------------------------------------------------------------
+
+function buildSimpleSystemPrompt(context?: ChippieRequest['context']): string {
+  const contextLine = context?.buildName
+    ? `Active build: "${context.buildName}" (${context.buildVersion ?? 'unversioned'}). Active persona: ${context.persona ?? 'unknown'}.`
+    : 'No active build context provided.';
+
+  return `You are Chippie, the embedded program advisor inside Siliconomics — a deterministic silicon economics decision platform.
+
+${contextLine}
+
+RULES:
+1. NEVER invent numbers. Every figure must come from a tool result. If you lack a number, call the tool.
+2. Use markdown. Be concise. Lead with the answer.
+3. What-if → call run_scenario. Never extrapolate yourself.
+4. Sign convention: for lower-is-better fields (defectDensity, waferCost, nreCost, tdp), "improves 20%" = deltaPercent: -20.
+5. After a tool returns, answer in natural prose using the numbers. Never describe JSON or tool mechanics.
+
+TOOLS: get_active_build_metrics (current numbers), explain_metric (formula derivation), run_scenario (what-ifs), navigate (move to a tab), get_sensitivity_drivers (rank drivers), compare_builds (contrast two builds), generate_report (audit docs), propose_assumption (suggest changes), query_decisions (decision history), search_docs (governance docs, glossary, AND industry benchmarks — foundry pricing, yield norms, packaging costs, TAM/SAM, JEDEC standards).`;
+}
+
+const NIM_ATTEMPT_TIMEOUT_MS = 45_000;
+const NIM_COMPLEX_TIMEOUT_MS = 90_000;
 const NIM_MAX_ATTEMPTS = 3;
+const NIM_COMPLEX_MAX_ATTEMPTS = 3;
 const NIM_RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// ---------------------------------------------------------------------------
+// NIM/Llama prompt templates only support single tool-calls per assistant turn.
+// When the client returns results for multiple tool_calls (e.g. the model
+// previously emitted 2 calls in one turn), we restructure the messages into
+// sequential single-tool-call pairs so NIM can process them.
+// ---------------------------------------------------------------------------
+function flattenParallelToolCalls(messages: ChippieMessage[]): ChippieMessage[] {
+  const out: ChippieMessage[] = [];
+  for (const msg of messages) {
+    if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 1) {
+      // Split into N sequential assistant+tool pairs
+      const toolResults = new Map<string, ChippieMessage>();
+      // Collect all tool results that follow this assistant message
+      for (const m of messages) {
+        if (m.role === 'tool' && m.tool_call_id) {
+          toolResults.set(m.tool_call_id, m);
+        }
+      }
+      for (const call of msg.tool_calls) {
+        out.push({ role: 'assistant', content: null, tool_calls: [call] });
+        const result = toolResults.get(call.id);
+        if (result) out.push(result);
+      }
+    } else if (msg.role === 'tool' && msg.tool_call_id) {
+      // Only include tool results that aren't already placed by the splitter above
+      const alreadyPlaced = out.some(
+        (o) => o.role === 'tool' && o.tool_call_id === msg.tool_call_id,
+      );
+      if (!alreadyPlaced) out.push(msg);
+    } else {
+      out.push(msg);
+    }
+  }
+  return out;
+}
+
 async function callNim(
   config: NimConfig,
   messages: ChippieMessage[],
-  opts: { tools?: boolean | readonly unknown[]; temperature?: number } = {},
+  opts: { tools?: boolean | readonly unknown[]; temperature?: number; complex?: boolean } = {},
 ): Promise<ChippieMessage> {
-  const { tools = true, temperature = 0 } = opts;
+  const { tools = true, temperature = 0, complex = false } = opts;
   const toolDefs = tools === true ? CHIPPIE_TOOL_DEFINITIONS : tools;
+  const timeoutMs = complex ? NIM_COMPLEX_TIMEOUT_MS : NIM_ATTEMPT_TIMEOUT_MS;
+  const maxAttempts = complex ? NIM_COMPLEX_MAX_ATTEMPTS : NIM_MAX_ATTEMPTS;
   let lastError: Error = new Error('NIM request failed');
 
-  for (let attempt = 1; attempt <= NIM_MAX_ATTEMPTS; attempt++) {
+  // Flatten any multi-tool-call assistant messages (NIM/Llama only supports one per turn).
+  // Skip for providers that natively support parallel tool calls (e.g. Opencode/DeepSeek).
+  const isNativeParallel = config.baseUrl.includes('opencode.ai');
+  const flatMessages = isNativeParallel ? messages : flattenParallelToolCalls(messages);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     let res: Response;
     try {
       res = await fetch(`${config.baseUrl}/chat/completions`, {
@@ -440,28 +609,28 @@ async function callNim(
         },
         body: JSON.stringify({
           model: config.model,
-          messages,
+          messages: flatMessages,
           ...(toolDefs ? { tools: toolDefs, tool_choice: 'auto' } : {}),
           // Greedy decoding by default — tool-call arguments must be deterministic
           // (0.2 let an 8B flip a deltaPercent sign).
           temperature,
           max_tokens: 1024,
         }),
-        signal: AbortSignal.timeout(NIM_ATTEMPT_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
       // Network failure or per-attempt timeout — retryable.
       lastError = new Error(
-        `NIM request ${err instanceof Error && err.name === 'TimeoutError' ? 'timed out' : 'failed'} (attempt ${attempt}/${NIM_MAX_ATTEMPTS}).`,
+        `NIM request ${err instanceof Error && err.name === 'TimeoutError' ? 'timed out' : 'failed'} (attempt ${attempt}/${maxAttempts}).`,
       );
-      if (attempt < NIM_MAX_ATTEMPTS) await sleep(500 * attempt);
+      if (attempt < maxAttempts) await sleep(500 * attempt);
       continue;
     }
 
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       lastError = new Error(`NIM request failed (${res.status}): ${detail.slice(0, 300)}`);
-      if (NIM_RETRYABLE_STATUSES.has(res.status) && attempt < NIM_MAX_ATTEMPTS) {
+      if (NIM_RETRYABLE_STATUSES.has(res.status) && attempt < maxAttempts) {
         await sleep(500 * attempt);
         continue;
       }
@@ -487,6 +656,319 @@ async function callNim(
 // ---------------------------------------------------------------------------
 // Demo fallback (no NIM_API_KEY configured).
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Streaming NIM adapter — SSE-compatible. Returns an async iterator of token
+// chunks for the final prose response. Only used when the model returns a text
+// message (not tool calls). Tool-calling turns stay non-streaming.
+// ---------------------------------------------------------------------------
+
+async function* callNimStreaming(
+  config: NimConfig,
+  messages: ChippieMessage[],
+  opts: { temperature?: number } = {},
+): AsyncGenerator<string, ChippieMessage, undefined> {
+  const { temperature = 0 } = opts;
+  const isNativeParallel = config.baseUrl.includes('opencode.ai');
+  const flatMessages = isNativeParallel ? messages : flattenParallelToolCalls(messages);
+
+  const res = await fetch(`${config.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: flatMessages,
+      temperature,
+      max_tokens: 1024,
+      stream: true,
+    }),
+    signal: AbortSignal.timeout(NIM_ATTEMPT_TIMEOUT_MS * 2), // Longer timeout for streaming
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`NIM streaming request failed (${res.status}): ${detail.slice(0, 300)}`);
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('No response body for streaming');
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullContent = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? ''; // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        const payload = trimmed.slice(6);
+        if (payload === '[DONE]') continue;
+
+        try {
+          const chunk = JSON.parse(payload) as {
+            choices?: { delta?: { content?: string }; finish_reason?: string }[];
+          };
+          const token = chunk.choices?.[0]?.delta?.content;
+          if (token) {
+            fullContent += token;
+            yield token;
+          }
+        } catch {
+          // Malformed chunk — skip
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  // Strip reasoning blocks
+  const cleaned = fullContent.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  return { role: 'assistant' as const, content: cleaned };
+}
+
+// ---------------------------------------------------------------------------
+// Streaming handler — runs the tool loop synchronously, then streams the
+// final synthesis turn. Returns an async generator of SSE-formatted strings.
+// ---------------------------------------------------------------------------
+
+export async function* handleChippieStreaming(
+  body: unknown,
+  env: Record<string, string | undefined> = process.env,
+): AsyncGenerator<string, void, undefined> {
+  const req = body as ChippieRequest | null;
+  if (!req || !Array.isArray(req.messages) || req.messages.length === 0) {
+    yield `data: ${JSON.stringify({ error: 'Request must include a non-empty messages array.' })}\n\n`;
+    yield 'data: [DONE]\n\n';
+    return;
+  }
+
+  const transcript = req.messages.filter((m) => m.role !== 'system');
+
+  // Direct-answer fast path — emit instantly as a single chunk
+  const lastUserMsg = [...transcript].reverse().find((m) => m.role === 'user');
+  if (lastUserMsg && transcript.filter((m) => m.role === 'user').length === 1) {
+    const directAnswer = tryDirectAnswer(
+      typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '',
+      { buildName: req.context?.buildName, persona: req.context?.persona },
+    );
+    if (directAnswer) {
+      yield `data: ${JSON.stringify({ type: 'message', content: directAnswer.message.content })}\n\n`;
+      yield 'data: [DONE]\n\n';
+      return;
+    }
+  }
+
+  const config = getNimConfig(env);
+  if (!config) {
+    yield `data: ${JSON.stringify({ type: 'message', content: '### Chippie — Demo Mode\n\nNo model backend configured.' })}\n\n`;
+    yield 'data: [DONE]\n\n';
+    return;
+  }
+
+  const founderMode = req.context?.founderMode === true;
+  const tavilyApiKey = env.TAVILY_API_KEY;
+  const toolOpts: ServerToolOptions = { founderMode, tavilyApiKey, notes: new Map() };
+
+  // GTM shortcut: for teardown/outreach queries, we KNOW the model needs
+  // get_active_build_metrics. Skip the first NIM call and return a synthetic
+  // tool_call immediately — saves 40+ seconds of NIM latency.
+  const lastUserContent = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+  const gtmIntent = founderMode ? detectGtmIntent(lastUserContent) : null;
+  if (gtmIntent && transcript.filter((m) => m.role === 'user').length === 1) {
+    const syntheticAssistant: ChippieMessage = {
+      role: 'assistant',
+      content: null,
+      tool_calls: [{ id: `gtm-${Date.now()}`, type: 'function', function: { name: 'get_active_build_metrics', arguments: '{}' } }],
+    };
+    yield `data: ${JSON.stringify({ type: 'status', status: 'Fetching build metrics for draft...' })}\n\n`;
+    yield `data: ${JSON.stringify({ type: 'tool_calls', message: syntheticAssistant, toolCalls: syntheticAssistant.tool_calls })}\n\n`;
+    yield 'data: [DONE]\n\n';
+    return;
+  }
+
+  // ── Model routing for streaming handler ──
+  const complexity = classifyComplexity(transcript, founderMode);
+  const useComplexModel = complexity === 'complex' || complexity === 'websearch' || complexity === 'reasoning';
+  const webSearchConfig = complexity === 'websearch' ? getWebSearchConfig(env) : null;
+  const activeModel = useComplexModel ? getComplexModel(env) : config.model;
+  const activeConfig: NimConfig = webSearchConfig ?? { ...config, model: activeModel };
+
+  // GTM pre-grounding: reuse gtmIntent from above to inline the grounding
+  // so the model skips the slow draft_gtm_asset server call entirely.
+
+  // Websearch tier gets a minimal tool set — only web_search + context tools.
+  // This prevents DeepSeek from looping through 16 tools and hitting the depth limit.
+  const websearchToolSet = [
+    CHIPPIE_TOOL_DEFINITIONS.find((t) => t.function.name === 'search_docs')!,
+    CHIPPIE_TOOL_DEFINITIONS.find((t) => t.function.name === 'get_active_build_metrics')!,
+    ...(tavilyApiKey ? [CHIPPIE_WEBSEARCH_TOOL_DEFINITION] : []),
+  ];
+
+  const toolSet = complexity === 'websearch'
+    ? websearchToolSet
+    : useComplexModel
+      ? [
+          ...CHIPPIE_TOOL_DEFINITIONS,
+          // Meta-tools (plan_analysis, write_note, read_notes, review) removed:
+          // they cause models to loop through prep steps and exhaust rounds.
+          ...(founderMode && !gtmIntent ? [CHIPPIE_GTM_TOOL_DEFINITION] : []),
+          ...(tavilyApiKey ? [CHIPPIE_WEBSEARCH_TOOL_DEFINITION] : []),
+        ]
+      : [...CHIPPIE_TOOL_DEFINITIONS];
+
+  let systemPrompt = useComplexModel
+    ? buildSystemPrompt(req.context, Boolean(tavilyApiKey))
+    : buildSimpleSystemPrompt(req.context);
+
+  // Append inline GTM grounding to system prompt
+  if (gtmIntent) {
+    systemPrompt += buildGtmInlineContext(gtmIntent);
+  }
+
+  const messages: ChippieMessage[] = [
+    { role: 'system', content: systemPrompt },
+    ...transcript,
+  ];
+
+  const SYNTHESIS_REMINDER: ChippieMessage = {
+    role: 'system',
+    content: 'Answer the user directly in natural prose using the values from the tool results above. Do NOT mention JSON, keys, functions, or tool mechanics.',
+  };
+
+  // ── Reasoning fast-path: no tools, stream directly ──
+  if (complexity === 'reasoning') {
+    console.log(`[chippie:stream] reasoning tier — streaming directly, no tools, model=${activeConfig.model}`);
+    try {
+      const streamer = callNimStreaming(activeConfig, messages);
+      let result = await streamer.next();
+      while (!result.done) {
+        yield `data: ${JSON.stringify({ type: 'token', token: result.value })}\n\n`;
+        result = await streamer.next();
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      yield `data: ${JSON.stringify({ type: 'error', error: msg })}\n\n`;
+    }
+    yield 'data: [DONE]\n\n';
+    return;
+  }
+
+  try {
+    // Run tool-calling rounds synchronously (non-streaming)
+    for (let round = 0; round <= MAX_SERVER_TOOL_ROUNDS; round += 1) {
+      const assistant = await callNim(activeConfig, messages, { tools: toolSet, complex: useComplexModel });
+      const toolCalls = assistant.tool_calls ?? [];
+
+      console.log(`[chippie:stream] round=${round} model=${activeConfig.model} toolCalls=${toolCalls.length} tools=[${toolCalls.map(c => c.function.name).join(',')}] content=${typeof assistant.content === 'string' ? assistant.content.slice(0, 80) : 'null'} reasoning=${(assistant as Record<string, unknown>).reasoning_content ? 'yes' : 'no'}`);
+
+      if (toolCalls.length === 0) {
+        // Empty-response guard for streaming — also check reasoning_content (DeepSeek)
+        let contentStr = typeof assistant.content === 'string' ? assistant.content.trim() : '';
+        // DeepSeek puts answers in reasoning_content when content is empty
+        if (contentStr.length === 0) {
+          const rc = (assistant as Record<string, unknown>).reasoning_content;
+          if (typeof rc === 'string' && rc.trim().length > 0) {
+            contentStr = rc.trim();
+            assistant.content = contentStr;
+          }
+        }
+        if (contentStr.length === 0 && round > 0 && round < MAX_SERVER_TOOL_ROUNDS) {
+          messages.push({ role: 'assistant', content: '' });
+          messages.push({
+            role: 'system',
+            content: 'Your response was empty. You have tool results above — use them to write a substantive answer to the user\'s question.',
+          });
+          continue;
+        }
+        // Final response — stream it if this is a synthesis after tools,
+        // otherwise emit as a single chunk (it's already complete).
+        if (round > 0) {
+          // Re-run the final turn as streaming (we already have it, just emit)
+          const content = contentStr || 'I wasn\'t able to generate a response for that request. Could you rephrase or try a simpler question?';
+          // Emit token-by-token simulation for smooth rendering
+          const words = content.split(/(\s+)/);
+          for (let i = 0; i < words.length; i += 3) {
+            const chunk = words.slice(i, i + 3).join('');
+            if (chunk) {
+              yield `data: ${JSON.stringify({ type: 'token', token: chunk })}\n\n`;
+            }
+          }
+        } else {
+          // First round, no tools used — try streaming from NIM directly
+          const synthMessages = messages[messages.length - 1]?.role === 'tool'
+            ? [...messages, SYNTHESIS_REMINDER]
+            : messages;
+          try {
+            const streamer = callNimStreaming(activeConfig, synthMessages);
+            let result = await streamer.next();
+            while (!result.done) {
+              yield `data: ${JSON.stringify({ type: 'token', token: result.value })}\n\n`;
+              result = await streamer.next();
+            }
+          } catch {
+            // Fallback: emit the non-streamed response as a whole
+            const content = typeof assistant.content === 'string' ? assistant.content : '';
+            yield `data: ${JSON.stringify({ type: 'message', content })}\n\n`;
+          }
+        }
+        yield 'data: [DONE]\n\n';
+        return;
+      }
+
+      // Handle tool calls
+      const serverCalls = toolCalls.filter((c) => isServerTool(c.function.name));
+      const clientCalls = toolCalls.filter((c) => !isServerTool(c.function.name));
+
+      if (clientCalls.length > 0) {
+        // Client tools needed — emit a tool_calls event and stop streaming
+        const serverResults: ChippieMessage[] = [];
+        for (const call of serverCalls) {
+          serverResults.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: await executeServerTool(call, toolOpts),
+          });
+        }
+        yield `data: ${JSON.stringify({ type: 'tool_calls', message: assistant, toolCalls: clientCalls, serverResults: serverResults.length > 0 ? serverResults : undefined })}\n\n`;
+        yield 'data: [DONE]\n\n';
+        return;
+      }
+
+      // Server-only tools — execute and loop
+      yield `data: ${JSON.stringify({ type: 'status', status: `Researching (${serverCalls.map((c) => c.function.name).join(', ')})...` })}\n\n`;
+      messages.push(assistant);
+      for (const call of serverCalls) {
+        messages.push({ role: 'tool', tool_call_id: call.id, content: await executeServerTool(call, toolOpts) });
+      }
+      // After web_search results arrive, nudge the model to synthesize
+      if (complexity === 'websearch' && serverCalls.some((c) => c.function.name === 'web_search')) {
+        messages.push({
+          role: 'system',
+          content: 'You have web search results above. Synthesize the findings into a direct answer NOW. Do NOT call more tools — answer the user with the data you have, citing source URLs.',
+        });
+      }
+    }
+
+    yield `data: ${JSON.stringify({ type: 'message', content: 'I hit my research depth limit. Try narrowing the question.' })}\n\n`;
+    yield 'data: [DONE]\n\n';
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    yield `data: ${JSON.stringify({ type: 'error', error: msg })}\n\n`;
+    yield 'data: [DONE]\n\n';
+  }
+}
 
 function demoResponse(): ChippieResponse {
   return {
@@ -527,6 +1009,20 @@ export async function handleChippieRequest(
   // Never trust a client-supplied system prompt.
   const transcript = req.messages.filter((m) => m.role !== 'system');
 
+  // ── Direct-answer fast path: intercept known-pattern queries before NIM. ──
+  // Only fires on the first user message (not mid-conversation follow-ups)
+  // to avoid hijacking contextual questions.
+  const lastUserMsg = [...transcript].reverse().find((m) => m.role === 'user');
+  if (lastUserMsg && transcript.filter((m) => m.role === 'user').length === 1) {
+    const directAnswer = tryDirectAnswer(
+      typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '',
+      { buildName: req.context?.buildName, persona: req.context?.persona },
+    );
+    if (directAnswer) {
+      return { status: 200, body: directAnswer };
+    }
+  }
+
   const config = getNimConfig(env);
   if (!config) {
     return { status: 200, body: demoResponse() };
@@ -535,19 +1031,67 @@ export async function handleChippieRequest(
   const founderMode = req.context?.founderMode === true;
   const tavilyApiKey = env.TAVILY_API_KEY;
   const toolOpts: ServerToolOptions = { founderMode, tavilyApiKey, notes: new Map() };
-  const toolSet = [
-    ...CHIPPIE_TOOL_DEFINITIONS,
-    CHIPPIE_REVIEW_TOOL_DEFINITION,
-    CHIPPIE_WRITE_NOTE_TOOL_DEFINITION,
-    CHIPPIE_READ_NOTES_TOOL_DEFINITION,
-    CHIPPIE_PLAN_ANALYSIS_TOOL_DEFINITION,
-    ...(founderMode ? [CHIPPIE_GTM_TOOL_DEFINITION] : []),
-    // Only advertise web_search when the server can actually execute it.
+
+  // GTM shortcut: for teardown/outreach first-message queries, skip the first
+  // NIM call and return a synthetic tool_call for get_active_build_metrics.
+  // Only fires when there are no tool results yet (prevents infinite loop).
+  const lastUserContent = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+  const gtmIntent = founderMode ? detectGtmIntent(lastUserContent) : null;
+  const hasToolResults = transcript.some((m) => m.role === 'tool');
+  if (gtmIntent && transcript.filter((m) => m.role === 'user').length === 1 && !hasToolResults) {
+    const syntheticAssistant: ChippieMessage = {
+      role: 'assistant',
+      content: null,
+      tool_calls: [{ id: `gtm-${Date.now()}`, type: 'function', function: { name: 'get_active_build_metrics', arguments: '{}' } }],
+    };
+    return {
+      status: 200,
+      body: { type: 'tool_calls', message: syntheticAssistant, toolCalls: syntheticAssistant.tool_calls },
+    };
+  }
+
+  // ── Model routing: classify query complexity ──
+  const complexity = classifyComplexity(transcript, founderMode);
+  const useComplexModel = complexity === 'complex' || complexity === 'websearch' || complexity === 'reasoning';
+  const webSearchConfig = complexity === 'websearch' ? getWebSearchConfig(env) : null;
+  const activeModel = useComplexModel ? getComplexModel(env) : config.model;
+  const activeConfig: NimConfig = webSearchConfig ?? { ...config, model: activeModel };
+
+  // GTM pre-grounding: detect teardown/outreach intent and inline the grounding
+
+  // Websearch tier gets a minimal tool set to prevent tool-calling loops.
+  const websearchToolSet = [
+    CHIPPIE_TOOL_DEFINITIONS.find((t) => t.function.name === 'search_docs')!,
+    CHIPPIE_TOOL_DEFINITIONS.find((t) => t.function.name === 'get_active_build_metrics')!,
     ...(tavilyApiKey ? [CHIPPIE_WEBSEARCH_TOOL_DEFINITION] : []),
   ];
 
+  // Simple queries get a trimmed tool set (no review, notes, plan — 8B can't use them reliably)
+  const toolSet = complexity === 'websearch'
+    ? websearchToolSet
+    : useComplexModel
+      ? [
+          ...CHIPPIE_TOOL_DEFINITIONS,
+          // Meta-tools removed — they cause models to loop through prep instead of answering.
+          ...(founderMode && !gtmIntent ? [CHIPPIE_GTM_TOOL_DEFINITION] : []),
+          ...(tavilyApiKey ? [CHIPPIE_WEBSEARCH_TOOL_DEFINITION] : []),
+        ]
+      : [
+          ...CHIPPIE_TOOL_DEFINITIONS,
+        ];
+
+  // Simple queries get a shorter system prompt that the 8B can follow
+  let systemPrompt = useComplexModel
+    ? buildSystemPrompt(req.context, Boolean(tavilyApiKey))
+    : buildSimpleSystemPrompt(req.context);
+
+  // Append inline GTM grounding to system prompt
+  if (gtmIntent) {
+    systemPrompt += buildGtmInlineContext(gtmIntent);
+  }
+
   const messages: ChippieMessage[] = [
-    { role: 'system', content: buildSystemPrompt(req.context, Boolean(tavilyApiKey)) },
+    { role: 'system', content: systemPrompt },
     ...transcript,
   ];
 
@@ -561,12 +1105,100 @@ export async function handleChippieRequest(
   const withReminder = (msgs: ChippieMessage[]): ChippieMessage[] =>
     msgs[msgs.length - 1]?.role === 'tool' ? [...msgs, SYNTHESIS_REMINDER] : msgs;
 
+  // Post-hoc hallucination guard: detect GTM drafts that contain positioning
+  // fluff without real build metrics. Triggers a correction prompt.
+  const GTM_FLUFF_PATTERNS = [
+    /siliconomics is the decision system/i,
+    /deterministic,?\s*auditable\s*(program)?\s*modeling/i,
+    /\$100M\+?\s*chip decisions/i,
+    /without\s*\$?100M\s*of\s*tribal\s*knowledge/i,
+    /computes,?\s*doesn'?t\s*guess/i,
+    /golden.test.locked/i,
+  ];
+  const NUM_PATTERN = /\b\d[\d,.]*%|\$[\d,.]+[BMK]?|\b\d[\d,.]+\s*(mm²|nm|units|wafers|M\b|B\b)/gi;
+
+  function isGtmHallucination(content: string): boolean {
+    if (!content.includes('DRAFT')) return false;
+    const fluffHits = GTM_FLUFF_PATTERNS.filter((p) => p.test(content)).length;
+    const metricMatches = content.match(NUM_PATTERN) ?? [];
+    // If more than 2 positioning phrases and fewer than 3 real numbers → likely hallucinated
+    return fluffHits >= 2 && metricMatches.length < 3;
+  }
+
+  const GTM_CORRECTION: ChippieMessage = {
+    role: 'system',
+    content:
+      'STOP. Your GTM draft contains generic Siliconomics positioning copy instead of the active build\'s real metrics. This is hallucination. You MUST call get_active_build_metrics now and rewrite the draft using the actual yield, margin, cost, and volume numbers from the engine. The draft should tell the BUILD\'s silicon economics story, not pitch the platform.',
+  };
+
   try {
+    // ── Reasoning fast-path: no tools, single call ──
+    if (complexity === 'reasoning') {
+      console.log(`[chippie] reasoning tier — no tools, model=${activeConfig.model}`);
+      const assistant = await callNim(activeConfig, withReminder(messages), { tools: false, complex: true });
+      let content = typeof assistant.content === 'string' ? assistant.content.trim() : '';
+      // DeepSeek fallback: check reasoning_content
+      if (!content) {
+        const rc = (assistant as Record<string, unknown>).reasoning_content;
+        if (typeof rc === 'string' && rc.trim()) {
+          content = rc.trim();
+          assistant.content = content;
+        }
+      }
+      if (!content) {
+        return { status: 200, body: { type: 'message', message: { role: 'assistant', content: 'I wasn\'t able to generate a response. Could you rephrase?' } } };
+      }
+      return { status: 200, body: { type: 'message', message: assistant } };
+    }
+
     for (let round = 0; round <= MAX_SERVER_TOOL_ROUNDS; round += 1) {
-      const assistant = await callNim(config, withReminder(messages), { tools: toolSet });
+      const assistant = await callNim(activeConfig, withReminder(messages), { tools: toolSet, complex: useComplexModel });
       const toolCalls = assistant.tool_calls ?? [];
 
       if (toolCalls.length === 0) {
+        // Check for GTM hallucination and force a correction round
+        if (founderMode && typeof assistant.content === 'string' && isGtmHallucination(assistant.content) && round < MAX_SERVER_TOOL_ROUNDS) {
+          messages.push(assistant);
+          messages.push(GTM_CORRECTION);
+          continue;
+        }
+        // Empty-response guard: if the model returned blank content after tool
+        // rounds, inject a nudge and retry rather than showing an empty bubble.
+        let contentStr = typeof assistant.content === 'string' ? assistant.content.trim() : '';
+        // DeepSeek fallback: check reasoning_content
+        if (contentStr.length === 0) {
+          const rc = (assistant as Record<string, unknown>).reasoning_content;
+          if (typeof rc === 'string' && rc.trim().length > 0) {
+            contentStr = rc.trim();
+            assistant.content = contentStr;
+          }
+        }
+        if (contentStr.length === 0 && round > 0 && round < MAX_SERVER_TOOL_ROUNDS) {
+          messages.push({ role: 'assistant', content: '' });
+          messages.push({
+            role: 'system',
+            content: 'Your response was empty. You have tool results above — use them to write a substantive answer to the user\'s question.',
+          });
+          continue;
+        }
+        // Quality gate: catch shallow responses (e.g., bare "You should navigate to X")
+        // and enrich them from the direct-answer bank when possible.
+        if (contentStr.length > 0 && contentStr.length < 120 && lastUserMsg) {
+          const enriched = tryDirectAnswer(
+            typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '',
+            { buildName: req.context?.buildName, persona: req.context?.persona },
+          );
+          if (enriched) {
+            return { status: 200, body: enriched };
+          }
+        }
+        // Final fallback: never return truly empty content
+        if (contentStr.length === 0) {
+          return {
+            status: 200,
+            body: { type: 'message', message: { role: 'assistant', content: 'I wasn\'t able to generate a response for that request. Could you rephrase or try a simpler question?' } },
+          };
+        }
         return { status: 200, body: { type: 'message', message: assistant } };
       }
 
@@ -601,6 +1233,13 @@ export async function handleChippieRequest(
       messages.push(assistant);
       for (const call of serverCalls) {
         messages.push({ role: 'tool', tool_call_id: call.id, content: await executeServerTool(call, toolOpts) });
+      }
+      // After web_search results arrive, nudge the model to synthesize
+      if (complexity === 'websearch' && serverCalls.some((c) => c.function.name === 'web_search')) {
+        messages.push({
+          role: 'system',
+          content: 'You have web search results above. Synthesize the findings into a direct answer NOW. Do NOT call more tools — answer the user with the data you have, citing source URLs.',
+        });
       }
     }
     return {

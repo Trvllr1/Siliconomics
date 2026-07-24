@@ -3,7 +3,7 @@ import { Build, Portfolio } from '../types';
 import { computeBuildMetrics, round } from '../utils/mathEngine';
 import {
   FolderOpen, Plus, Trash2, ChevronDown, ChevronRight, X,
-  TrendingUp, DollarSign, Percent, Layers, GitBranch, Clock, Tag
+  TrendingUp, DollarSign, Percent, Layers, GitBranch, Clock, Tag, AlertTriangle, CheckCircle2
 } from 'lucide-react';
 
 interface PortfolioViewProps {
@@ -22,10 +22,15 @@ export default function PortfolioView({
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newTags, setNewTags] = useState('');
+  const [newBuildIds, setNewBuildIds] = useState<string[]>([]);
   const [addingToPortfolio, setAddingToPortfolio] = useState<string | null>(null);
 
   const togglePortfolio = (id: string) => {
     setExpandedPortfolio(expandedPortfolio === id ? null : id);
+  };
+
+  const toggleNewBuild = (buildId: string) => {
+    setNewBuildIds(prev => prev.includes(buildId) ? prev.filter(id => id !== buildId) : [...prev, buildId]);
   };
 
   const handleCreate = (e: React.FormEvent) => {
@@ -35,7 +40,7 @@ export default function PortfolioView({
       id: `portfolio-${Date.now()}`,
       name: newName.trim(),
       description: newDesc.trim(),
-      buildIds: [],
+      buildIds: newBuildIds,
       tags: newTags.split(',').map(t => t.trim()).filter(Boolean),
       createdDate: new Date().toISOString().split('T')[0]!,
     };
@@ -43,6 +48,7 @@ export default function PortfolioView({
     setNewName('');
     setNewDesc('');
     setNewTags('');
+    setNewBuildIds([]);
     setShowCreate(false);
   };
 
@@ -64,12 +70,21 @@ export default function PortfolioView({
   const portfolioMetrics = (p: Portfolio) => {
     const pBuilds = builds.filter(b => p.buildIds.includes(b.id));
     const metrics = pBuilds.map(b => computeBuildMetrics(b));
-    const avgMargin = metrics.length > 0 ? metrics.reduce((s, m) => s + m.snapshot.grossMargin, 0) / metrics.length : 0;
+    // Volume-weighted gross margin (weighted by lifetime revenue)
+    const totalRevenue = metrics.reduce((s, m) => s + m.build.designModel.targetVolume * m.build.designModel.asp, 0);
+    const weightedMargin = totalRevenue > 0
+      ? metrics.reduce((s, m) => s + m.snapshot.grossMargin * (m.build.designModel.targetVolume * m.build.designModel.asp), 0) / totalRevenue
+      : 0;
     const totalNRE = pBuilds.reduce((s, b) => s + b.designModel.nreCost, 0);
     const totalProfit = metrics.reduce((s, m) => s + m.snapshot.lifetimeNetProfitMillion, 0);
-    const avgROI = metrics.length > 0 ? metrics.reduce((s, m) => s + m.snapshot.roi, 0) / metrics.length : 0;
+    const totalVolume = pBuilds.reduce((s, b) => s + b.designModel.targetVolume, 0);
+    const weightedROI = totalNRE > 0 ? (totalProfit / totalNRE) * 100 : 0;
     const approvedCount = pBuilds.filter(b => b.status === 'Approved').length;
-    return { totalBuilds: pBuilds.length, avgMargin, totalNRE, totalProfit, avgROI, approvedCount };
+    // Concentration: what % of profit comes from the top build
+    const sortedByProfit = [...metrics].sort((a, b) => b.snapshot.lifetimeNetProfitMillion - a.snapshot.lifetimeNetProfitMillion);
+    const topBuildProfit = sortedByProfit.length > 0 ? sortedByProfit[0]!.snapshot.lifetimeNetProfitMillion : 0;
+    const concentrationPct = totalProfit > 0 ? (topBuildProfit / totalProfit) * 100 : 0;
+    return { totalBuilds: pBuilds.length, weightedMargin, totalNRE, totalProfit, weightedROI, approvedCount, totalVolume, concentrationPct };
   };
 
   return (
@@ -114,6 +129,39 @@ export default function PortfolioView({
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Description</label>
               <textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={2}
                 className="w-full bg-art-cream border border-art-ink/15 rounded px-2.5 py-2 text-xs font-semibold outline-none focus:border-art-rust" placeholder="Describe the program or product family..." />
+            </div>
+          </div>
+          {/* Build selector */}
+          <div className="space-y-2">
+            <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Select Builds ({newBuildIds.length} selected)</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto bg-art-cream/30 border border-art-ink/10 rounded-lg p-3">
+              {builds.map((b) => {
+                const selected = newBuildIds.includes(b.id);
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => toggleNewBuild(b.id)}
+                    className={`flex items-center justify-between p-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                      selected
+                        ? 'bg-art-ink text-art-cream border-art-ink'
+                        : 'bg-white text-art-ink/80 border-art-ink/10 hover:border-art-rust/30'
+                    }`}
+                  >
+                    <div className="text-left">
+                      <div className="font-bold truncate">{b.name}</div>
+                      <div className={`text-[9px] font-mono mt-0.5 ${selected ? 'text-art-cream/60' : 'text-art-ink/40'}`}>
+                        {b.designModel.processNode} • {b.version} • {b.status}
+                      </div>
+                    </div>
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ml-2 ${
+                      selected ? 'bg-art-rust border-art-rust' : 'border-art-ink/20'
+                    }`}>
+                      {selected && <CheckCircle2 className="w-3 h-3 text-white" />}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="flex justify-end pt-2">
@@ -164,6 +212,12 @@ export default function PortfolioView({
                   </div>
                   <div className="flex items-center space-x-3 text-xs">
                     {/* Aggregate metric pills */}
+                    <span className="text-[9px] font-mono bg-art-cream text-art-ink/60 border border-art-ink/10 px-2 py-0.5 rounded-full font-bold">
+                      {round(pMetrics.totalVolume, 1)}M units
+                    </span>
+                    <span className="text-[9px] font-mono bg-art-cream text-art-ink/60 border border-art-ink/10 px-2 py-0.5 rounded-full font-bold">
+                      {round(pMetrics.weightedMargin, 1)}% margin
+                    </span>
                     <span className="text-[9px] font-mono bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full font-bold">
                       {pMetrics.approvedCount} approved
                     </span>
@@ -183,19 +237,22 @@ export default function PortfolioView({
                     <p className="text-xs text-art-ink/60 italic leading-relaxed">{p.description}</p>
 
                     {/* Aggregate stats */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                       {[
-                        { icon: <Layers className="w-3.5 h-3.5" />, label: 'Total Builds', value: String(pMetrics.totalBuilds), color: 'text-art-ink' },
-                        { icon: <Percent className="w-3.5 h-3.5" />, label: 'Avg Margin', value: `${round(pMetrics.avgMargin, 1)}%`, color: pMetrics.avgMargin > 30 ? 'text-green-600' : 'text-yellow-600' },
-                        { icon: <DollarSign className="w-3.5 h-3.5" />, label: 'Total NRE', value: `$${pMetrics.totalNRE}M`, color: 'text-art-ink' },
-                        { icon: <TrendingUp className="w-3.5 h-3.5" />, label: 'Total Profit', value: `$${round(pMetrics.totalProfit, 1)}M`, color: pMetrics.totalProfit > 0 ? 'text-green-600' : 'text-red-600' },
+                        { icon: <Layers className="w-3.5 h-3.5" />, label: 'Builds', value: String(pMetrics.totalBuilds), sub: `${pMetrics.approvedCount} approved`, color: 'text-art-ink' },
+                        { icon: <TrendingUp className="w-3.5 h-3.5" />, label: 'Volume', value: `${round(pMetrics.totalVolume, 1)}M`, sub: 'lifetime units', color: 'text-art-ink' },
+                        { icon: <Percent className="w-3.5 h-3.5" />, label: 'Wtd Margin', value: `${round(pMetrics.weightedMargin, 1)}%`, sub: 'revenue-weighted', color: pMetrics.weightedMargin > 50 ? 'text-green-600' : pMetrics.weightedMargin > 30 ? 'text-yellow-600' : 'text-red-600' },
+                        { icon: <DollarSign className="w-3.5 h-3.5" />, label: 'NRE Exposure', value: `$${pMetrics.totalNRE}M`, sub: 'total investment', color: 'text-art-ink' },
+                        { icon: <DollarSign className="w-3.5 h-3.5" />, label: 'Net Profit', value: `$${round(pMetrics.totalProfit, 1)}M`, sub: 'after NRE', color: pMetrics.totalProfit > 0 ? 'text-green-600' : 'text-red-600' },
+                        { icon: <AlertTriangle className="w-3.5 h-3.5" />, label: 'Concentration', value: `${round(pMetrics.concentrationPct, 0)}%`, sub: 'top-build share', color: pMetrics.concentrationPct > 70 ? 'text-yellow-600' : 'text-green-600' },
                       ].map((stat) => (
-                        <div key={stat.label} className="bg-art-cream/30 border border-art-ink/10 rounded-lg p-3 flex items-center space-x-2">
-                          <div className="text-art-rust">{stat.icon}</div>
-                          <div>
-                            <span className="text-[9px] font-mono text-art-ink/40 uppercase block">{stat.label}</span>
-                            <span className={`text-sm font-bold font-serif italic ${stat.color}`}>{stat.value}</span>
+                        <div key={stat.label} className="bg-art-cream/30 border border-art-ink/10 rounded-lg p-3">
+                          <div className="flex items-center space-x-1.5 mb-1">
+                            <div className="text-art-rust">{stat.icon}</div>
+                            <span className="text-[9px] font-mono text-art-ink/40 uppercase">{stat.label}</span>
                           </div>
+                          <span className={`text-lg font-bold font-serif italic block ${stat.color}`}>{stat.value}</span>
+                          <span className="text-[8px] font-mono text-art-ink/35 block mt-0.5">{stat.sub}</span>
                         </div>
                       ))}
                     </div>
@@ -237,7 +294,7 @@ export default function PortfolioView({
                                       }`}>{b.status}</span>
                                     </div>
                                     <div className="text-[9px] font-mono text-art-ink/40 mt-0.5">
-                                      {b.designModel.processNode} • v{b.version} • {b.designModel.topology}
+                                      {b.designModel.processNode} • {b.version} • {b.designModel.topology}
                                     </div>
                                   </div>
                                 </div>
@@ -277,7 +334,7 @@ export default function PortfolioView({
       {/* Add build dialog */}
       {addingToPortfolio && (
         <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50" onClick={() => setAddingToPortfolio(null)}>
-          <div className="bg-white rounded-xl shadow-2xl border-2 border-art-ink/10 p-5 w-full max-w-md mx-4 space-y-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-2xl border-2 border-art-ink/10 p-5 w-full max-w-lg mx-4 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-art-ink/10 pb-3">
               <div className="flex items-center space-x-2">
                 <Plus className="w-5 h-5 text-art-rust" />
@@ -285,20 +342,33 @@ export default function PortfolioView({
               </div>
               <button onClick={() => setAddingToPortfolio(null)} className="text-xs text-art-ink/40 hover:text-art-ink font-bold cursor-pointer">Close</button>
             </div>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
+            <div className="space-y-2 max-h-64 overflow-y-auto">
               {availableBuilds(addingToPortfolio).length === 0 ? (
                 <p className="text-xs text-art-ink/40 py-4 text-center">All builds are already in this portfolio.</p>
               ) : (
-                availableBuilds(addingToPortfolio).map((b) => (
-                  <button
-                    key={b.id}
-                    onClick={() => { addBuildToPortfolio(addingToPortfolio, b.id); setAddingToPortfolio(null); }}
-                    className="w-full text-left p-3 hover:bg-art-cream rounded-lg border border-art-ink/10 text-xs font-semibold flex items-center justify-between transition-all cursor-pointer"
-                  >
-                    <span>{b.name}</span>
-                    <span className="text-[9px] font-mono text-art-ink/40">{b.designModel.processNode} • {b.status}</span>
-                  </button>
-                ))
+                availableBuilds(addingToPortfolio).map((b) => {
+                  const m = computeBuildMetrics(b);
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => { addBuildToPortfolio(addingToPortfolio, b.id); }}
+                      className="w-full text-left p-3 hover:bg-art-cream rounded-lg border border-art-ink/10 text-xs font-semibold flex items-center justify-between transition-all cursor-pointer"
+                    >
+                      <div>
+                        <span className="text-art-ink block">{b.name}</span>
+                        <span className="text-[9px] font-mono text-art-ink/40 block mt-0.5">{b.designModel.processNode} • {b.designModel.topology} • {b.designModel.targetVolume}M units</span>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-[10px] font-mono font-bold ${m.snapshot.grossMargin > 50 ? 'text-green-600' : 'text-yellow-600'}`}>{round(m.snapshot.grossMargin, 1)}%</span>
+                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full uppercase block mt-0.5 ${
+                          b.status === 'Approved' ? 'bg-green-50 text-green-700' :
+                          b.status === 'Draft' ? 'bg-gray-50 text-gray-500' :
+                          'bg-yellow-50 text-yellow-700'
+                        }`}>{b.status}</span>
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
@@ -322,7 +392,7 @@ function LineageTree({ builds }: { builds: Build[] }) {
           {depth > 0 && <div className="w-4 h-px bg-art-rust/30" />}
           <div className={`w-2 h-2 rounded-full ${build.status === 'Approved' ? 'bg-green-500' : build.status === 'TechnicalReview' || build.status === 'FinancialReview' || build.status === 'ProgramReview' ? 'bg-yellow-500' : 'bg-art-ink/30'}`} />
           <span className="text-[11px] font-semibold text-art-ink">{build.name}</span>
-          <span className="text-[9px] font-mono text-art-ink/40">v{build.version}</span>
+          <span className="text-[9px] font-mono text-art-ink/40">{build.version}</span>
         </div>
         {children.map(child => renderNode(child, depth + 1))}
       </div>

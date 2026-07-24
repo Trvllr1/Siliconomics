@@ -2,7 +2,7 @@ import type { VercelResponse } from '@vercel/node';
 import { AuthenticatedRequest, requireAuth } from './middleware';
 import { db } from '../db';
 import { builds, buildEvents } from '../db/schema';
-import { eq, desc, isNull } from 'drizzle-orm';
+import { and, eq, desc, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 
 const FREEZE_STATUSES = ['TechnicalReview', 'FinancialReview', 'ProgramReview', 'Approved', 'Alert'];
@@ -31,6 +31,8 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
         return createBuild(req, res);
       case 'PATCH':
         return updateBuild(req, res);
+      case 'DELETE':
+        return deleteBuild(req, res);
       default:
         return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -44,15 +46,15 @@ async function getBuilds(req: AuthenticatedRequest, res: VercelResponse) {
   const includeFrozen = req.query.includeFrozen === 'true';
 
   if (id) {
-    const build = await db.select().from(builds).where(eq(builds.id, id)).limit(1);
+    const build = await db.select().from(builds).where(and(eq(builds.id, id), isNull(builds.deletedAt))).limit(1);
     if (!build.length) return res.status(404).json({ error: 'Build not found' });
     return res.json(build[0]);
   }
 
-  let query = db.select().from(builds).orderBy(desc(builds.updatedDate));
+  let query = db.select().from(builds).where(isNull(builds.deletedAt)).orderBy(desc(builds.updatedDate));
 
   if (!includeFrozen) {
-    query = db.select().from(builds).where(isNull(builds.frozenAt)).orderBy(desc(builds.updatedDate)) as any;
+    query = db.select().from(builds).where(and(isNull(builds.deletedAt), isNull(builds.frozenAt))).orderBy(desc(builds.updatedDate)) as any;
   }
 
   const result = await query;
@@ -98,7 +100,7 @@ async function updateBuild(req: AuthenticatedRequest, res: VercelResponse) {
   const id = req.query.id as string;
   if (!id) return res.status(400).json({ error: 'id query param is required' });
 
-  const existing = await db.select().from(builds).where(eq(builds.id, id)).limit(1);
+  const existing = await db.select().from(builds).where(and(eq(builds.id, id), isNull(builds.deletedAt))).limit(1);
   if (!existing.length) return res.status(404).json({ error: 'Build not found' });
 
   const build = existing[0]!;
@@ -141,4 +143,36 @@ async function updateBuild(req: AuthenticatedRequest, res: VercelResponse) {
   });
 
   return res.json(updated);
+}
+
+async function deleteBuild(req: AuthenticatedRequest, res: VercelResponse) {
+  const id = req.query.id as string;
+  if (!id) return res.status(400).json({ error: 'id query param is required' });
+
+  const existing = await db.select().from(builds).where(and(eq(builds.id, id), isNull(builds.deletedAt))).limit(1);
+  if (!existing.length) return res.status(404).json({ error: 'Build not found' });
+
+  const build = existing[0]!;
+  if (build.frozenAt || FREEZE_STATUSES.includes(build.status)) {
+    return res.status(409).json({
+      error: 'Build is frozen',
+      detail: 'Frozen or review Builds cannot be deleted. Create a new version instead.',
+    });
+  }
+
+  const deletedAt = new Date();
+  const [deleted] = await db.update(builds)
+    .set({ deletedAt, updatedDate: deletedAt })
+    .where(and(eq(builds.id, id), isNull(builds.deletedAt)))
+    .returning();
+  if (!deleted) return res.status(404).json({ error: 'Build not found' });
+
+  await db.insert(buildEvents).values({
+    buildId: id,
+    actorId: req.userId!,
+    eventType: 'deleted',
+    payload: { name: build.name, deletedAt: deletedAt.toISOString() },
+  });
+
+  return res.status(204).end();
 }

@@ -11,7 +11,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Build, Decision, PersonaType } from '../types';
 import { ComputedBuildMetrics } from '../utils/mathEngine';
-import type { ChippieMessage, ChippieResponse } from '../utils/chippieProtocol';
+import type { ChippieMessage, ChippieResponse, ChippieToolCall } from '../utils/chippieProtocol';
 import { executeClientTool, type ChippieToolActivity, type ChippieProposal } from '../utils/chippieTools';
 import { Send, Bot, User, Loader2, Sparkles, AlertCircle, RefreshCw, Wrench, GitBranch, Check, Copy } from 'lucide-react';
 
@@ -219,6 +219,102 @@ Reviewing **${activeBuild.name}** as **${activePersona}**. Ask me to explain a m
     return data;
   };
 
+  /** Stream the response from SSE endpoint. Returns the final assembled content
+   * or falls back to non-streaming if the stream endpoint isn't available. */
+  const callApiStreaming = async (
+    onToken: (token: string) => void,
+    onStatus?: (status: string) => void,
+  ): Promise<ChippieResponse | null> => {
+    const response = await fetch('/api/chippie/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: transcriptRef.current,
+        context: {
+          buildName: activeBuild.name,
+          buildVersion: activeBuild.version,
+          persona: activePersona,
+          ...(FOUNDER_MODE ? { founderMode: true } : {}),
+        },
+      }),
+    });
+
+    if (!response.ok || !response.body) {
+      // Fall back to non-streaming
+      return null;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullContent = '';
+    let toolCallResponse: ChippieResponse | null = null;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          const payload = trimmed.slice(6);
+          if (payload === '[DONE]') continue;
+
+          try {
+            const event = JSON.parse(payload) as {
+              type: 'token' | 'message' | 'tool_calls' | 'status' | 'error';
+              token?: string;
+              content?: string;
+              status?: string;
+              error?: string;
+              message?: ChippieMessage;
+              toolCalls?: ChippieToolCall[];
+              serverResults?: ChippieMessage[];
+            };
+
+            if (event.type === 'token' && event.token) {
+              fullContent += event.token;
+              onToken(event.token);
+            } else if (event.type === 'message' && event.content) {
+              fullContent = event.content;
+              onToken(event.content);
+            } else if (event.type === 'status' && event.status) {
+              onStatus?.(event.status);
+            } else if (event.type === 'tool_calls') {
+              toolCallResponse = {
+                type: 'tool_calls',
+                message: event.message ?? { role: 'assistant', content: null },
+                toolCalls: event.toolCalls,
+                serverResults: event.serverResults,
+              };
+            } else if (event.type === 'error') {
+              throw new Error(event.error ?? 'Streaming error');
+            }
+          } catch (e) {
+            if (e instanceof Error && e.message !== 'Streaming error') continue; // Malformed chunk
+            throw e;
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    // If the model needed client tools, return the tool_calls response
+    if (toolCallResponse) return toolCallResponse;
+
+    // Otherwise return the assembled message
+    return {
+      type: 'message',
+      message: { role: 'assistant', content: fullContent },
+    };
+  };
+
   const handleSend = async (textToSend: string) => {
     if (!textToSend.trim() || loading) return;
 
@@ -232,31 +328,48 @@ Reviewing **${activeBuild.name}** as **${activePersona}**. Ask me to explain a m
     setInputText('');
     transcriptRef.current = [...transcriptRef.current, { role: 'user', content: textToSend }];
 
+    // Streaming message ID for progressive updates
+    const streamMsgId = `stream-${Date.now()}`;
+    let streamingStarted = false;
+
     try {
-      for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
-        const data = await callApi();
-        if (data.isDemo) setIsDemo(true);
+      // Attempt streaming first
+      const streamResult = await callApiStreaming(
+        (token) => {
+          if (!streamingStarted) {
+            streamingStarted = true;
+            setStatusLine('');
+            setMessages((prev) => [
+              ...prev,
+              { id: streamMsgId, sender: 'assistant', text: token, timestamp: nowStamp() },
+            ]);
+          } else {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === streamMsgId ? { ...m, text: m.text + token } : m)),
+            );
+          }
+        },
+        (status) => setStatusLine(status),
+      );
 
-        transcriptRef.current = [...transcriptRef.current, data.message];
-
-        if (data.type === 'message' || !data.toolCalls || data.toolCalls.length === 0) {
+      if (streamResult && streamResult.type === 'message') {
+        // Streaming completed with a final message
+        transcriptRef.current = [...transcriptRef.current, streamResult.message];
+        if (!streamingStarted) {
+          // Direct-answer or instant response — didn't stream token-by-token
           setMessages((prev) => [
             ...prev,
-            {
-              id: Math.random().toString(),
-              sender: 'assistant',
-              text: data.message.content ?? '(no response)',
-              timestamp: nowStamp(),
-            },
+            { id: streamMsgId, sender: 'assistant', text: streamResult.message.content ?? '', timestamp: nowStamp() },
           ]);
-          break;
         }
-
-        // Execute client tools, include any server results piggybacked this round
-        const toolMessages: ChippieMessage[] = [...(data.serverResults ?? [])];
+      } else if (streamResult && streamResult.type === 'tool_calls' && streamResult.toolCalls) {
+        // Tool calls needed — execute them and continue with non-streaming loop
+        transcriptRef.current = [...transcriptRef.current, streamResult.message];
+        const toolMessages: ChippieMessage[] = [...(streamResult.serverResults ?? [])];
         const activities: ChippieToolActivity[] = [];
         const proposals: ChippieProposal[] = [];
-        for (const call of data.toolCalls) {
+
+        for (const call of streamResult.toolCalls) {
           setStatusLine(`Running ${call.function.name.replace(/_/g, ' ')}...`);
           const { content, activity } = await executeClientTool(call, {
             activeBuild,
@@ -272,7 +385,7 @@ Reviewing **${activeBuild.name}** as **${activePersona}**. Ask me to explain a m
             try {
               const parsed = JSON.parse(content) as { proposal?: ChippieProposal };
               if (parsed.proposal) proposals.push(parsed.proposal);
-            } catch { /* malformed tool output — no card */ }
+            } catch { /* malformed tool output */ }
           }
         }
 
@@ -281,7 +394,61 @@ Reviewing **${activeBuild.name}** as **${activePersona}**. Ask me to explain a m
           ...prev,
           { id: Math.random().toString(), sender: 'tools', text: '', activities, proposals: proposals.length > 0 ? proposals : undefined, timestamp: nowStamp() },
         ]);
+
+        // Now get the synthesis via non-streaming (tool results need to be sent back)
         setStatusLine('Synthesizing answer...');
+        const synthesis = await callApi();
+        transcriptRef.current = [...transcriptRef.current, synthesis.message];
+        setMessages((prev) => [
+          ...prev,
+          { id: Math.random().toString(), sender: 'assistant', text: synthesis.message.content ?? '(no response)', timestamp: nowStamp() },
+        ]);
+      } else {
+        // Streaming failed or returned null — fall back to non-streaming loop
+        for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
+          const data = await callApi();
+          if (data.isDemo) setIsDemo(true);
+
+          transcriptRef.current = [...transcriptRef.current, data.message];
+
+          if (data.type === 'message' || !data.toolCalls || data.toolCalls.length === 0) {
+            setMessages((prev) => [
+              ...prev,
+              { id: Math.random().toString(), sender: 'assistant', text: data.message.content ?? '(no response)', timestamp: nowStamp() },
+            ]);
+            break;
+          }
+
+          const toolMessages: ChippieMessage[] = [...(data.serverResults ?? [])];
+          const activities: ChippieToolActivity[] = [];
+          const proposals: ChippieProposal[] = [];
+          for (const call of data.toolCalls) {
+            setStatusLine(`Running ${call.function.name.replace(/_/g, ' ')}...`);
+            const { content, activity } = await executeClientTool(call, {
+              activeBuild,
+              computedMetrics,
+              activePersona,
+              builds,
+              decisions,
+              onNavigate,
+            });
+            toolMessages.push({ role: 'tool', tool_call_id: call.id, content });
+            activities.push(activity);
+            if (call.function.name === 'propose_assumption') {
+              try {
+                const parsed = JSON.parse(content) as { proposal?: ChippieProposal };
+                if (parsed.proposal) proposals.push(parsed.proposal);
+              } catch { /* malformed */ }
+            }
+          }
+
+          transcriptRef.current = [...transcriptRef.current, ...toolMessages];
+          setMessages((prev) => [
+            ...prev,
+            { id: Math.random().toString(), sender: 'tools', text: '', activities, proposals: proposals.length > 0 ? proposals : undefined, timestamp: nowStamp() },
+          ]);
+          setStatusLine('Synthesizing answer...');
+        }
       }
     } catch (err) {
       console.error(err);

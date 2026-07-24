@@ -6,10 +6,17 @@
   --font-serif: "Fraunces", Georgia, serif;
   --font-mono: "JetBrains Mono", monospace;
 
-  /* Redefining core brand elements for rich, elegant dark mode */
-  --color-art-cream: #0D1117;  /* Deep charcoal for backgrounds */
-  --color-art-ink: #F0F6FC;    /* Cool off-white for primary typography/borders */
-  --color-art-rust: #00BFA6;   /* Vibrant teal for key callouts */
+  --color-art-cream: #0D1117;
+  --color-art-ink: #F0F6FC;
+  --color-art-rust: #00BFA6;
+
+  --color-surface-1: #161B22;
+  --color-surface-2: #1C2128;
+  --color-eng-blue: #5B9DFF;
+  --color-ver-green: #34D399;
+  --color-mfg-amber: #FBBF24;
+  --color-fin-gold: #D9B45B;
+  --color-risk-crimson: #F87171;
 }
 
 /* Master class-level overrides to translate standard layouts to Dark Mode */
@@ -98,5 +105,418 @@ select, select option, input[type="text"] {
 /* Recharts legend item text color override for dark theme contrast */
 .recharts-legend-item-text {
   color: #D3D1CD !important;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Skip link */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 0;
+  z-index: 1000;
+  padding: 8px 16px;
+  background: #00BFA6;
+  color: #0D1117;
+  font-size: 14px;
+  font-weight: bold;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 0;
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid #00BFA6;
+  outline-offset: 2px;
+}
+
+/* Blueprint grid texture — architectural background pattern */
+.blueprint-grid {
+  background-image:
+    linear-gradient(rgba(240, 246, 252, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(240, 246, 252, 0.03) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* Hero radial vignette — subtle atmospheric depth */
+.hero-vignette {
+  background: radial-gradient(ellipse at center, rgba(240, 246, 252, 0.02) 0%, transparent 70%);
+}
+
+/* Public-site authority layer: a richer field for product billboards and visual proof. */
+.silicon-billboard {
+  background:
+    radial-gradient(ellipse 33rem 21rem at 91% 10%, rgba(91, 157, 255, 0.28), transparent 72%),
+    radial-gradient(ellipse 30rem 20rem at 78% 67%, rgba(0, 191, 166, 0.22), transparent 74%),
+    radial-gradient(ellipse 46rem 13rem at 78% 104%, transparent 0 34%, rgba(0, 191, 166, 0.38) 34.3% 34.9%, transparent 35.3% 46%, rgba(91, 157, 255, 0.24) 46.3% 46.9%, transparent 47.3%),
+    radial-gradient(ellipse 42rem 12rem at 76% 110%, transparent 0 31%, rgba(0, 191, 166, 0.24) 31.3% 31.8%, transparent 32.2% 42%, rgba(217, 180, 91, 0.20) 42.3% 42.8%, transparent 43.2%),
+    radial-gradient(circle at 82% 27%, rgba(0, 191, 166, 0.34), transparent 20rem),
+    radial-gradient(circle at 62% 48%, rgba(91, 157, 255, 0.18), transparent 19rem),
+    radial-gradient(circle at 55% 72%, rgba(217, 180, 91, 0.19), transparent 18rem),
+    linear-gradient(110deg, #0D1117 0%, #102331 47%, #0B1B2A 100%);
+  background-size: auto, auto, auto, auto, auto, auto, auto;
+}
+
+.silicon-signal-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.silicon-signal-arc {
+  position: absolute;
+  border: 2px solid currentColor;
+  border-left-color: transparent;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  filter: drop-shadow(0 0 12px currentColor);
+  opacity: 0.8;
+  transform: rotate(-18deg);
+  animation: signal-drift 11s ease-in-out infinite alternate;
+}
+
+.silicon-signal-arc--teal {
+  top: -24rem;
+  right: -11rem;
+  width: 54rem;
+  height: 54rem;
+  color: rgba(0, 191, 166, 0.78);
+}
+
+.silicon-signal-arc--blue {
+  top: -18rem;
+  right: -18rem;
+  width: 46rem;
+  height: 46rem;
+  color: rgba(91, 157, 255, 0.72);
+  animation-delay: -4s;
+}
+
+.silicon-signal-arc--gold {
+  bottom: -30rem;
+  right: 7rem;
+  width: 47rem;
+  height: 47rem;
+  color: rgba(217, 180, 91, 0.6);
+  animation-delay: -7s;
+}
+
+.silicon-signal-trace {
+  position: absolute;
+  top: 43%;
+  right: 0;
+  width: 48%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 191, 166, 0.85) 22%, rgba(91, 157, 255, 0.76) 68%, transparent);
+  box-shadow: 0 0 18px rgba(0, 191, 166, 0.55);
+  transform: rotate(-8deg);
+}
+
+@keyframes signal-drift {
+  from { translate: 0 0; }
+  to { translate: -1.5rem 1rem; }
+}
+
+.silicon-grid:not(.silicon-billboard) {
+  background-image:
+    linear-gradient(rgba(240, 246, 252, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(240, 246, 252, 0.045) 1px, transparent 1px),
+    radial-gradient(circle at 78% 56%, rgba(240, 246, 252, 0.12) 0 1px, transparent 1.5px);
+  background-size: 44px 44px, 44px 44px, 14px 14px;
+  background-position: center, center, 0 0;
+}
+
+.authority-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.card-reveal {
+  overflow: hidden;
+}
+
+.card-reveal img {
+  transition: transform 500ms ease, filter 500ms ease;
+}
+
+.card-reveal:hover img {
+  filter: saturate(1.1) brightness(1.05);
+  transform: scale(1.03);
+}
+
+/* Reusable product-proof surface for public-site editorial sections. */
+.visual-evidence-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(240, 246, 252, 0.2);
+  background:
+    linear-gradient(rgba(240, 246, 252, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(240, 246, 252, 0.055) 1px, transparent 1px),
+    #0D1117;
+  background-size: 28px 28px, 28px 28px, auto;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.32);
+}
+
+.visual-evidence-panel__field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.visual-evidence-panel__orbit {
+  position: absolute;
+  border: 1px solid;
+  border-radius: 50%;
+  filter: drop-shadow(0 0 9px currentColor);
+}
+
+.visual-evidence-panel__orbit--one {
+  top: -62%;
+  right: -18%;
+  width: 26rem;
+  height: 26rem;
+  border-color: rgba(0, 191, 166, 0.75);
+}
+
+.visual-evidence-panel__orbit--two {
+  bottom: -76%;
+  left: -22%;
+  width: 25rem;
+  height: 25rem;
+  border-color: rgba(91, 157, 255, 0.65);
+}
+
+.visual-evidence-panel__trace {
+  position: absolute;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 191, 166, 0.85), transparent);
+  box-shadow: 0 0 12px rgba(0, 191, 166, 0.7);
+}
+
+.visual-evidence-panel__trace--one {
+  top: 33%;
+  left: -12%;
+  width: 88%;
+  transform: rotate(-13deg);
+}
+
+.visual-evidence-panel__trace--two {
+  right: -18%;
+  bottom: 28%;
+  width: 72%;
+  background: linear-gradient(90deg, transparent, rgba(91, 157, 255, 0.82), transparent);
+  box-shadow: 0 0 12px rgba(91, 157, 255, 0.65);
+  transform: rotate(12deg);
+}
+
+.visual-evidence-panel__core {
+  position: absolute;
+  top: 45%;
+  right: 28%;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #FBBF24;
+  box-shadow: 0 0 0 7px rgba(251, 191, 36, 0.1), 0 0 18px rgba(251, 191, 36, 0.9);
+}
+
+.visual-evidence-panel__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 20rem;
+  object-fit: cover;
+  object-position: top center;
+  filter: saturate(1.1) contrast(1.04);
+  transition: transform 600ms ease, filter 600ms ease;
+}
+
+.visual-evidence-panel:hover .visual-evidence-panel__image {
+  filter: saturate(1.24) contrast(1.08);
+  transform: scale(1.035);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SECTION ATMOSPHERE SYSTEM — visual authority for every section
+   ═══════════════════════════════════════════════════════════ */
+
+/* Deep immersive: multi-layer teal/blue radials over dark base + dot grid */
+.section-atmosphere--deep {
+  position: relative;
+  background:
+    radial-gradient(ellipse 60% 50% at 80% 20%, rgba(0, 191, 166, 0.08), transparent),
+    radial-gradient(ellipse 50% 60% at 20% 80%, rgba(91, 157, 255, 0.06), transparent),
+    radial-gradient(circle at 50% 50%, rgba(240, 246, 252, 0.015) 0 1px, transparent 1.5px),
+    linear-gradient(180deg, #0D1117 0%, #0A1420 50%, #0D1117 100%);
+  background-size: auto, auto, 18px 18px, auto;
+}
+
+.section-atmosphere--deep::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(240, 246, 252, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(240, 246, 252, 0.03) 1px, transparent 1px);
+  background-size: 56px 56px;
+  pointer-events: none;
+}
+
+/* Warm authority: gold/rust undertones on cream + faint grid */
+.section-atmosphere--warm {
+  position: relative;
+  background:
+    radial-gradient(ellipse 70% 40% at 90% 10%, rgba(217, 180, 91, 0.06), transparent),
+    radial-gradient(ellipse 50% 60% at 10% 90%, rgba(0, 191, 166, 0.04), transparent),
+    linear-gradient(180deg, #0D1117 0%, #111920 50%, #0D1117 100%);
+}
+
+.section-atmosphere--warm::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(217, 180, 91, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(217, 180, 91, 0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+
+/* Terminal/system: scanlines + phosphor glow for trust/methodology */
+.section-atmosphere--terminal {
+  position: relative;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(0, 191, 166, 0.012) 3px 4px),
+    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(0, 191, 166, 0.06), transparent 70%),
+    linear-gradient(180deg, #080D12 0%, #0D1117 100%);
+}
+
+.section-atmosphere--terminal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% -20%, rgba(0, 191, 166, 0.05), transparent 60%);
+  pointer-events: none;
+}
+
+/* Evidence: the panel treatment widened for full-section use */
+.section-atmosphere--evidence {
+  position: relative;
+  background:
+    linear-gradient(rgba(240, 246, 252, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(240, 246, 252, 0.04) 1px, transparent 1px),
+    radial-gradient(ellipse 40% 50% at 70% 30%, rgba(0, 191, 166, 0.07), transparent),
+    #0D1117;
+  background-size: 28px 28px, 28px 28px, auto, auto;
+}
+
+/* Glow accent utility — position via custom properties */
+.section-glow-accent {
+  position: absolute;
+  width: 20rem;
+  height: 20rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--glow-color, rgba(0, 191, 166, 0.12)) 0%, transparent 70%);
+  top: var(--glow-y, 20%);
+  left: var(--glow-x, 80%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  filter: blur(40px);
+}
+
+/* Glow card: hover-responsive card with accent border glow */
+.glow-card {
+  position: relative;
+  border: 1px solid rgba(240, 246, 252, 0.08);
+  background: #161B22;
+  transition: border-color 300ms ease, box-shadow 300ms ease;
+}
+
+.glow-card:hover {
+  border-color: rgba(0, 191, 166, 0.35);
+  box-shadow: 0 0 24px rgba(0, 191, 166, 0.08), inset 0 0 0 1px rgba(0, 191, 166, 0.06);
+}
+
+.glow-card--blue:hover {
+  border-color: rgba(91, 157, 255, 0.35);
+  box-shadow: 0 0 24px rgba(91, 157, 255, 0.08), inset 0 0 0 1px rgba(91, 157, 255, 0.06);
+}
+
+.glow-card--gold:hover {
+  border-color: rgba(217, 180, 91, 0.35);
+  box-shadow: 0 0 24px rgba(217, 180, 91, 0.08), inset 0 0 0 1px rgba(217, 180, 91, 0.06);
+}
+
+.glow-card--crimson:hover {
+  border-color: rgba(248, 113, 113, 0.35);
+  box-shadow: 0 0 24px rgba(248, 113, 113, 0.08), inset 0 0 0 1px rgba(248, 113, 113, 0.06);
+}
+
+/* Signal pulse animation for accent dots */
+@keyframes signal-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.8); }
+}
+
+.signal-pulse-dot {
+  animation: signal-pulse 2.5s ease-in-out infinite;
+}
+
+/* Trace glow animation */
+@keyframes trace-flow {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.trace-flow-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(0, 191, 166, 0.8) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: trace-flow 4s linear infinite;
+}
+
+/* Range input styling for dark theme */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgba(240, 246, 252, 0.12);
+  border-radius: 2px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #00BFA6;
+  border: 2px solid #0D1117;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #00BFA6;
+  border: 2px solid #0D1117;
+  cursor: pointer;
 }
 

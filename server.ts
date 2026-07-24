@@ -7,7 +7,8 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import { handleChippieRequest, handleChippieBriefing } from './api/_lib/chippieCore';
+import { handleChippieRequest, handleChippieBriefing, handleChippieStreaming } from './api/_lib/chippieCore';
+import { handleContactRequest } from './api/contact.js';
 
 dotenv.config();
 dotenv.config({ path: '.env.local' }); // NIM_API_KEY / CHIPPIE_* live here in local dev
@@ -28,9 +29,34 @@ app.post('/api/chippie', async (req, res) => {
   res.status(status).json(body);
 });
 
+// 1b-stream. API Route: Chippie SSE streaming — progressive token delivery
+app.post('/api/chippie/stream', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+  res.flushHeaders();
+
+  try {
+    for await (const chunk of handleChippieStreaming(req.body)) {
+      res.write(chunk);
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.write(`data: ${JSON.stringify({ type: 'error', error: msg })}\n\n`);
+    res.write('data: [DONE]\n\n');
+  }
+  res.end();
+});
+
 // 1c. API Route: Chippie one-shot briefings — mirrors api/chippie-brief.ts
 app.post('/api/chippie-brief', async (req, res) => {
   const { status, body } = await handleChippieBriefing(req.body);
+  res.status(status).json(body);
+});
+
+app.post('/api/contact', async (req, res) => {
+  const { status, body } = await handleContactRequest(req.body);
   res.status(status).json(body);
 });
 

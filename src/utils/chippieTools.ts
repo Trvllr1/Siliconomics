@@ -463,10 +463,24 @@ function getSensitivityDrivers(call: ChippieToolCall, ctx: ChippieToolContext): 
     };
   });
 
+  // Include the baseline value of the target metric so the LLM can
+  // ground its narrative (e.g. gross margin baseline = 53.3%, not 961%).
+  const baselineMetricValue = ctx.computedMetrics.snapshot[target.key];
+  const METRIC_BOUNDS: Record<string, string> = {
+    grossMargin: 'Gross Margin is a percentage bounded 0–100%. Values above 100% are impossible. If the user asks for a target above 100%, explain this and suggest using ROI instead.',
+    roi: 'ROI can exceed 100% and may be negative.',
+    grossCostPerGoodDie: 'Cost per Good Die is in USD. Lower is better.',
+    breakEvenVolumeMillion: 'Break-Even Volume is in millions of units. Lower is better.',
+    lifetimeNetProfitMillion: 'Lifetime Net Profit is in $M.',
+  };
+
   return JSON.stringify({
     build: { name: ctx.activeBuild.name, version: ctx.activeBuild.version },
     metric: target.label,
+    metricBaseline: formatMetric(baselineMetricValue as number, target.unit),
+    metricBounds: METRIC_BOUNDS[metric ?? 'grossMargin'] ?? '',
     method: 'Each parameter swept ±20% (6 points) through the deterministic engine; impactRange = max minus min of the metric across the sweep.',
+    important: `ALWAYS refer to this metric as "${target.label}" (not "profit margin" or other aliases). The baseline value is ${formatMetric(baselineMetricValue as number, target.unit)}.`,
     drivers,
     provenance: 'Deterministic sensitivity engine (computeSensitivity). Nothing was saved.',
   });

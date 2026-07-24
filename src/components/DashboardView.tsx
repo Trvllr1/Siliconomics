@@ -43,6 +43,7 @@ const formatActivityTime = (timestampStr: string): string => {
 
 interface DashboardViewProps {
   builds: Build[];
+  activeBuildId: string;
   activities: ActivityLog[];
   customArchetypes: Archetype[];
   onAddCustomArchetype: (archetype: Archetype) => void;
@@ -55,6 +56,7 @@ interface DashboardViewProps {
 
 export default function DashboardView({
   builds,
+  activeBuildId,
   activities,
   customArchetypes,
   onAddCustomArchetype,
@@ -151,13 +153,14 @@ export default function DashboardView({
 
   const allArchetypes = [...PRECONFIG_ARCHETYPES, ...customArchetypes];
   
-  // Compute global summary metrics
-  const analyzedBuilds = builds.map((b) => computeBuildMetrics(b));
+  // Compute metrics for the active build (hero metrics)
+  const activeBuild = builds.find((b) => b.id === activeBuildId) ?? builds[0]!;
+  const activeMetrics = computeBuildMetrics(activeBuild);
   
-  const totalVolumeMillion = analyzedBuilds.reduce((acc, curr) => acc + curr.build.designModel.targetVolume, 0);
-  const averageMargin = analyzedBuilds.reduce((acc, curr) => acc + curr.snapshot.grossMargin, 0) / builds.length;
-  const totalNetProfitMillion = analyzedBuilds.reduce((acc, curr) => acc + curr.snapshot.lifetimeNetProfitMillion, 0);
-  const averageROI = analyzedBuilds.reduce((acc, curr) => acc + curr.snapshot.roi, 0) / builds.length;
+  const totalVolumeMillion = activeMetrics.build.designModel.targetVolume;
+  const averageMargin = activeMetrics.snapshot.grossMargin;
+  const totalNetProfitMillion = activeMetrics.snapshot.lifetimeNetProfitMillion;
+  const averageROI = activeMetrics.snapshot.roi;
 
   const getStatusColor = (status: Build['status']) => {
     switch (status) {
@@ -253,20 +256,20 @@ export default function DashboardView({
         <div className="bg-white border-2 border-art-ink/10 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between h-32 hover:border-art-rust/35 transition-all">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-art-ink"></div>
           <div className="pl-2">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-art-ink/40 font-mono block">Total Lifetime Volume</span>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-art-ink/40 font-mono block">Lifetime Volume</span>
             <div className="flex items-baseline space-x-1 mt-1">
               <span className="text-3xl font-serif italic font-black text-art-ink tracking-tight">{round(totalVolumeMillion, 1)}M</span>
               <span className="text-[10px] text-art-ink/50 font-medium font-serif italic">units</span>
             </div>
           </div>
-          <span className="text-[9px] text-art-ink/40 block border-t border-art-ink/5 pt-1.5 pl-2 font-mono">Consolidated Portfolio Starts</span>
+          <span className="text-[9px] text-art-ink/40 block border-t border-art-ink/5 pt-1.5 pl-2 font-mono">{activeBuild.name}</span>
         </div>
 
         {/* Average Gross Margin */}
         <div className="bg-white border-2 border-art-ink/10 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between h-32 hover:border-art-rust/35 transition-all">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-art-rust"></div>
           <div className="pl-2">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-art-ink/40 font-mono block">Average Gross Margin</span>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-art-ink/40 font-mono block">Gross Margin</span>
             <div className="flex items-baseline space-x-1 mt-1">
               <span className="text-3xl font-serif italic font-black text-art-rust tracking-tight">{round(averageMargin, 1)}%</span>
             </div>
@@ -284,19 +287,19 @@ export default function DashboardView({
               <span className="text-[10px] text-art-ink/50 font-medium font-serif italic">USD</span>
             </div>
           </div>
-          <span className="text-[9px] text-art-ink/40 block border-t border-art-ink/5 pt-1.5 pl-2 font-mono">Net of Amortized Capex</span>
+          <span className="text-[9px] text-art-ink/40 block border-t border-art-ink/5 pt-1.5 pl-2 font-mono">After NRE Amortization</span>
         </div>
 
-        {/* Average ROI */}
+        {/* ROI */}
         <div className="bg-white border-2 border-art-ink/10 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between h-32 hover:border-art-rust/35 transition-all">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-art-rust"></div>
           <div className="pl-2">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-art-ink/40 font-mono block">Average Return (ROI)</span>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-art-ink/40 font-mono block">Return on NRE</span>
             <div className="flex items-baseline space-x-1 mt-1">
               <span className="text-3xl font-serif italic font-black text-art-rust tracking-tight">{round(averageROI, 1)}%</span>
             </div>
           </div>
-          <span className="text-[9px] text-art-ink/40 block border-t border-art-ink/5 pt-1.5 pl-2 font-mono">Calculated ROI across NRE</span>
+          <span className="text-[9px] text-art-ink/40 block border-t border-art-ink/5 pt-1.5 pl-2 font-mono">Net Profit ÷ Total NRE</span>
         </div>
       </div>
 

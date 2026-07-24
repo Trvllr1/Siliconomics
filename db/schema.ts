@@ -30,6 +30,7 @@ export const builds = pgTable('builds', {
   dataVintage: jsonb('data_vintage'),
   frozenAt: timestamp('frozen_at'),
   contentHash: text('content_hash'),
+  deletedAt: timestamp('deleted_at'),
   createdDate: timestamp('created_date').notNull().defaultNow(),
   updatedDate: timestamp('updated_date').notNull().defaultNow(),
 });
@@ -38,7 +39,7 @@ export const buildEvents = pgTable('build_events', {
   id: uuid('id').primaryKey().defaultRandom(),
   buildId: uuid('build_id').notNull().references(() => builds.id),
   actorId: text('actor_id').notNull().references(() => users.id),
-  eventType: text('event_type', { enum: ['created', 'updated', 'frozen', 'status_transition', 'new_version', 'commented', 'decision_recorded'] }).notNull(),
+  eventType: text('event_type', { enum: ['created', 'updated', 'deleted', 'frozen', 'status_transition', 'new_version', 'commented', 'decision_recorded'] }).notNull(),
   payload: jsonb('payload'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });

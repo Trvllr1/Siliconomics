@@ -4,7 +4,6 @@ import { Archetype } from '../data/archetypes';
 import { DEFAULT_BUILDS } from '../data/defaultBuilds';
 import { round } from '../utils/mathEngine';
 import { encodeBuildShareUrl } from '../utils/buildShare';
-import { PERSONA_CONFIG, FIELD_OWNER } from '../data/personaConfig';
 import {
   Cpu, DollarSign, Briefcase, GitBranch, FileCheck, RotateCcw,
   ChevronUp, ChevronDown, CheckCircle, Shuffle, AlertCircle, Sliders, ShieldCheck, Database, Wrench, Share2
@@ -34,13 +33,10 @@ export default function DesignBoard({
   isDemoMode,
 }: DesignBoardProps) {
   const dm = activeBuild.designModel;
-  const isFrozen = !['Draft', 'Alert'].includes(activeBuild.status);
-  const canEditField = (field: string) => {
-    if (isFrozen) return false;
-    const owner = FIELD_OWNER[field];
-    if (!owner) return activePersona === 'architect';
-    return activePersona === owner;
-  };
+  const isFrozen = Boolean(activeBuild.frozenAt) || !['Draft', 'Alert'].includes(activeBuild.status);
+  const frozenDate = activeBuild.frozenAt ? new Date(activeBuild.frozenAt).toLocaleDateString() : null;
+  const hashPrefix = activeBuild.contentHash?.slice(0, 12);
+  const canEditField = () => !isFrozen;
 
   const [expanded, setExpanded] = useState({ engineering: true, manufacturing: false, financial: false, program: false });
   const toggleSection = (s: keyof typeof expanded) => setExpanded((p) => ({ ...p, [s]: !p[s] }));
@@ -124,6 +120,7 @@ export default function DesignBoard({
   const [shareCopied, setShareCopied] = useState(false);
 
   const handleResetToBaseline = () => {
+    if (isFrozen) return;
     if (!resetConfirm) { setResetConfirm(true); setTimeout(() => setResetConfirm(false), 3000); return; }
     setResetConfirm(false);
     const baseline = DEFAULT_BUILDS.find(b => b.id === activeBuild.id) ??
@@ -255,27 +252,8 @@ export default function DesignBoard({
     </div>
   );
 
-  const editableLabels: Record<string, string> = {
-    architect: 'Silicon Engineering',
-    manufacturing: 'Manufacturing & Yield',
-    finance: 'Financial',
-    program: 'Program Scheduling',
-  };
-
   return (
     <div className="space-y-4">
-      {/* Persona-aware banner */}
-      {activePersona !== 'architect' && (
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl px-4 py-2.5 flex items-center space-x-2">
-          <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
-          <span className="text-[10px] font-bold text-blue-700 font-mono">
-            {PERSONA_CONFIG[activePersona].designFields.length > 0
-              ? `Editing: ${editableLabels[activePersona] || activePersona} fields. Contact Architect for design changes.`
-              : 'Read-only view. No editable fields for this role. Contact Architect for design changes.'}
-          </span>
-        </div>
-      )}
-
       {/* Top bar */}
       <div className="bg-white border-2 border-art-ink/10 rounded-xl p-4 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0 text-xs">
         <div className="flex items-center space-x-4">
@@ -309,6 +287,13 @@ export default function DesignBoard({
               <span>{activeBuild.portfolio}</span>
               {lastSaved && <span className="flex items-center space-x-1 text-green-600"><CheckCircle className="w-3 h-3" /><span>Saved {lastSaved.toLocaleTimeString()}</span></span>}
             </div>
+            {isFrozen && (
+              <p className="mt-2 max-w-xl text-[10px] leading-relaxed text-art-ink/55">
+                This Build is frozen for review. Branch a variant to change assumptions.
+                {frozenDate && <span className="ml-2 text-art-rust">Frozen {frozenDate}.</span>}
+                {hashPrefix && <span className="ml-2 font-mono text-art-rust">Snapshot {hashPrefix}</span>}
+              </p>
+            )}
           </div>
         </div>
 
@@ -337,8 +322,10 @@ export default function DesignBoard({
 
           <button
             onClick={handleResetToBaseline}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 border rounded text-xs font-semibold transition-all cursor-pointer shadow-sm ${
-              resetConfirm ? 'bg-art-rust/20 text-art-rust border-art-rust/40 animate-pulse' : 'bg-white hover:bg-art-rust/10 text-art-ink hover:text-art-rust border-art-ink/15'
+            disabled={isFrozen}
+            title={isFrozen ? 'Frozen Builds cannot be reset. Branch a variant to revise assumptions.' : 'Restore the baseline assumptions.'}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 border rounded text-xs font-semibold transition-all shadow-sm ${
+              isFrozen ? 'bg-art-cream text-art-ink/35 border-art-ink/10 cursor-not-allowed' : resetConfirm ? 'bg-art-rust/20 text-art-rust border-art-rust/40 animate-pulse cursor-pointer' : 'bg-white hover:bg-art-rust/10 text-art-ink hover:text-art-rust border-art-ink/15 cursor-pointer'
             }`}
           >
             <RotateCcw className={`w-3.5 h-3.5 ${resetConfirm ? 'animate-spin' : ''}`} />
@@ -443,11 +430,12 @@ export default function DesignBoard({
         {knobSection('Silicon Architecture & Engineering', <Cpu className="w-4.5 h-4.5 text-art-rust" />, 'engineering',
           <>
             {selectField('Foundry', 'foundry', dm.foundry, [
-              { v: 'tsmc', l: 'TSMC' }, { v: 'intel', l: 'Intel Foundry' }, { v: 'samsung', l: 'Samsung Foundry' },
+              { v: 'tsmc', l: 'TSMC' }, { v: 'intel', l: 'Intel Foundry' }, { v: 'samsung', l: 'Samsung Foundry' }, { v: 'globalfoundries', l: 'GlobalFoundries' },
             ])}
             {selectField('Process Node', 'processNode', dm.processNode, [
               { v: '3nm', l: 'TSMC N3E (3nm)' }, { v: '5nm', l: 'TSMC N5/N4 (5nm)' },
               { v: '7nm', l: 'TSMC N7 Mature (7nm)' }, { v: '10nm', l: 'Foundry Mature (10nm)' },
+              { v: '12nm', l: 'GF 12LP / TSMC 12nm' },
             ])}
             {toggleField('Silicon Topology', 'topology', dm.topology, 'monolithic', 'chiplet')}
             {dm.topology === 'chiplet' ? (
@@ -516,8 +504,9 @@ export default function DesignBoard({
                 <label className="text-[10px] font-bold text-art-ink/50 uppercase font-mono tracking-wide">Labor Region</label>
                 <select
                   value={dm.laborReferenceModelId ?? 'ref-labor-northamerica'}
+                  disabled={!canEditField('laborReferenceModelId')}
                   onChange={(e) => handleLaborRegionChange(e.target.value)}
-                  className="w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-semibold cursor-pointer"
+                  className={`w-full bg-white border border-art-ink/10 text-xs rounded px-2 py-1.5 outline-none font-semibold ${canEditField('laborReferenceModelId') ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}
                 >
                   {laborModels.map((m) => {
                     const rate = typeof m.parameters.hourlyRateDesign === 'number' ? m.parameters.hourlyRateDesign : 0;
@@ -537,8 +526,9 @@ export default function DesignBoard({
                   max={360}
                   step={3}
                   value={dm.designEffortPersonMonths ?? 48}
+                  disabled={!canEditField('designEffortPersonMonths')}
                   onChange={(e) => handleLaborEffortChange(Number(e.target.value))}
-                  className="w-full accent-art-rust"
+                  className={`w-full accent-art-rust ${!canEditField('designEffortPersonMonths') ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
               </div>
               {(dm.designEffortPersonMonths ?? 0) > 0 && dm.resolvedLaborRateDesign ? (

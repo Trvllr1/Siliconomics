@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Build, ArchitectureBlock, BlockCategory, PersonaType } from '../types';
 import { round } from '../utils/mathEngine';
-import { BLOCK_FIELD_OWNER } from '../data/personaConfig';
 import {
   Cpu, Plus, Trash2, Edit3, Save, AlertCircle,
   Sliders, ArrowRight
@@ -46,17 +45,16 @@ const CATEGORY_COLORS: Record<BlockCategory, string> = {
 export default function ArchitectureBomView({ activeBuild, onUpdateBuild, activePersona }: ArchitectureBomViewProps) {
   const arch = activeBuild.architecture;
   const blocks = arch?.blocks ?? [];
+  const isFrozen = Boolean(activeBuild.frozenAt) || !['Draft', 'Alert'].includes(activeBuild.status);
+  const frozenDate = activeBuild.frozenAt ? new Date(activeBuild.frozenAt).toLocaleDateString() : null;
+  const hashPrefix = activeBuild.contentHash?.slice(0, 12);
   const [showForm, setShowForm] = useState(false);
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [form, setForm] = useState<ArchitectureBlock>(emptyBlock());
 
   const [expandedBlock, setExpandedBlock] = useState<number | null>(null);
 
-  const canEditBlockField = (field: string) => {
-    const owner = BLOCK_FIELD_OWNER[field];
-    if (!owner) return activePersona === 'architect';
-    return activePersona === owner;
-  };
+  const canEditBlockField = () => !isFrozen;
 
   function emptyBlock(): ArchitectureBlock {
     return {
@@ -89,6 +87,7 @@ export default function ArchitectureBomView({ activeBuild, onUpdateBuild, active
   const dm = activeBuild.designModel;
 
   const saveBlock = () => {
+    if (isFrozen) return;
     if (!form.name.trim() || form.estimatedAreaMm2 <= 0) return;
     const next = editIdx !== null
       ? blocks.map((b, i) => (i === editIdx ? { ...form } : b))
@@ -106,6 +105,7 @@ export default function ArchitectureBomView({ activeBuild, onUpdateBuild, active
   };
 
   const deleteBlock = (idx: number) => {
+    if (isFrozen) return;
     const next = blocks.filter((_, i) => i !== idx);
     onUpdateBuild({
       ...activeBuild,
@@ -118,6 +118,7 @@ export default function ArchitectureBomView({ activeBuild, onUpdateBuild, active
   };
 
   const editBlock = (idx: number) => {
+    if (isFrozen) return;
     setForm({ ...blocks[idx]! });
     setEditIdx(idx);
     setShowForm(true);
@@ -167,12 +168,20 @@ export default function ArchitectureBomView({ activeBuild, onUpdateBuild, active
               {activeBuild.name} • {blocks.length} block{blocks.length !== 1 ? 's' : ''}
               {blocks.length > 0 && ` · ${round(totalArea, 1)} / ${dm.dieArea} mm²`}
             </p>
+            {isFrozen && (
+              <p className="mt-1 text-[10px] text-art-ink/55">
+                Frozen for review. Branch a variant to change architecture.
+                {frozenDate && <span className="ml-2 text-art-rust">Frozen {frozenDate}.</span>}
+                {hashPrefix && <span className="ml-2 font-mono text-art-rust">Snapshot {hashPrefix}</span>}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex items-center space-x-2">
           <button
             onClick={() => { reset(); setShowForm(true); }}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-art-ink hover:bg-art-ink/90 text-art-cream rounded-lg text-xs font-serif italic font-bold transition-all cursor-pointer shadow-sm border-none"
+            disabled={isFrozen}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-serif italic font-bold transition-all shadow-sm border-none ${isFrozen ? 'bg-art-ink/20 text-art-ink/50 cursor-not-allowed' : 'bg-art-ink hover:bg-art-ink/90 text-art-cream cursor-pointer'}`}
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Block</span>
@@ -258,6 +267,7 @@ export default function ArchitectureBomView({ activeBuild, onUpdateBuild, active
               <label className="block text-[9px] font-bold text-art-ink/50 uppercase tracking-wider font-mono">Schedule Impact (weeks)</label>
               <div className="flex items-center space-x-2">
                 <input type="range" min={0} max={52} step={1} value={form.scheduleImpactWeeks ?? 0}
+                  disabled={!canEditBlockField('scheduleImpactWeeks')}
                   onChange={(e) => setBlockForm('scheduleImpactWeeks', Number(e.target.value))}
                   className={`flex-1 accent-art-rust ${!canEditBlockField('scheduleImpactWeeks') ? 'opacity-50 cursor-not-allowed' : ''}`} />
                 <span className="font-mono text-xs font-bold w-8 text-right">{form.scheduleImpactWeeks ?? 0}w</span>
@@ -354,10 +364,10 @@ export default function ArchitectureBomView({ activeBuild, onUpdateBuild, active
                       )}
                     </div>
                     <div className="flex items-center space-x-1 ml-3">
-                      <button onClick={(e) => { e.stopPropagation(); editBlock(idx); }} className="p-1.5 rounded hover:bg-art-cream text-art-ink/40 hover:text-art-ink transition-all cursor-pointer">
+                      <button onClick={(e) => { e.stopPropagation(); editBlock(idx); }} disabled={isFrozen} className={`p-1.5 rounded transition-all ${isFrozen ? 'text-art-ink/20 cursor-not-allowed' : 'hover:bg-art-cream text-art-ink/40 hover:text-art-ink cursor-pointer'}`}>
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); deleteBlock(idx); }} className="p-1.5 rounded hover:bg-red-50 text-art-ink/40 hover:text-red-600 transition-all cursor-pointer">
+                      <button onClick={(e) => { e.stopPropagation(); deleteBlock(idx); }} disabled={isFrozen} className={`p-1.5 rounded transition-all ${isFrozen ? 'text-art-ink/20 cursor-not-allowed' : 'hover:bg-red-50 text-art-ink/40 hover:text-red-600 cursor-pointer'}`}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>

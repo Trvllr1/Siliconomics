@@ -80,6 +80,9 @@ export default function BuildView({
 
   const dm = activeBuild.designModel;
   const snap = computedMetrics.snapshot;
+  const isFrozen = Boolean(activeBuild.frozenAt) || !['Draft', 'Alert'].includes(activeBuild.status);
+  const frozenDate = activeBuild.frozenAt ? new Date(activeBuild.frozenAt).toLocaleDateString() : null;
+  const hashPrefix = activeBuild.contentHash?.slice(0, 12);
 
   const baselineMetrics = React.useMemo(() => {
     return computeBuildMetrics(baselineBuild);
@@ -384,6 +387,7 @@ export default function BuildView({
   };
 
   const handleInputChange = <K extends keyof DesignModel>(field: K, value: DesignModel[K]) => {
+    if (isFrozen) return;
     const updated = {
       ...activeBuild,
       designModel: { ...activeBuild.designModel, [field]: value }
@@ -414,6 +418,7 @@ export default function BuildView({
   };
 
   const handleTimeModelChange = <K extends keyof TimeModel>(field: K, value: TimeModel[K]) => {
+    if (isFrozen) return;
     const currentTm = activeBuild.timeModel || {
       d0Initial: 0.15,
       d0Mature: 0.08,
@@ -435,6 +440,7 @@ export default function BuildView({
   };
 
   const handleRespinChange = <K extends keyof RespinConfig>(field: K, value: RespinConfig[K]) => {
+    if (isFrozen) return;
     const currentTm = activeBuild.timeModel || {
       d0Initial: 0.15,
       d0Mature: 0.08,
@@ -553,8 +559,14 @@ export default function BuildView({
           <div className="flex items-center flex-wrap gap-2">
             <h2 className="text-lg font-serif font-black text-art-ink">{activeBuild.name}</h2>
             <span className="bg-art-cream text-art-rust border border-art-rust/20 text-[9px] font-bold tracking-widest px-2.5 py-0.5 rounded-full uppercase font-mono">
-              {activeBuild.status === 'Approved' ? 'Immutable Approved Build' : 'Draft Modeling'}
+              {isFrozen ? 'Frozen Build' : 'Draft Modeling'}
             </span>
+            {isFrozen && (
+              <span className="inline-flex items-center gap-1 bg-art-rust/10 border border-art-rust/30 px-2 py-0.5 text-[9px] font-mono font-bold text-art-rust">
+                <Shield className="w-3 h-3" />
+                {frozenDate ? `Frozen ${frozenDate}` : 'Review controls active'}
+              </span>
+            )}
             
             {/* Auto-save notification indicator */}
             {lastSaved ? (
@@ -582,6 +594,12 @@ export default function BuildView({
             )}
           </div>
           <p className="text-[10px] text-art-ink/60 italic font-sans max-w-[480px] line-clamp-1">{activeBuild.description}</p>
+          {isFrozen && (
+            <p className="max-w-[640px] text-[10px] leading-relaxed text-art-ink/55">
+              This Build is immutable. Branch a variant to model a new assumption.
+              {hashPrefix && <span className="ml-2 font-mono text-art-rust">Snapshot {hashPrefix}</span>}
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-art-ink/50 text-[11px]">
             <span>Portfolio: <strong className="text-art-ink font-semibold">{activeBuild.portfolio}</strong></span>
             <span>•</span>
@@ -835,7 +853,10 @@ export default function BuildView({
       )}
 
       {/* Synchronized Quadrants */}
-      <div className="space-y-6">
+      <div
+        className={`space-y-6 ${isFrozen ? '[&_input]:pointer-events-none [&_input]:opacity-60 [&_select]:pointer-events-none [&_select]:opacity-60' : ''}`}
+        aria-disabled={isFrozen}
+      >
         {/* SECTION 1: ENGINEERING */}
         <div className="bg-white border-2 border-art-ink/10 rounded-xl shadow-sm overflow-hidden">
           <button

@@ -40,7 +40,7 @@ export interface StorageAdapter {
 
   // Portfolios
   getPortfolios(): Promise<Portfolio[]>;
-  savePortfolios(portfolios: Portfolio[]): Promise<void>;
+  savePortfolios(portfolios: Portfolio[]): Promise<Portfolio[]>;
 
   // Alerts
   getAlerts(): Promise<Alert[]>;

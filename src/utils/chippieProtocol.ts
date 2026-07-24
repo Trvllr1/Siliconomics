@@ -94,7 +94,7 @@ export const CHIPPIE_TOOL_DEFINITIONS = [
     function: {
       name: 'search_docs',
       description:
-        'Search the Siliconomics governance documentation (FCL, Constitution, Product Blueprint, Architecture, Build Object Spec, Design System, Decision Center, Glossary, Go-To-Market). Use for questions about methodology, rules, product concepts, governance, or the meaning of ANY term or acronym (e.g. "OSAT", "NRE", "KGD") — always search before saying you do not know a term.',
+        'Search the Siliconomics governance documentation and market intelligence corpus (FCL, Constitution, Product Blueprint, Architecture, Build Object Spec, Design System, Decision Center, Glossary, Go-To-Market, Market Intelligence). Use for questions about methodology, rules, product concepts, governance, industry benchmarks (foundry pricing, yield norms, packaging costs, TAM/SAM, ASP ranges, JEDEC standards, supply chain data, cost structure benchmarks), or the meaning of ANY term or acronym (e.g. "OSAT", "NRE", "KGD", "CoWoS", "JEDEC") — always search before saying you do not know a term.',
       parameters: {
         type: 'object',
         properties: {

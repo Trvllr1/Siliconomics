@@ -1,12 +1,15 @@
 import React from 'react';
 import { Build, Comment, STATUS_TRANSITIONS, BuildStatus, PersonaType } from '../types';
 import { PERSONA_CONFIG } from '../data/personaConfig';
+import type { SnapshotResponse } from '../data/adapters/storageAdapter';
 import { ShieldAlert, CheckCircle, Clock, ArrowRight, MessageSquare, Cpu, DollarSign, Award, Activity, FileCheck } from 'lucide-react';
 
 interface ReviewBoardViewProps {
   activeBuild: Build;
   comments: Comment[];
   activePersona: PersonaType;
+  snapshots?: SnapshotResponse[];
+  snapshotsLoading?: boolean;
   onStatusTransition?: () => void;
   onNavigateCompare?: (buildIdA: string, buildIdB: string) => void;
 }
@@ -40,7 +43,7 @@ const STATUS_ICONS: Record<BuildStatus, React.ReactNode> = {
   Alert: <ShieldAlert className="w-4 h-4" />,
 };
 
-export default function ReviewBoardView({ activeBuild, comments, activePersona, onStatusTransition, onNavigateCompare }: ReviewBoardViewProps) {
+export default function ReviewBoardView({ activeBuild, comments, activePersona, snapshots = [], snapshotsLoading = false, onStatusTransition, onNavigateCompare }: ReviewBoardViewProps) {
   const transition = STATUS_TRANSITIONS[activeBuild.status];
   const canAct = transition && activePersona === transition.requiredPersona;
   const currentIdx = STATUS_ORDER.indexOf(activeBuild.status);
@@ -115,6 +118,35 @@ export default function ReviewBoardView({ activeBuild, comments, activePersona, 
             </button>
           )}
         </div>
+      </div>
+
+      <div className="bg-white border-2 border-art-ink/10 rounded-xl p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <FileCheck className="w-4 h-4 text-art-rust" />
+            <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-art-ink">Immutable Snapshot Record</h3>
+          </div>
+          <span className="text-[9px] font-mono text-art-ink/40">{snapshots.length} recorded</span>
+        </div>
+        {snapshotsLoading ? (
+          <p className="py-4 text-xs text-art-ink/40 italic">Loading immutable records...</p>
+        ) : snapshots.length === 0 ? (
+          <p className="py-4 text-xs text-art-ink/40 italic">
+            {activeBuild.frozenAt ? 'No server snapshot record is available for this frozen Build.' : 'A snapshot and content hash are recorded when this Build enters review.'}
+          </p>
+        ) : (
+          <div className="mt-4 space-y-2">
+            {snapshots.slice(0, 3).map((record) => (
+              <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 border border-art-ink/10 bg-art-cream/20 px-3 py-2.5">
+                <div>
+                  <p className="text-[10px] font-bold text-art-ink">Captured {new Date(record.createdAt).toLocaleString()}</p>
+                  <p className="mt-1 font-mono text-[9px] text-art-ink/45">SHA-256 {record.contentHash.slice(0, 20)}...</p>
+                </div>
+                <span className="border border-art-rust/30 bg-art-rust/10 px-2 py-1 text-[9px] font-mono font-bold uppercase text-art-rust">Verified record</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Comments by field */}

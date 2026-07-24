@@ -1,8 +1,8 @@
 import type { VercelResponse } from '@vercel/node';
 import { AuthenticatedRequest, requireAuth } from './middleware';
 import { db } from '../db';
-import { comments, buildEvents } from '../db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { builds, comments, buildEvents } from '../db/schema';
+import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 const commentSchema = z.object({
@@ -20,16 +20,22 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
       case 'GET': {
         const buildId = req.query.buildId as string;
         if (!buildId) return res.status(400).json({ error: 'buildId query param is required' });
-        const result = await db.select().from(comments)
-          .where(eq(comments.buildId, buildId))
+        const result = await db.select({ comment: comments }).from(comments)
+          .innerJoin(builds, eq(comments.buildId, builds.id))
+          .where(and(eq(comments.buildId, buildId), eq(builds.creatorId, req.userId!)))
           .orderBy(desc(comments.createdAt));
-        return res.json(result);
+        return res.json(result.map(({ comment }) => comment));
       }
       case 'POST': {
         const parsed = commentSchema.safeParse(req.body);
         if (!parsed.success) {
           return res.status(400).json({ error: 'Validation failed', detail: parsed.error.flatten() });
         }
+
+        const authorizedBuild = await db.select({ id: builds.id }).from(builds)
+          .where(and(eq(builds.id, parsed.data.buildId), eq(builds.creatorId, req.userId!)))
+          .limit(1);
+        if (!authorizedBuild.length) return res.status(404).json({ error: 'Build not found' });
 
         const [comment] = await db.insert(comments).values({
           buildId: parsed.data.buildId,

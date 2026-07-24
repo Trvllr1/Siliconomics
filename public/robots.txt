@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Allow: /app
+Disallow: /app/*/edit
+
+Sitemap: https://siliconomics-app.vercel.app/sitemap.xml

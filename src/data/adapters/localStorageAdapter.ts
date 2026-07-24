@@ -127,7 +127,7 @@ export const localStorageAdapter: StorageAdapter = {
   async setActivities(activities: ActivityLog[]) { write(KEYS.activities, activities); },
 
   async getPortfolios() { return read<Portfolio[]>(KEYS.portfolios, []); },
-  async savePortfolios(portfolios: Portfolio[]) { write(KEYS.portfolios, portfolios); },
+  async savePortfolios(portfolios: Portfolio[]) { write(KEYS.portfolios, portfolios); return portfolios; },
 
   async getAlerts() { return read<Alert[]>(KEYS.alerts, []); },
   async saveAlerts(alerts: Alert[]) { write(KEYS.alerts, alerts); },

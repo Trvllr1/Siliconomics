@@ -1,0 +1,12 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#0D1117"/>
+  <line x1="60" y1="80" x2="1140" y2="80" stroke="rgba(240,246,252,0.08)" stroke-width="1"/>
+  <text x="60" y="120" font-family="Georgia, serif" font-size="16" font-weight="700" letter-spacing="2" fill="#00BFA6">DETERMINISTIC ENGINEERING ECONOMICS</text>
+  <text x="60" y="220" font-family="Georgia, serif" font-size="64" font-weight="900" letter-spacing="-1" fill="#F0F6FC">Solutions</text>
+  <text x="60" y="290" font-family="Inter, sans-serif" font-size="22" fill="rgba(240,246,252,0.6)">One shared basis for hard silicon decisions</text>
+  <rect x="60" y="340" width="2" height="60" fill="#00BFA6"/>
+  <text x="80" y="380" font-family="'JetBrains Mono', monospace" font-size="18" font-weight="bold" fill="#00BFA6">Cross-functional program view</text>
+  <text x="60" y="440" font-family="'JetBrains Mono', monospace" font-size="12" fill="rgba(240,246,252,0.4)">DETERMINISTIC · REPRODUCIBLE · FORMULA SET MURPHY-SIA-v4.3</text>
+  <line x1="60" y1="460" x2="1140" y2="460" stroke="rgba(240,246,252,0.08)" stroke-width="1"/>
+  <text x="60" y="490" font-family="'JetBrains Mono', monospace" font-size="12" fill="rgba(240,246,252,0.3)">siliconomics-app.vercel.app</text>
+</svg>

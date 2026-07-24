@@ -1,16 +1,16 @@
 import type { VercelResponse } from '@vercel/node';
-import { AuthenticatedRequest, requireAuth } from './middleware';
+import { AuthenticatedRequest, getUserPersona, requireAuth } from './middleware';
 import { db } from '../db';
 import { builds, buildEvents, snapshots } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { createHash } from 'crypto';
 import { computeBuildMetrics } from '../src/utils/mathEngine';
 
-const STATUS_FLOW: Record<string, string> = {
-  Draft: 'TechnicalReview',
-  TechnicalReview: 'FinancialReview',
-  FinancialReview: 'ProgramReview',
-  ProgramReview: 'Approved',
+const STATUS_FLOW: Record<string, { next: string; requiredPersona: string }> = {
+  Draft: { next: 'TechnicalReview', requiredPersona: 'architect' },
+  TechnicalReview: { next: 'FinancialReview', requiredPersona: 'manufacturing' },
+  FinancialReview: { next: 'ProgramReview', requiredPersona: 'finance' },
+  ProgramReview: { next: 'Approved', requiredPersona: 'executive' },
 };
 
 export default async function handler(req: AuthenticatedRequest, res: VercelResponse) {
@@ -25,11 +25,22 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
     if (!existing.length) return res.status(404).json({ error: 'Build not found' });
 
     const build = existing[0]!;
-    const nextStatus = STATUS_FLOW[build.status];
+    const transition = STATUS_FLOW[build.status];
 
-    if (!nextStatus) {
+    if (!transition) {
       return res.status(400).json({ error: `No transition available from status "${build.status}"` });
     }
+
+    const userPersona = await getUserPersona(req.userId!);
+    if (userPersona !== transition.requiredPersona) {
+      return res.status(403).json({
+        error: 'Persona is not authorized for this transition',
+        requiredPersona: transition.requiredPersona,
+        currentPersona: userPersona,
+      });
+    }
+
+    const nextStatus = transition.next;
 
     const now = new Date();
     let contentHash: string | undefined;

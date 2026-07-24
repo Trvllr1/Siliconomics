@@ -3,19 +3,30 @@ import { Build, Snapshot, Decision, DecisionOutcome } from '../types';
 import { computeBuildMetrics } from '../utils/mathEngine';
 import { computeBusinessImpact, BusinessImpact } from '../utils/BusinessImpact';
 import { evaluateBuild, RecommendationDetail } from '../utils/ExecutiveRecommendation';
-import { TrendingUp, ShieldAlert, AlertTriangle, FileCheck, ArrowRight, X, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { TrendingUp, ShieldAlert, AlertTriangle, FileCheck, ArrowRight, X, ChevronLeft, ChevronRight, Plus, Download, Loader2 } from 'lucide-react';
 
 interface MeetingModeProps {
   builds: Build[];
   decisions: Decision[];
   onClose: () => void;
   activeBuildId: string;
+  decisionApproverName: string;
   onRecordDecision?: (decision: Decision) => void;
 }
 
-type Slide = 'overview' | 'comparison' | 'impact' | 'recommendation' | 'scorecard' | 'risk' | 'decisions';
+type Slide = 'summary' | 'risk' | 'recommendation' | 'comparison' | 'impact' | 'scorecard' | 'decisions';
 
-const SLIDES: Slide[] = ['overview', 'comparison', 'impact', 'scorecard', 'risk', 'recommendation', 'decisions'];
+const SLIDES: Slide[] = ['summary', 'risk', 'recommendation', 'comparison', 'impact', 'scorecard', 'decisions'];
+
+const SLIDE_LABELS: Record<Slide, string> = {
+  summary: 'Presentation',
+  risk: 'Risk',
+  recommendation: 'Gate review',
+  comparison: 'Compare',
+  impact: 'Impact',
+  scorecard: 'Scorecard',
+  decisions: 'Decision log',
+};
 
 function SlideNav({
   slideIndex,
@@ -29,7 +40,7 @@ function SlideNav({
   onSelect: (s: Slide) => void;
 }) {
   return (
-    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center space-x-4">
+    <div className="flex shrink-0 items-center justify-center space-x-4 border-t border-white/10 bg-black/90 px-6 py-3">
       <button onClick={goPrev} className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all cursor-pointer">
         <ChevronLeft className="w-5 h-5" />
       </button>
@@ -38,6 +49,8 @@ function SlideNav({
           <button
             key={s}
             onClick={() => onSelect(s)}
+            aria-label={SLIDE_LABELS[s]}
+            title={SLIDE_LABELS[s]}
             className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${i === slideIndex ? 'bg-art-rust scale-125' : 'bg-white/20 hover:bg-white/40'}`}
           />
         ))}
@@ -66,8 +79,9 @@ const outcomeBg: Record<string, string> = {
   'Reject': 'bg-red-950/40 border-red-800',
 };
 
-export default function MeetingMode({ builds, decisions, onClose, activeBuildId, onRecordDecision }: MeetingModeProps) {
-  const [slide, setSlide] = useState<Slide>('overview');
+export default function MeetingMode({ builds, decisions, onClose, activeBuildId, decisionApproverName, onRecordDecision }: MeetingModeProps) {
+  const [slide, setSlide] = useState<Slide>('summary');
+  const [isExporting, setIsExporting] = useState(false);
   const activeIdx = builds.findIndex(b => b.id === activeBuildId);
   const [buildAIdx, setBuildAIdx] = useState(activeIdx >= 0 ? activeIdx : 0);
   const [buildBIdx, setBuildBIdx] = useState(() => {
@@ -82,6 +96,7 @@ export default function MeetingMode({ builds, decisions, onClose, activeBuildId,
   const impacts = computeBusinessImpact(buildA, snapA, buildB, snapB);
   const recA = evaluateBuild(snapA, buildA.designModel);
   const recB = evaluateBuild(snapB, buildB.designModel);
+  const comparisonSlide = ['comparison', 'impact', 'scorecard'].includes(slide);
 
   const slideIndex = SLIDES.indexOf(slide);
 
@@ -98,6 +113,26 @@ export default function MeetingMode({ builds, decisions, onClose, activeBuildId,
       return SLIDES[Math.max(idx - 1, 0)]!;
     });
   }, []);
+
+  const handleExportSlides = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const { downloadPresentationPdf } = await import('../utils/presentationPdf');
+      downloadPresentationPdf({
+        build: buildA,
+        snapshot: snapA,
+        recommendation: recA,
+        comparisonBuild: buildB,
+        comparisonSnapshot: snapB,
+        comparisonRecommendation: recB,
+        impacts,
+        decisions,
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -117,14 +152,16 @@ export default function MeetingMode({ builds, decisions, onClose, activeBuildId,
           <div className="w-6 h-6 rounded bg-art-rust flex items-center justify-center font-serif font-black text-xs text-white italic">S</div>
           <span className="text-sm font-serif font-black text-white tracking-widest uppercase">Siliconomics</span>
           <span className="text-[10px] text-white/40 font-mono bg-white/5 px-2 py-0.5 rounded">Meeting Mode</span>
-          {builds.length > 1 && (
+          <div className="flex items-center space-x-2 ml-4 pl-4 border-l border-white/10">
+            <span className="text-[10px] text-white/40 font-mono">Build:</span>
+            <select value={buildAIdx} onChange={(e) => setBuildAIdx(Number(e.target.value))}
+              className="text-[10px] bg-white/10 border border-white/20 rounded px-2 py-1 text-white font-mono outline-none cursor-pointer">
+              {builds.map((b, i) => <option key={b.id} value={i}>{b.name}</option>)}
+            </select>
+          </div>
+          {builds.length > 1 && comparisonSlide && (
             <div className="flex items-center space-x-2 ml-4 pl-4 border-l border-white/10">
-              <span className="text-[10px] text-white/40 font-mono">A:</span>
-              <select value={buildAIdx} onChange={(e) => setBuildAIdx(Number(e.target.value))}
-                className="text-[10px] bg-white/10 border border-white/20 rounded px-2 py-1 text-white font-mono outline-none cursor-pointer">
-                {builds.map((b, i) => <option key={b.id} value={i}>{b.name}</option>)}
-              </select>
-              <span className="text-[10px] text-white/40 font-mono">B:</span>
+              <span className="text-[10px] text-white/40 font-mono">Compare with:</span>
               <select value={buildBIdx} onChange={(e) => setBuildBIdx(Number(e.target.value))}
                 className="text-[10px] bg-white/10 border border-white/20 rounded px-2 py-1 text-white font-mono outline-none cursor-pointer">
                 {builds.map((b, i) => <option key={b.id} value={i}>{b.name}</option>)}
@@ -132,14 +169,25 @@ export default function MeetingMode({ builds, decisions, onClose, activeBuildId,
             </div>
           )}
         </div>
-        <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-all cursor-pointer">
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleExportSlides}
+            disabled={isExporting}
+            className="flex items-center space-x-1.5 rounded border border-white/15 bg-white/5 px-3 py-1.5 text-[10px] font-bold text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            title="Export the seven-slide presentation as a PDF"
+          >
+            {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            <span>{isExporting ? 'Exporting...' : 'Export Slides'}</span>
+          </button>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-all cursor-pointer">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Slide Content */}
-      <div className="flex-1 overflow-y-auto p-8">
-        {slide === 'overview' && <OverviewSlide builds={builds} />}
+      <div className="min-h-0 flex-1 overflow-y-auto p-8">
+        {slide === 'summary' && <PresentationSlide build={buildA} snap={snapA} rec={recA} />}
         {slide === 'comparison' && (
           <ComparisonSlide buildA={buildA} snapA={snapA} buildB={buildB} snapB={snapB} />
         )}
@@ -150,11 +198,9 @@ export default function MeetingMode({ builds, decisions, onClose, activeBuildId,
         {slide === 'risk' && (
           <RiskSlide buildA={buildA} snapA={snapA} recA={recA} />
         )}
-        {slide === 'recommendation' && (
-          <RecommendationSlide recA={recA} recB={recB} buildA={buildA} buildB={buildB} />
-        )}
+        {slide === 'recommendation' && <RecommendationSlide rec={recA} build={buildA} />}
         {slide === 'decisions' && (
-          <DecisionsSlide decisions={decisions} builds={builds} buildA={buildA} buildB={buildB} onRecordDecision={onRecordDecision} />
+          <DecisionsSlide decisions={decisions} builds={builds} buildA={buildA} buildB={buildB} decisionApproverName={decisionApproverName} onRecordDecision={onRecordDecision} />
         )}
       </div>
 
@@ -265,44 +311,34 @@ function RiskSlide({ buildA, snapA, recA }: { buildA: Build; snapA: Snapshot; re
   );
 }
 
-function OverviewSlide({ builds }: { builds: Build[] }) {
+function PresentationSlide({ build, snap, rec }: { build: Build; snap: Snapshot; rec: RecommendationDetail }) {
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       <div className="text-center space-y-3">
-        <h1 className="text-4xl font-serif font-black text-white tracking-tight">Program Portfolio Review</h1>
-        <p className="text-lg text-white/50 font-sans italic">Board-Level Engineering & Financial Assessment</p>
+        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-art-rust">Single Build presentation</p>
+        <h1 className="text-4xl font-serif font-black text-white tracking-tight">{build.name}</h1>
+        <p className="text-lg text-white/50 font-sans italic">{build.designModel.processNode} {build.designModel.topology} · Version {build.version}</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {builds.map((b) => {
-          const snap = computeBuildMetrics(b).snapshot;
-          return (
-            <div key={b.id} className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-3">
-              <h3 className="text-sm font-serif font-black text-white">{b.name}</h3>
-              <div className="text-[11px] font-mono text-white/40 space-y-1">
-                <span>{b.designModel.processNode} • v{b.version}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-center">
-                <div>
-                  <div className="text-2xl font-serif font-black text-art-rust">{(snap.dieYield * 100).toFixed(0)}%</div>
-                  <div className="text-[8px] text-white/30 uppercase font-mono tracking-wider">Die Yield</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-serif font-black text-green-400">{snap.grossMargin.toFixed(0)}%</div>
-                  <div className="text-[8px] text-white/30 uppercase font-mono tracking-wider">Margin</div>
-                </div>
-                <div>
-                  <div className="text-lg font-serif font-black text-white">${snap.lifetimeNetProfitMillion.toFixed(0)}M</div>
-                  <div className="text-[8px] text-white/30 uppercase font-mono tracking-wider">Net Profit</div>
-                </div>
-                <div>
-                  <div className="text-lg font-serif font-black text-art-rust">{snap.roi.toFixed(0)}%</div>
-                  <div className="text-[8px] text-white/30 uppercase font-mono tracking-wider">ROI</div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {[
+          ['Die Yield', `${(snap.dieYield * 100).toFixed(1)}%`, 'text-art-rust'],
+          ['Gross Margin', `${snap.grossMargin.toFixed(1)}%`, 'text-green-400'],
+          ['Lifetime Net Profit', `$${snap.lifetimeNetProfitMillion.toFixed(0)}M`, 'text-white'],
+          ['ROI', `${snap.roi.toFixed(0)}%`, 'text-art-rust'],
+        ].map(([label, value, color]) => (
+          <div key={label} className="bg-white/5 border border-white/10 rounded-xl p-5 text-center space-y-2">
+            <div className={`text-3xl font-serif font-black ${color}`}>{value}</div>
+            <div className="text-[9px] text-white/30 uppercase font-mono tracking-wider">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className={`rounded-xl border-2 p-7 text-center space-y-3 ${outcomeBg[rec.outcome] ?? 'bg-white/5 border-white/10'}`}>
+        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/40">Current deterministic recommendation</p>
+        <div className={`text-4xl font-serif font-black ${outcomeColor[rec.outcome] ?? 'text-white'}`}>{rec.outcome}</div>
+        <p className="mx-auto max-w-3xl text-base text-white/70 leading-relaxed">{rec.summary}</p>
+        <span className="inline-block rounded-full bg-white/10 px-3 py-1 text-xs font-mono text-white/60">Confidence: {rec.confidence}%</span>
       </div>
     </div>
   );
@@ -409,30 +445,27 @@ function ImpactSlide({ impacts }: { impacts: BusinessImpact[] }) {
   );
 }
 
-function RecommendationSlide({ recA, recB, buildA, buildB }: { recA: RecommendationDetail; recB: RecommendationDetail; buildA: Build; buildB: Build }) {
-  const best = recA.confidence >= recB.confidence ? recA : recB;
-  const bestBuild = recA.confidence >= recB.confidence ? buildA : buildB;
-
+function RecommendationSlide({ rec, build }: { rec: RecommendationDetail; build: Build }) {
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       <h2 className="text-3xl font-serif font-black text-white tracking-tight">Executive Recommendation</h2>
 
-      <div className={`rounded-xl border-2 p-8 text-center space-y-4 ${outcomeBg[best.outcome] ?? 'bg-white/5 border-white/10'}`}>
-        <div className={`text-5xl font-serif font-black ${outcomeColor[best.outcome] ?? 'text-white'}`}>
-          {best.outcome}
+      <div className={`rounded-xl border-2 p-8 text-center space-y-4 ${outcomeBg[rec.outcome] ?? 'bg-white/5 border-white/10'}`}>
+        <div className={`text-5xl font-serif font-black ${outcomeColor[rec.outcome] ?? 'text-white'}`}>
+          {rec.outcome}
         </div>
-        <div className="text-2xl font-serif font-black text-white">{bestBuild.name}</div>
+        <div className="text-2xl font-serif font-black text-white">{build.name}</div>
         <div className="inline-block bg-white/10 rounded-full px-4 py-1 text-sm font-mono text-white/60">
-          Confidence: {best.confidence}%
+          Confidence: {rec.confidence}%
         </div>
-        <p className="text-white/70 text-lg max-w-2xl mx-auto leading-relaxed">{best.summary}</p>
+        <p className="text-white/70 text-lg max-w-2xl mx-auto leading-relaxed">{rec.summary}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-6">
         <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-3">
           <h3 className="text-sm font-serif font-black text-white">Supporting Evidence</h3>
-          {best.supportingEvidence.length === 0 && <p className="text-white/40 text-xs italic">No automated evidence flags.</p>}
-          {best.supportingEvidence.map((e, i) => (
+          {rec.supportingEvidence.length === 0 && <p className="text-white/40 text-xs italic">No automated evidence flags.</p>}
+          {rec.supportingEvidence.map((e, i) => (
             <div key={i} className="flex items-start space-x-2 text-sm text-white/70">
               <span className="text-green-400 mt-0.5">✓</span>
               <span>{e}</span>
@@ -441,8 +474,8 @@ function RecommendationSlide({ recA, recB, buildA, buildB }: { recA: Recommendat
         </div>
         <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-3">
           <h3 className="text-sm font-serif font-black text-white">Risk Factors</h3>
-          {best.riskFactors.length === 0 && <p className="text-white/40 text-xs italic">No material risk factors detected.</p>}
-          {best.riskFactors.map((r, i) => (
+          {rec.riskFactors.length === 0 && <p className="text-white/40 text-xs italic">No material risk factors detected.</p>}
+          {rec.riskFactors.map((r, i) => (
             <div key={i} className="flex items-start space-x-2 text-sm text-white/70">
               <span className="text-red-400 mt-0.5">▲</span>
               <span>{r}</span>
@@ -454,14 +487,14 @@ function RecommendationSlide({ recA, recB, buildA, buildB }: { recA: Recommendat
   );
 }
 
-function DecisionsSlide({ decisions, builds, buildA, buildB, onRecordDecision }: {
-  decisions: Decision[]; builds: Build[]; buildA: Build; buildB: Build; onRecordDecision?: (d: Decision) => void;
+function DecisionsSlide({ decisions, builds, buildA, buildB, decisionApproverName, onRecordDecision }: {
+  decisions: Decision[]; builds: Build[]; buildA: Build; buildB: Build; decisionApproverName: string; onRecordDecision?: (d: Decision) => void;
 }) {
   const getBuildName = (id: string) => builds.find((b) => b.id === id)?.name ?? id;
   const [showDecisionModal, setShowDecisionModal] = useState(false);
   const [decisionOutcome, setDecisionOutcome] = useState<DecisionOutcome>('Proceed');
   const [decisionRationale, setDecisionRationale] = useState('');
-  const [decisionApprover, setDecisionApprover] = useState('eagleximpact');
+  const [decisionApprover, setDecisionApprover] = useState(decisionApproverName);
   const [decisionFollowUp, setDecisionFollowUp] = useState('');
 
   const handleRecord = () => {

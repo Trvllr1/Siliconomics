@@ -19,6 +19,7 @@ interface DecisionCenterViewProps {
   onHoverMetric?: (trace: CalculationTrace | null) => void;
   onClickMetric?: (metric: MetricCardData) => void;
   onNavigate?: (tab: string) => void;
+  onOpenBuild?: (buildId: string) => void;
 }
 
 const outcomeConfig: Record<DecisionOutcome, { icon: React.ReactNode; color: string; bg: string }> = {
@@ -219,7 +220,7 @@ function computeScorecard(snap: ReturnType<typeof computeBuildMetrics>['snapshot
   ];
 }
 
-export default function DecisionCenterView({ decisions, builds, alerts, onAcknowledgeAlert, onHoverMetric, onClickMetric, onNavigate }: DecisionCenterViewProps) {
+export default function DecisionCenterView({ decisions, builds, alerts, onAcknowledgeAlert, onHoverMetric, onClickMetric, onNavigate, onOpenBuild }: DecisionCenterViewProps) {
   const [buildAId, setBuildAId] = useState(builds[0]?.id ?? '');
   const [buildBId, setBuildBId] = useState(builds[1]?.id ?? builds[0]?.id ?? '');
 
@@ -363,9 +364,9 @@ export default function DecisionCenterView({ decisions, builds, alerts, onAcknow
                       >
                         Compare
                       </button>
-                      {onNavigate && (
+                      {onOpenBuild && (
                         <button
-                          onClick={() => onNavigate('build')}
+                          onClick={() => onOpenBuild(b.id)}
                           className="text-[10px] font-bold text-art-ink/60 hover:text-art-ink bg-transparent border border-art-ink/20 rounded px-2 py-0.5 hover:bg-art-ink/5 transition-colors"
                         >
                           Open Build

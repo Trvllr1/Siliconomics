@@ -11,6 +11,7 @@
 | 04 | [Build Object Spec](04-Build-Object-Spec.md) | ✓ Current (v1.1) | Core domain model and Build composition |
 | 05 | [Design System](05-Design-System.md) | ✓ Stable | Visual identity, typography, color, and component patterns |
 | 06 | [Executive Decision Center](06-Executive-Decision-Center.md) | ✓ Current (v1.1) | Executive workspace specification, all 6 capabilities shipped |
+| 09 | [Website Design Plan](09-Website-Design-Plan.md) | ✓ Current (v1.0) | Public marketing website specification ("Manhattan Web") |
 
 ## Current State (2026-07-17)
 
