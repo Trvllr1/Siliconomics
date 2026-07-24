@@ -22,6 +22,10 @@ export interface AuthUser {
   name: string;
   email: string;
   persona: PersonaType;
+  /** Lazy fetch of the Clerk session JWT for Authorization: Bearer ... calls.
+   * Returns null when not signed in / demo mode. Resolved per-request so the
+   * token is always fresh (Clerk session JWTs expire in ~60s) — never cached. */
+  getToken?: () => Promise<string | null>;
 }
 
 /** Clerk hooks throw when rendered outside <ClerkProvider>, which main.tsx only
@@ -30,7 +34,7 @@ export interface AuthUser {
 const CLERK_ENABLED = Boolean((import.meta as any).env?.VITE_CLERK_PUBLISHABLE_KEY);
 
 function useClerkAuthUser(): AuthUser {
-  const { isSignedIn, isLoaded } = useClerkAuth();
+  const { isSignedIn, isLoaded, getToken } = useClerkAuth();
   const { user } = useUser();
 
   if (!isLoaded || !isSignedIn || !user) {
@@ -42,6 +46,11 @@ function useClerkAuthUser(): AuthUser {
     name: user.fullName || user.username || user.primaryEmailAddress?.emailAddress || 'Unknown',
     email: user.primaryEmailAddress?.emailAddress || '',
     persona: (user.publicMetadata?.persona as PersonaType) || 'executive',
+    // Expose the Clerk session token getter. The apiAdapter calls this lazily
+    // so we never attach an expired JWT. Previously the adapter sent
+    // `Bearer ${user.id}` (a public Clerk user ID, NOT a JWT), which the server
+    // middleware tried (and failed) to decode as a JWT — auth was broken.
+    getToken: () => getToken(),
   };
 }
 
@@ -55,10 +64,12 @@ export function getDemoUser(): AuthUser {
   return DEMO_USER;
 }
 
-export function buildAuthHeaders(user: AuthUser): Record<string, string> {
-  if (user.id === 'demo-user') return {};
+export async function buildAuthHeaders(user: AuthUser): Promise<Record<string, string>> {
+  if (user.id === 'demo-user' || !user.getToken) return {};
+  const token = await user.getToken();
+  if (!token) return {};
   return {
-    Authorization: `Bearer ${user.id}`,
+    Authorization: `Bearer ${token}`,
     'X-User-Name': user.name,
     'X-User-Persona': user.persona,
   };

@@ -18,6 +18,24 @@ exports[`golden snapshots — default builds (locks model behavior) > key metric
 }
 `;
 
+exports[`golden snapshots — default builds (locks model behavior) > key metrics for brooklyn-b1 1`] = `
+{
+  "breakEvenVolumeMillion": 5.004,
+  "compositeRiskScore": 0,
+  "dieYieldPct": 98.868,
+  "dpw": 1752,
+  "fullyLoadedCostPerDie": 3.36,
+  "grossCostPerGoodDie": 3.15,
+  "grossMargin": 53.29,
+  "lifetimeNetProfitMillion": 287.7,
+  "monthlyVolumeMillion": 51.6015,
+  "packagingAndTestingCost": 1.29,
+  "rawDieCost": 1.85,
+  "roi": 1598.5,
+  "waferUtilization": 94.2,
+}
+`;
+
 exports[`golden snapshots — default builds (locks model behavior) > key metrics for manhattan-x1 1`] = `
 {
   "breakEvenVolumeMillion": 0.517,
@@ -51,5 +69,77 @@ exports[`golden snapshots — default builds (locks model behavior) > key metric
   "rawDieCost": 262.72,
   "roi": 2134,
   "waferUtilization": 88.2,
+}
+`;
+
+exports[`golden snapshots — default builds (locks model behavior) > key metrics for manhattan-x3 1`] = `
+{
+  "breakEvenVolumeMillion": 0.712,
+  "compositeRiskScore": 0,
+  "dieYieldPct": 88.278,
+  "dpw": 343,
+  "fullyLoadedCostPerDie": 56.3,
+  "grossCostPerGoodDie": 45.67,
+  "grossMargin": 72.32,
+  "lifetimeNetProfitMillion": 869.6,
+  "monthlyVolumeMillion": 1.7842,
+  "packagingAndTestingCost": 13.75,
+  "rawDieCost": 31.37,
+  "roi": 1023.1,
+  "waferUtilization": 87.3,
+}
+`;
+
+exports[`golden snapshots — default builds (locks model behavior) > key metrics for manhattan-x4 1`] = `
+{
+  "breakEvenVolumeMillion": 0.067,
+  "compositeRiskScore": 0,
+  "dieYieldPct": 76.146,
+  "dpw": 190,
+  "fullyLoadedCostPerDie": 142.22,
+  "grossCostPerGoodDie": 102.22,
+  "grossMargin": 95.35,
+  "lifetimeNetProfitMillion": 7202.2,
+  "monthlyVolumeMillion": 0.6968,
+  "packagingAndTestingCost": 34,
+  "rawDieCost": 65.66,
+  "roi": 5144.5,
+  "waferUtilization": 83.3,
+}
+`;
+
+exports[`golden snapshots — default builds (locks model behavior) > key metrics for queens-n1 1`] = `
+{
+  "breakEvenVolumeMillion": 1.062,
+  "compositeRiskScore": 0,
+  "dieYieldPct": 90.248,
+  "dpw": 552,
+  "fullyLoadedCostPerDie": 43.47,
+  "grossCostPerGoodDie": 35.55,
+  "grossMargin": 71.56,
+  "lifetimeNetProfitMillion": 978.4,
+  "monthlyVolumeMillion": 3.3866,
+  "packagingAndTestingCost": 15.7,
+  "rawDieCost": 19.07,
+  "roi": 1029.9,
+  "waferUtilization": 89.8,
+}
+`;
+
+exports[`golden snapshots — default builds (locks model behavior) > key metrics for queens-n2 1`] = `
+{
+  "breakEvenVolumeMillion": 0.228,
+  "compositeRiskScore": 0,
+  "dieYieldPct": 66.676,
+  "dpw": 135,
+  "fullyLoadedCostPerDie": 197.9,
+  "grossCostPerGoodDie": 161.9,
+  "grossMargin": 82.96,
+  "lifetimeNetProfitMillion": 3760.5,
+  "monthlyVolumeMillion": 0.301,
+  "packagingAndTestingCost": 51.5,
+  "rawDieCost": 105.54,
+  "roi": 2089.2,
+  "waferUtilization": 80.2,
 }
 `;

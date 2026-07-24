@@ -16,6 +16,9 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
     if (!existing.length) return res.status(404).json({ error: 'Source build not found' });
 
     const source = existing[0]!;
+    if (source.creatorId !== req.userId) {
+      return res.status(403).json({ error: 'Source build not accessible' });
+    }
     const verParts = source.version.match(/^v?(\d+)\.(\d+)$/);
     const newVersion = verParts ? `v${verParts[1]!}.${parseInt(verParts[2]!) + 1}` : 'v1.1';
 
@@ -36,7 +39,7 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
       architecture: changes?.architecture !== undefined ? changes.architecture : source.architecture,
       dataVintage: source.dataVintage,
     }).returning();
-    if (!newBuild) return res.status(500).json({ error: 'Failed to create new version' });
+    if (!newBuild) return res.status(500).json({ error: 'Internal server error' });
 
     await db.insert(buildEvents).values({
       buildId: newBuild.id,
@@ -46,7 +49,7 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
     });
 
     return res.status(201).json(newBuild);
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+  } catch {
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

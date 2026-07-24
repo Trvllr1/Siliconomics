@@ -36,8 +36,8 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
       default:
         return res.status(405).json({ error: 'Method not allowed' });
     }
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+  } catch {
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
@@ -46,17 +46,13 @@ async function getBuilds(req: AuthenticatedRequest, res: VercelResponse) {
   const includeFrozen = req.query.includeFrozen === 'true';
 
   if (id) {
-    const build = await db.select().from(builds).where(and(eq(builds.id, id), isNull(builds.deletedAt))).limit(1);
+    const build = await db.select().from(builds).where(and(eq(builds.id, id), eq(builds.creatorId, req.userId!), isNull(builds.deletedAt))).limit(1);
     if (!build.length) return res.status(404).json({ error: 'Build not found' });
     return res.json(build[0]);
   }
 
-  let query = db.select().from(builds).where(isNull(builds.deletedAt)).orderBy(desc(builds.updatedDate));
-
-  if (!includeFrozen) {
-    query = db.select().from(builds).where(and(isNull(builds.deletedAt), isNull(builds.frozenAt))).orderBy(desc(builds.updatedDate)) as any;
-  }
-
+  const where = and(eq(builds.creatorId, req.userId!), isNull(builds.deletedAt));
+  const query = db.select().from(builds).where(where).orderBy(desc(builds.updatedDate));
   const result = await query;
   return res.json(result);
 }
@@ -84,7 +80,7 @@ async function createBuild(req: AuthenticatedRequest, res: VercelResponse) {
     architecture: body.architecture || null,
     dataVintage: body.dataVintage || null,
   }).returning();
-  if (!build) return res.status(500).json({ error: 'Failed to create build' });
+  if (!build) return res.status(500).json({ error: 'Internal server error' });
 
   await db.insert(buildEvents).values({
     buildId: build.id,
@@ -100,7 +96,7 @@ async function updateBuild(req: AuthenticatedRequest, res: VercelResponse) {
   const id = req.query.id as string;
   if (!id) return res.status(400).json({ error: 'id query param is required' });
 
-  const existing = await db.select().from(builds).where(and(eq(builds.id, id), isNull(builds.deletedAt))).limit(1);
+  const existing = await db.select().from(builds).where(and(eq(builds.id, id), eq(builds.creatorId, req.userId!), isNull(builds.deletedAt))).limit(1);
   if (!existing.length) return res.status(404).json({ error: 'Build not found' });
 
   const build = existing[0]!;
@@ -133,7 +129,7 @@ async function updateBuild(req: AuthenticatedRequest, res: VercelResponse) {
     })
     .where(eq(builds.id, id))
     .returning();
-  if (!updated) return res.status(500).json({ error: 'Failed to update build' });
+  if (!updated) return res.status(500).json({ error: 'Internal server error' });
 
   await db.insert(buildEvents).values({
     buildId: id,
@@ -149,7 +145,7 @@ async function deleteBuild(req: AuthenticatedRequest, res: VercelResponse) {
   const id = req.query.id as string;
   if (!id) return res.status(400).json({ error: 'id query param is required' });
 
-  const existing = await db.select().from(builds).where(and(eq(builds.id, id), isNull(builds.deletedAt))).limit(1);
+  const existing = await db.select().from(builds).where(and(eq(builds.id, id), eq(builds.creatorId, req.userId!), isNull(builds.deletedAt))).limit(1);
   if (!existing.length) return res.status(404).json({ error: 'Build not found' });
 
   const build = existing[0]!;
@@ -163,7 +159,7 @@ async function deleteBuild(req: AuthenticatedRequest, res: VercelResponse) {
   const deletedAt = new Date();
   const [deleted] = await db.update(builds)
     .set({ deletedAt, updatedDate: deletedAt })
-    .where(and(eq(builds.id, id), isNull(builds.deletedAt)))
+    .where(and(eq(builds.id, id), eq(builds.creatorId, req.userId!), isNull(builds.deletedAt)))
     .returning();
   if (!deleted) return res.status(404).json({ error: 'Build not found' });
 

@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { handleChippieRequest } from './_lib/chippieCore.js';
+// TODO: Add requireAuth gate — currently unauthenticated; anyone can call the Chippie chat endpoint.
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

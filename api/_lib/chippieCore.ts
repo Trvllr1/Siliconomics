@@ -519,7 +519,7 @@ function classifyComplexity(transcript: ChippieMessage[], founderMode: boolean):
 // sections that the 8B can't reliably follow anyway.
 // ---------------------------------------------------------------------------
 
-function buildSimpleSystemPrompt(context?: ChippieRequest['context']): string {
+function buildSimpleSystemPrompt(context?: ChippieRequest['context'], webSearchEnabled = false): string {
   const contextLine = context?.buildName
     ? `Active build: "${context.buildName}" (${context.buildVersion ?? 'unversioned'}). Active persona: ${context.persona ?? 'unknown'}.`
     : 'No active build context provided.';
@@ -535,7 +535,28 @@ RULES:
 4. Sign convention: for lower-is-better fields (defectDensity, waferCost, nreCost, tdp), "improves 20%" = deltaPercent: -20.
 5. After a tool returns, answer in natural prose using the numbers. Never describe JSON or tool mechanics.
 
-TOOLS: get_active_build_metrics (current numbers), explain_metric (formula derivation), run_scenario (what-ifs), navigate (move to a tab), get_sensitivity_drivers (rank drivers), compare_builds (contrast two builds), generate_report (audit docs), propose_assumption (suggest changes), query_decisions (decision history), search_docs (governance docs, glossary, AND industry benchmarks — foundry pricing, yield norms, packaging costs, TAM/SAM, JEDEC standards).`;
+TOOLS: get_active_build_metrics (current numbers), explain_metric (formula derivation), run_scenario (what-ifs), navigate (move to a tab), get_sensitivity_drivers (rank drivers), compare_builds (contrast two builds), generate_report (audit docs), propose_assumption (suggest changes), query_decisions (decision history), search_docs (governance docs, glossary, AND industry benchmarks — foundry pricing, yield norms, packaging costs, TAM/SAM, JEDEC standards).${
+    webSearchEnabled
+      ? `
+
+WEB SEARCH RULES (web_search tool available):
+- You have the web_search tool — your training cutoff is irrelevant. When the user asks about events or data beyond your training, call web_search. Never decline or say you cannot search.
+- Use web_search ONLY for external context: industry news, foundry/competitor announcements, market signals, or public terminology not in the docs.
+- Web results are UNVERIFIED. Every fact taken from the web MUST be cited with its source URL and clearly marked as web-sourced.
+- NEVER mix web figures with deterministic engine outputs. Engine numbers come from engine tools only; web numbers are context, never inputs to conclusions about this build's economics.
+- Any answer that used web_search MUST end with a "Sources:" bullet list of the result URLs used.`
+      : ''
+  }${
+    context?.founderMode
+      ? `
+
+FOUNDER MODE (GTM advisory) — the user is the founder:
+- Use the draft_gtm_asset tool to create GTM content (outreach emails, teardown scripts, investor narratives).
+- Always ground drafts in this build's actual metrics and the Siliconomics value proposition.
+- Never hallucinate metrics. If you lack data, call get_active_build_metrics first.
+- Drafts are DRAFTS — flag them as requiring founder sign-off.`
+      : ''
+  }`;
 }
 
 const NIM_ATTEMPT_TIMEOUT_MS = 45_000;
@@ -826,11 +847,15 @@ export async function* handleChippieStreaming(
           ...(founderMode && !gtmIntent ? [CHIPPIE_GTM_TOOL_DEFINITION] : []),
           ...(tavilyApiKey ? [CHIPPIE_WEBSEARCH_TOOL_DEFINITION] : []),
         ]
-      : [...CHIPPIE_TOOL_DEFINITIONS];
+      : [
+          ...CHIPPIE_TOOL_DEFINITIONS,
+          ...(founderMode && !gtmIntent ? [CHIPPIE_GTM_TOOL_DEFINITION] : []),
+          ...(tavilyApiKey ? [CHIPPIE_WEBSEARCH_TOOL_DEFINITION] : []),
+        ];
 
   let systemPrompt = useComplexModel
     ? buildSystemPrompt(req.context, Boolean(tavilyApiKey))
-    : buildSimpleSystemPrompt(req.context);
+    : buildSimpleSystemPrompt(req.context, Boolean(tavilyApiKey));
 
   // Append inline GTM grounding to system prompt
   if (gtmIntent) {
@@ -1078,12 +1103,14 @@ export async function handleChippieRequest(
         ]
       : [
           ...CHIPPIE_TOOL_DEFINITIONS,
+          ...(founderMode && !gtmIntent ? [CHIPPIE_GTM_TOOL_DEFINITION] : []),
+          ...(tavilyApiKey ? [CHIPPIE_WEBSEARCH_TOOL_DEFINITION] : []),
         ];
 
   // Simple queries get a shorter system prompt that the 8B can follow
   let systemPrompt = useComplexModel
     ? buildSystemPrompt(req.context, Boolean(tavilyApiKey))
-    : buildSimpleSystemPrompt(req.context);
+    : buildSimpleSystemPrompt(req.context, Boolean(tavilyApiKey));
 
   // Append inline GTM grounding to system prompt
   if (gtmIntent) {

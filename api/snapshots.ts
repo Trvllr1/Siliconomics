@@ -19,7 +19,7 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
       .orderBy(desc(snapshots.createdAt));
 
     return res.json(result.map(({ snapshot }) => snapshot));
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+  } catch {
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

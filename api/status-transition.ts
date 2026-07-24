@@ -2,7 +2,7 @@ import type { VercelResponse } from '@vercel/node';
 import { AuthenticatedRequest, getUserPersona, requireAuth } from './middleware';
 import { db } from '../db';
 import { builds, buildEvents, snapshots } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { createHash } from 'crypto';
 import { computeBuildMetrics } from '../src/utils/mathEngine';
 
@@ -21,7 +21,7 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
     const { buildId } = req.body;
     if (!buildId) return res.status(400).json({ error: 'buildId is required' });
 
-    const existing = await db.select().from(builds).where(eq(builds.id, buildId)).limit(1);
+    const existing = await db.select().from(builds).where(and(eq(builds.id, buildId), eq(builds.creatorId, req.userId!))).limit(1);
     if (!existing.length) return res.status(404).json({ error: 'Build not found' });
 
     const build = existing[0]!;
@@ -83,7 +83,7 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
     });
 
     return res.json(updated);
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+  } catch {
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

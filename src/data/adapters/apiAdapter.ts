@@ -15,10 +15,11 @@ type ApiComment = Omit<Comment, 'author' | 'role' | 'timestamp'> & {
   createdAt: string;
 };
 
-function headers(user?: AuthUser): Record<string, string> {
+async function headers(user?: AuthUser): Promise<Record<string, string>> {
   const h: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (user && user.id !== 'demo-user') {
-    h['Authorization'] = `Bearer ${user.id}`;
+  if (user && user.id !== 'demo-user' && user.getToken) {
+    const token = await user.getToken();
+    if (token) h['Authorization'] = `Bearer ${token}`;
   }
   return h;
 }

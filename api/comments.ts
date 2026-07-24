@@ -60,7 +60,7 @@ export default async function handler(req: AuthenticatedRequest, res: VercelResp
       default:
         return res.status(405).json({ error: 'Method not allowed' });
     }
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Internal server error' });
+  } catch {
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
